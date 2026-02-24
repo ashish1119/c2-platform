@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, TIMESTAMP, func
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, TIMESTAMP, func, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geography
@@ -8,7 +8,7 @@ from app.database import Base
 
 class Role(Base):
     __tablename__ = "roles"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True)
 
 
@@ -19,7 +19,8 @@ class User(Base):
     email = Column(String, unique=True)
     hashed_password = Column(Text)
     is_active = Column(Boolean, default=True)
-    role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id"))
+
+    role_id = Column(Integer, ForeignKey("roles.id"))
     role = relationship("Role")
 
 

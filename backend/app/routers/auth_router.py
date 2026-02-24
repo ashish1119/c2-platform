@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.database import AsyncSessionLocal
 from app.models import User
 from app.core.security import verify_password, create_access_token
+from app.schemas import LoginRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -14,14 +16,16 @@ async def get_db():
 
 
 @router.post("/login")
-async def login(data: dict, db: AsyncSession = Depends(get_db)):
+async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(User).where(User.username == data["username"])
+        select(User)
+        .options(selectinload(User.role))
+        .where(User.username == data.username)
     )
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(
-        data["password"], user.hashed_password
+        data.password, user.hashed_password
     ):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
