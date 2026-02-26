@@ -62,6 +62,10 @@ CREATE TABLE rf_signals (
     id BIGSERIAL,
     frequency DOUBLE PRECISION NOT NULL,
     power_level DOUBLE PRECISION NOT NULL,
+    modulation VARCHAR(50) DEFAULT 'UNKNOWN',
+    bandwidth_hz DOUBLE PRECISION,
+    confidence DOUBLE PRECISION DEFAULT 0.5,
+    doa_deg DOUBLE PRECISION,
     location GEOGRAPHY(POINT, 4326),
     detected_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (id, detected_at)

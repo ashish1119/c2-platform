@@ -13,6 +13,14 @@ VALID_TRANSITIONS = {
 }
 
 
+async def list_alerts(db: AsyncSession, status: str | None = None):
+    query = select(Alert).order_by(Alert.created_at.desc())
+    if status:
+        query = query.where(Alert.status == status)
+    result = await db.execute(query)
+    return result.scalars().all()
+
+
 async def acknowledge_alert(
     db: AsyncSession, alert_id, user_id
 ):

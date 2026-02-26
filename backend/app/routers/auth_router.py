@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from app.database import AsyncSessionLocal
 from app.models import User
 from app.core.security import verify_password, create_access_token
-from app.schemas import LoginRequest
+from app.schemas import LoginRequest, LoginResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -33,4 +33,9 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
         {"sub": str(user.id), "role": user.role.name}
     )
 
-    return {"access_token": token}
+    return LoginResponse(
+        id=user.id,
+        username=user.username,
+        role=user.role.name,
+        token=token,
+    )

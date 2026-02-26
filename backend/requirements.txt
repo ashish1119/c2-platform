@@ -13,3 +13,5 @@ python-multipart
 alembic
 loguru
 slowapi
+numpy
+folium

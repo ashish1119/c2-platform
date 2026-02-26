@@ -1,18 +1,26 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-interface Props {
-  children: JSX.Element;
-  requiredRole?: string;
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredRole?: "ADMIN" | "OPERATOR";
 }
 
-export default function ProtectedRoute({ children, requiredRole }: Props) {
-  const { token, role } = useAuth();
+export default function ProtectedRoute({
+  children,
+  requiredRole,
+}: ProtectedRouteProps) {
+  const { user } = useAuth();
 
-  if (!token) return <Navigate to="/login" />;
+  // Not logged in
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
-  if (requiredRole && role !== requiredRole)
-    return <Navigate to="/" />;
+  // Role mismatch
+  if (requiredRole && user.role !== requiredRole) {
+    return <Navigate to="/login" replace />;
+  }
 
   return children;
 }
