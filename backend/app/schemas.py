@@ -120,6 +120,7 @@ class AssetRead(BaseModel):
     status: str
     latitude: float
     longitude: float
+    df_radius_m: float | None = None
     created_at: datetime | None = None
 
 
@@ -626,6 +627,15 @@ class SmsTrackRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SmsTrackClassifyRequest(BaseModel):
+    classification: str = Field(min_length=1, max_length=128)
+    threat_level: int | None = Field(default=None, ge=0, le=5)
+
+
+class SmsThreatAckRequest(BaseModel):
+    status: str = Field(default="ACK", min_length=2, max_length=32)
+
+
 class SmsThreatRead(BaseModel):
     id: uuid.UUID
     track_id: uuid.UUID
@@ -671,3 +681,14 @@ class SmsAdapterIngestResponse(BaseModel):
     rejected: int
     errors: list[str] = Field(default_factory=list)
     node_health: SmsNodeHealthRead
+
+
+class SmsAdapterHealthRead(BaseModel):
+    running: bool
+    queue_depth: int
+    processed_messages: int
+    accepted_detections: int
+    rejected_detections: int
+    last_message_at: datetime | None = None
+    last_error: str | None = None
+    nodes: list[dict[str, Any]] = Field(default_factory=list)

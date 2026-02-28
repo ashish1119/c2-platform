@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run SMS Smoke Test",
+			"type": "shell",
+			"command": "C:/Users/ashish.jain/AppData/Local/Programs/Python/Python314/python.exe",
+			"args": [
+				"scripts/sms_smoke_test.py"
+			],
+			"isBackground": false,
+			"group": "test"
+		}
+	]
+}

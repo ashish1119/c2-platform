@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import AdminDashboard from "./pages/AdminDashboard";
-import OperatorDashboard from "./pages/OperatorDashboard";
 import { OperatorMapPage, OperatorAlertsPage } from "./pages/operator";
 import ReportsPage from "./pages/ReportsPage";
 import PlanningPage from "./pages/PlanningPage";
@@ -74,7 +73,7 @@ export default function App() {
             path="/operator"
             element={
               <ProtectedRoute requiredRole="OPERATOR">
-                <OperatorDashboard />
+                <Navigate to="/operator/map" replace />
               </ProtectedRoute>
             }
           />
@@ -100,7 +99,7 @@ export default function App() {
           <Route
             path="/reports"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredRole="OPERATOR">
                 <ReportsPage />
               </ProtectedRoute>
             }
@@ -109,7 +108,7 @@ export default function App() {
           <Route
             path="/planning"
             element={
-              <ProtectedRoute requiredRole="OPERATOR">
+              <ProtectedRoute requiredRole="ADMIN">
                 <PlanningPage />
               </ProtectedRoute>
             }

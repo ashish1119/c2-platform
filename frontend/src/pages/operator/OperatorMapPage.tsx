@@ -14,6 +14,9 @@ import {
 } from "../../api/rf";
 import { useTheme } from "../../context/ThemeContext";
 
+const ASSET_TREE_VISIBLE_KEY = "ui.operator.assetTree.visible";
+const ASSET_TREE_PINNED_KEY = "ui.operator.assetTree.pinned";
+
 export default function OperatorMapPage() {
   const { theme } = useTheme();
   const [assets, setAssets] = useState<AssetRecord[]>([]);
@@ -21,8 +24,14 @@ export default function OperatorMapPage() {
   const [selectedAssetTypes, setSelectedAssetTypes] = useState<string[]>([]);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [expandedAssetTypes, setExpandedAssetTypes] = useState<string[]>([]);
-  const [isTreeVisible, setIsTreeVisible] = useState(false);
-  const [isTreePinned, setIsTreePinned] = useState(false);
+  const [isTreeVisible, setIsTreeVisible] = useState<boolean>(() => {
+    const stored = localStorage.getItem(ASSET_TREE_VISIBLE_KEY);
+    return stored === null ? true : stored === "true";
+  });
+  const [isTreePinned, setIsTreePinned] = useState<boolean>(() => {
+    const stored = localStorage.getItem(ASSET_TREE_PINNED_KEY);
+    return stored === "true";
+  });
   const hasInitializedSelectionsRef = useRef(false);
   const hasInitializedExpandedRef = useRef(false);
 
@@ -108,6 +117,14 @@ export default function OperatorMapPage() {
       return retained;
     });
   }, [assetTypeGroups]);
+
+  useEffect(() => {
+    localStorage.setItem(ASSET_TREE_VISIBLE_KEY, String(isTreeVisible));
+  }, [isTreeVisible]);
+
+  useEffect(() => {
+    localStorage.setItem(ASSET_TREE_PINNED_KEY, String(isTreePinned));
+  }, [isTreePinned]);
 
   const assetsByType = useMemo(() => {
     const grouped = new Map<string, AssetRecord[]>();
@@ -233,15 +250,36 @@ export default function OperatorMapPage() {
             <div
               onMouseEnter={() => setIsTreeVisible(true)}
               style={{
-                width: "12px",
+                width: "44px",
                 height: "calc(100dvh - 190px)",
                 borderRadius: theme.radius.md,
                 border: `1px solid ${theme.colors.border}`,
                 background: theme.colors.surfaceAlt,
                 cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
               title="Show filters"
-            />
+            >
+              <button
+                type="button"
+                onClick={() => setIsTreeVisible(true)}
+                style={{
+                  border: `1px solid ${theme.colors.border}`,
+                  borderRadius: theme.radius.sm,
+                  background: theme.colors.surface,
+                  color: theme.colors.textPrimary,
+                  cursor: "pointer",
+                  width: 28,
+                  height: 28,
+                  lineHeight: 1,
+                }}
+                aria-label="Show asset tree"
+              >
+                »
+              </button>
+            </div>
           )}
 
           {isTreeVisible && (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import type { AssetRecord } from "../api/assets";
 import type { AlertRecord } from "../api/alerts";
@@ -169,6 +169,9 @@ export default function MapView({
       typeof alert.latitude === "number" &&
       typeof alert.longitude === "number"
   );
+  const directionFinderAssets = assets.filter(
+    (asset) => (asset.type ?? "").trim().toUpperCase() === "DIRECTION_FINDER"
+  );
   const assetTypeLegend = useMemo(() => {
     const seen = new Set<string>();
     for (const asset of assets) {
@@ -188,19 +191,22 @@ export default function MapView({
     return [...orderedKnown, ...unknown];
   }, [assets]);
   const maxDensity = Math.max(1, ...heatCells.map((c) => c.density));
+  const hasAlertMarkers = alertMarkers.length > 0;
   const hasAssets = assets.length > 0;
   const hasSignals = signals.length > 0;
   const hasCoverage = coveragePoints.length > 0;
   const mapCenter: [number, number] = useMemo(
     () =>
-      hasAssets
+      hasAlertMarkers
+        ? [alertMarkers[0].latitude as number, alertMarkers[0].longitude as number]
+        : hasAssets
         ? [assets[0].latitude, assets[0].longitude]
         : hasSignals
           ? [signals[0].latitude, signals[0].longitude]
           : hasCoverage
             ? [coveragePoints[0].latitude, coveragePoints[0].longitude]
             : defaultCenter,
-    [hasAssets, hasSignals, hasCoverage, assets, signals, coveragePoints, defaultCenter],
+    [hasAlertMarkers, hasAssets, hasSignals, hasCoverage, alertMarkers, assets, signals, coveragePoints, defaultCenter],
   );
   const assetLinkPairs: Array<[[number, number], [number, number]]> = [];
 
@@ -249,6 +255,20 @@ export default function MapView({
             </div>
           </Popup>
         </Marker>
+      ))}
+
+      {directionFinderAssets.map((asset) => (
+        <Circle
+          key={`df-circle-${asset.id}`}
+          center={[asset.latitude, asset.longitude]}
+          radius={asset.df_radius_m && asset.df_radius_m > 0 ? asset.df_radius_m : 1000}
+          pathOptions={{
+            color: "#dc2626",
+            weight: 2,
+            fillColor: "#dc2626",
+            fillOpacity: 0.08,
+          }}
+        />
       ))}
 
       {alertMarkers.map((alert) => (

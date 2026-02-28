@@ -95,6 +95,7 @@ async def list_sms_detections(
     to_ts: datetime | None = None,
     freq_min_hz: int | None = None,
     freq_max_hz: int | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
     source_node: str | None = None,
     limit: int = 500,
 ):
@@ -108,12 +109,58 @@ async def list_sms_detections(
         stmt = stmt.where(SmsDetection.frequency_hz >= freq_min_hz)
     if freq_max_hz is not None:
         stmt = stmt.where(SmsDetection.frequency_hz <= freq_max_hz)
+    if bbox is not None:
+        west, south, east, north = bbox
+        stmt = stmt.where(
+            SmsDetection.longitude.is_not(None),
+            SmsDetection.latitude.is_not(None),
+            SmsDetection.longitude >= west,
+            SmsDetection.longitude <= east,
+            SmsDetection.latitude >= south,
+            SmsDetection.latitude <= north,
+        )
     if source_node:
         stmt = stmt.where(SmsDetection.source_node == source_node)
 
     stmt = stmt.order_by(desc(SmsDetection.timestamp_utc)).limit(max(1, min(limit, 5000)))
     rows = await db.execute(stmt)
     return rows.scalars().all()
+
+
+async def classify_sms_track(
+    db: AsyncSession,
+    track_id,
+    classification: str,
+    threat_level: int | None = None,
+):
+    row = await db.execute(select(SmsTrack).where(SmsTrack.id == track_id))
+    track = row.scalar_one_or_none()
+    if track is None:
+        return None
+
+    track.classification = classification
+    if threat_level is not None:
+        track.threat_level = threat_level
+
+    await db.commit()
+    await db.refresh(track)
+    return track
+
+
+async def acknowledge_sms_threat(
+    db: AsyncSession,
+    threat_id,
+    status: str = "ACK",
+):
+    row = await db.execute(select(SmsThreat).where(SmsThreat.id == threat_id))
+    threat = row.scalar_one_or_none()
+    if threat is None:
+        return None
+
+    threat.status = status.upper()
+    await db.commit()
+    await db.refresh(threat)
+    return threat
 
 
 async def list_sms_tracks(db: AsyncSession, active_only: bool = True, limit: int = 500):

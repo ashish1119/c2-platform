@@ -7,7 +7,7 @@ type TopbarProps = {
 };
 
 export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProps) {
-  const { theme, mode, toggleTheme } = useTheme();
+  const { theme, mode, setting, setThemeMode } = useTheme();
   const location = useLocation();
 
   const pageTitle = (() => {
@@ -17,6 +17,7 @@ export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProp
     if (pathname === "/admin/assets") return "Asset Management";
     if (pathname === "/admin/decodio") return "Decodio Control";
     if (pathname === "/admin/audit-logs") return "Audit Logs";
+    if (pathname === "/admin/sms") return "SMS Monitoring";
     if (pathname === "/operator") return "Operations Center";
     if (pathname === "/operator/map") return "Operator Map";
     if (pathname === "/operator/alerts") return "Operator Alerts";
@@ -69,19 +70,37 @@ export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProp
           {isSidebarVisible ? "Hide Menu" : "Show Menu"}
         </button>
 
-        <button
-          onClick={toggleTheme}
+        <label
           style={{
-            background: theme.colors.primary,
-            color: "#fff",
-            border: "none",
-            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: theme.spacing.sm,
+            background: theme.colors.surfaceAlt,
+            border: `1px solid ${theme.colors.border}`,
             borderRadius: theme.radius.md,
-            cursor: "pointer",
+            padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+            color: theme.colors.textPrimary,
+            fontSize: theme.typography.body.fontSize,
           }}
         >
-          {mode === "light" ? "Switch to Dark Theme" : "Switch to Light Theme"}
-        </button>
+          Theme
+          <select
+            value={setting}
+            onChange={(event) => setThemeMode(event.target.value as "light" | "dark" | "system")}
+            title={`Current mode: ${mode}`}
+            style={{
+              background: theme.colors.surface,
+              color: theme.colors.textPrimary,
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: theme.radius.sm,
+              padding: `2px ${theme.spacing.sm}`,
+            }}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System</option>
+          </select>
+        </label>
       </div>
     </div>
   );

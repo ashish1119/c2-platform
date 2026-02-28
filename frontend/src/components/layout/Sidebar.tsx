@@ -71,11 +71,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       {user?.role === "ADMIN" && canReadDecodio && navItem("/admin/decodio", "Decodio")}
       {user?.role === "ADMIN" && canReadAudit && navItem("/admin/audit-logs", "Audit Logs")}
       {user?.role === "ADMIN" && canReadSms && navItem("/admin/sms", "SMS")}
-      {user?.role === "OPERATOR" && navItem("/operator", "Operations")}
       {user?.role === "OPERATOR" && navItem("/operator/map", "Map")}
       {user?.role === "OPERATOR" && navItem("/operator/alerts", "Alert List")}
-      {user?.role === "OPERATOR" && navItem("/planning", "Planning")}
-      {navItem("/reports", "Reports")}
+      {user?.role === "OPERATOR" && navItem("/reports", "Reports")}
     </div>
   );
 }

@@ -19,6 +19,10 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
 
   const inferAlertType = (alert: AlertRecord) => {
     if (alert.alert_type && alert.alert_type.trim().length > 0) {
+      const normalized = alert.alert_type.trim().toUpperCase();
+      if (normalized === "DF" || normalized === "DIRECTION_FINDER") {
+        return "Direction Finder";
+      }
       return alert.alert_type;
     }
     const description = alert.description ?? "";
@@ -40,11 +44,32 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     return `${alert.severity} Alert`;
   };
 
+  const inferAlertSource = (alert: AlertRecord) => {
+    if (alert.asset_id) {
+      return assetNameById[alert.asset_id] ?? "Unknown Asset";
+    }
+
+    const description = alert.description ?? "";
+    const sourceNameMatch = description.match(/source_name=([^|,\s]+)/i);
+    if (sourceNameMatch?.[1]) {
+      return sourceNameMatch[1].replace(/_/g, " ");
+    }
+
+    const senderMatch = description.match(/sender=([^\s|,]+)/i);
+    if (senderMatch?.[1]) {
+      return senderMatch[1].replace(/_/g, " ");
+    }
+
+    const fromMatch = description.match(/from\s([^:]+):/i);
+    if (fromMatch?.[1]) {
+      return fromMatch[1].trim();
+    }
+
+    return "-";
+  };
+
   const renderOthers = (alert: AlertRecord) => {
     const bits: string[] = [];
-    if (typeof alert.latitude === "number" && typeof alert.longitude === "number") {
-      bits.push(`Geo: ${alert.latitude.toFixed(4)}, ${alert.longitude.toFixed(4)}`);
-    }
     if (alert.acknowledged_by) {
       bits.push(`Ack By: ${alert.acknowledged_by}`);
     }
@@ -110,11 +135,13 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
       <table style={{ width: "100%", borderCollapse: "collapse", background: theme.colors.surfaceAlt, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.md, overflow: "hidden" }}>
         <thead>
           <tr>
-            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Alert ID</th>
-            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Alert Name</th>
-            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Alert Type</th>
-            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Asset Name</th>
-            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Asset Date and Time</th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>ID</th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Details</th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Type</th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Source</th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Date and Time</th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Latitude</th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Longitude</th>
             <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Status</th>
             <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Ack</th>
             <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Others</th>
@@ -126,8 +153,10 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{alert.id}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{inferAlertName(alert)}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{inferAlertType(alert)}</td>
-              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{alert.asset_id ? (assetNameById[alert.asset_id] ?? "Unknown Asset") : "-"}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{inferAlertSource(alert)}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{alert.created_at ? new Date(alert.created_at).toLocaleString() : "-"}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{typeof alert.latitude === "number" ? alert.latitude.toFixed(6) : "-"}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{typeof alert.longitude === "number" ? alert.longitude.toFixed(6) : "-"}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{alert.status}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
                 {alert.status === "NEW" && showAcknowledge ? (
@@ -145,7 +174,7 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
           ))}
           {alerts.length === 0 && (
             <tr>
-              <td style={{ padding: theme.spacing.sm }} colSpan={8}>No alerts found.</td>
+              <td style={{ padding: theme.spacing.sm }} colSpan={10}>No alerts found.</td>
             </tr>
           )}
         </tbody>

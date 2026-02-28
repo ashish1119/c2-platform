@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -6,6 +7,9 @@ from pydantic import BaseModel, Field, field_validator
 class TcpIncomingMessage(BaseModel):
     msg_id: str = Field(min_length=1)
     sender_id: str = Field(min_length=1)
+    source_name: str | None = None
+    source_type: str | None = None
+    source_details: dict[str, Any] | None = None
     event_type: str = Field(min_length=1)
     value: float
     unit: str | None = None

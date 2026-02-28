@@ -20,6 +20,7 @@ async def create(data: AssetCreate, db: AsyncSession = Depends(get_db)):
 		status=row.status,
 		latitude=row.latitude,
 		longitude=row.longitude,
+		df_radius_m=row.df_radius_m,
 		created_at=row.created_at,
 	)
 
@@ -35,6 +36,7 @@ async def list_all(db: AsyncSession = Depends(get_db)):
 			status=row.status,
 			latitude=row.latitude,
 			longitude=row.longitude,
+			df_radius_m=row.df_radius_m,
 			created_at=row.created_at,
 		)
 		for row in rows

@@ -7,6 +7,7 @@ export type AssetRecord = {
   status: string;
   latitude: number;
   longitude: number;
+  df_radius_m?: number | null;
   created_at?: string | null;
 };
 

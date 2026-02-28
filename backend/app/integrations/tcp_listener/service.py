@@ -108,10 +108,8 @@ class TcpListenerService:
             return
 
         severity = self._resolve_severity(message)
-        description = (
-            f"TCP event={message.event_type} sender={message.sender_id} "
-            f"value={message.value}{(' ' + message.unit) if message.unit else ''}"
-        )
+        alert_type, alert_name = self._resolve_alert_identity(message.event_type)
+        description = self._build_alert_description(message, alert_type)
 
         location = None
         if message.latitude is not None and message.longitude is not None:
@@ -119,8 +117,8 @@ class TcpListenerService:
 
         async with AsyncSessionLocal() as session:
             alert = Alert(
-                alert_name=f"{message.event_type.upper()} alert",
-                alert_type=message.event_type.upper(),
+                alert_name=alert_name,
+                alert_type=alert_type,
                 severity=severity,
                 status="NEW",
                 description=description,
@@ -138,6 +136,9 @@ class TcpListenerService:
                     "status": alert.status,
                     "description": alert.description,
                     "sender_id": message.sender_id,
+                    "source_name": message.source_name,
+                    "source_type": message.source_type,
+                    "source_details": message.source_details,
                     "event_type": message.event_type,
                     "msg_id": message.msg_id,
                     "timestamp": message.ts.isoformat(),
@@ -159,12 +160,58 @@ class TcpListenerService:
         }
 
     @staticmethod
+    def _resolve_alert_identity(event_type: str) -> tuple[str, str]:
+        normalized = event_type.strip().lower()
+        direction_finder_aliases = {
+            "df",
+            "direction_finder",
+            "direction-finder",
+            "directionfinder",
+            "bearing",
+            "aoa",
+            "doa",
+        }
+        if normalized in direction_finder_aliases:
+            return "DIRECTION_FINDER", "Direction Finder Alert"
+
+        event_upper = event_type.strip().upper()
+        return event_upper, f"{event_upper} alert"
+
+    @staticmethod
+    def _build_alert_description(message: TcpIncomingMessage, alert_type: str) -> str:
+        source_name = message.source_name or message.sender_id
+        source_type = message.source_type or "UNKNOWN"
+        source_parts = [f"source_name={source_name}", f"source_type={source_type}"]
+        if message.source_details:
+            detail_pairs = [f"{key}={value}" for key, value in message.source_details.items()]
+            if detail_pairs:
+                source_parts.append("source_details=" + ";".join(detail_pairs))
+        source_summary = " | ".join(source_parts)
+
+        if alert_type == "DIRECTION_FINDER":
+            value_with_unit = f"{message.value}{(' ' + message.unit) if message.unit else ''}"
+            return (
+                f"Direction Finder detection from {message.sender_id}: "
+                f"bearing={value_with_unit}, msg_id={message.msg_id} | {source_summary}"
+            )
+
+        return (
+            f"TCP event={message.event_type} sender={message.sender_id} "
+            f"value={message.value}{(' ' + message.unit) if message.unit else ''} | {source_summary}"
+        )
+
+    @staticmethod
     def _resolve_severity(message: TcpIncomingMessage) -> str:
         if message.severity_hint:
             return message.severity_hint
 
         event_type = message.event_type.lower()
         value = message.value
+
+        if event_type in {"df", "direction_finder", "direction-finder", "directionfinder", "bearing", "aoa", "doa"}:
+            if value < 0 or value >= 360:
+                return "HIGH"
+            return "MEDIUM"
 
         if event_type == "temperature":
             if value >= 95:
