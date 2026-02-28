@@ -11,23 +11,3 @@ export type AssetRecord = {
 };
 
 export const getAssets = () => api.get<AssetRecord[]>("/assets");
-
-export const exportAssetsCsv = () => api.get("/assets/export/csv");
-
-export const exportAssetsXml = () => api.get("/assets/export/xml");
-
-export const importAssetsCsv = (file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-  return api.post("/assets/import/csv", form, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-};
-
-export const importAssetsXml = (file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-  return api.post("/assets/import/xml", form, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-};

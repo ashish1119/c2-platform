@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from fastapi import HTTPException
 from datetime import datetime
+from geoalchemy2 import Geometry
 from app.models import Alert
 from app.core.websocket_manager import manager
 
@@ -14,11 +15,41 @@ VALID_TRANSITIONS = {
 
 
 async def list_alerts(db: AsyncSession, status: str | None = None):
-    query = select(Alert).order_by(Alert.created_at.desc())
+    query = select(
+        Alert.id,
+        Alert.asset_id,
+        Alert.alert_name,
+        Alert.alert_type,
+        Alert.severity,
+        Alert.status,
+        Alert.description,
+        Alert.acknowledged_by,
+        Alert.acknowledged_at,
+        Alert.created_at,
+        func.ST_Y(Alert.location.cast(Geometry)).label("latitude"),
+        func.ST_X(Alert.location.cast(Geometry)).label("longitude"),
+    ).order_by(Alert.created_at.desc())
     if status:
         query = query.where(Alert.status == status)
     result = await db.execute(query)
-    return result.scalars().all()
+    rows = result.all()
+    return [
+        {
+            "id": row.id,
+            "asset_id": row.asset_id,
+            "alert_name": row.alert_name,
+            "alert_type": row.alert_type,
+            "severity": row.severity,
+            "status": row.status,
+            "description": row.description,
+            "acknowledged_by": row.acknowledged_by,
+            "acknowledged_at": row.acknowledged_at,
+            "created_at": row.created_at,
+            "latitude": row.latitude,
+            "longitude": row.longitude,
+        }
+        for row in rows
+    ]
 
 
 async def acknowledge_alert(

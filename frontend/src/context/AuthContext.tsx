@@ -6,6 +6,7 @@ interface User {
   username: string;
   role: "ADMIN" | "OPERATOR";
   token: string;
+  permissions?: string[];
 }
 
 interface AuthContextType {
@@ -34,7 +35,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       password,
     });
 
-    const loggedUser = response.data;
+    const loggedUser = {
+      ...response.data,
+      permissions: response.data.permissions ?? [],
+    } as User;
 
     setUser(loggedUser);
 

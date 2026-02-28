@@ -2,10 +2,29 @@ import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 
-export default function Sidebar() {
+type SidebarProps = {
+  onNavigate?: () => void;
+};
+
+export default function Sidebar({ onNavigate }: SidebarProps) {
   const { theme } = useTheme();
   const { user } = useAuth();
   const location = useLocation();
+  const permissions = user?.permissions ?? [];
+  const canReadDecodio =
+    permissions.includes("decodio:read") ||
+    permissions.includes("decodio:*") ||
+    permissions.includes("*:*");
+  const canReadAudit =
+    permissions.includes("audit:read") ||
+    permissions.includes("audit:*") ||
+    permissions.includes("*:*");
+  const canReadSms =
+    user?.role === "ADMIN" ||
+    permissions.includes("sms:read") ||
+    permissions.includes("sms:*") ||
+    permissions.includes("*:read") ||
+    permissions.includes("*:*");
 
   const navItem = (to: string, label: string) => {
     const active = location.pathname === to;
@@ -14,6 +33,7 @@ export default function Sidebar() {
       <Link
         key={to}
         to={to}
+        onClick={onNavigate}
         style={{
           display: "block",
           padding: theme.spacing.md,
@@ -48,6 +68,9 @@ export default function Sidebar() {
       {user?.role === "ADMIN" && navItem("/admin", "Dashboard")}
       {user?.role === "ADMIN" && navItem("/admin/users", "User Management")}
       {user?.role === "ADMIN" && navItem("/admin/assets", "Assets")}
+      {user?.role === "ADMIN" && canReadDecodio && navItem("/admin/decodio", "Decodio")}
+      {user?.role === "ADMIN" && canReadAudit && navItem("/admin/audit-logs", "Audit Logs")}
+      {user?.role === "ADMIN" && canReadSms && navItem("/admin/sms", "SMS")}
       {user?.role === "OPERATOR" && navItem("/operator", "Operations")}
       {user?.role === "OPERATOR" && navItem("/operator/map", "Map")}
       {user?.role === "OPERATOR" && navItem("/operator/alerts", "Alert List")}

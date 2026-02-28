@@ -16,3 +16,8 @@ export const createRoleInheritance = (parent_role_id: number, child_role_id: num
 
 export const getEffectivePermissions = (roleId: number) =>
 	api.get<{ resource: string; action: string; scope: string }[]>(`/roles/${roleId}/effective-permissions`);
+
+export const grantDecodioReadToOperator = () =>
+	api.post<{ status: string; role: string; granted: string; removed_write_assignments: number }>(
+		"/roles/workflows/decodio-read-operator"
+	);

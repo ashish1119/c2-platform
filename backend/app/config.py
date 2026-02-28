@@ -34,6 +34,23 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = "INFO"
 
+    # Decodio integration
+    DECODIO_ENABLED: bool = False
+    DECODIO_HOST: str = "127.0.0.1"
+    DECODIO_PORT: int = 9100
+    DECODIO_CONNECT_TIMEOUT_SECONDS: float = 5.0
+    DECODIO_READ_TIMEOUT_SECONDS: float = 45.0
+    DECODIO_HEARTBEAT_INTERVAL_SECONDS: int = 15
+    DECODIO_ACK_TIMEOUT_SECONDS: float = 8.0
+    DECODIO_RECONNECT_MAX_SECONDS: int = 60
+
+    # TCP listener integration
+    TCP_LISTENER_ENABLED: bool = False
+    TCP_LISTENER_HOST: str = "0.0.0.0"
+    TCP_LISTENER_PORT: int = 9300
+    TCP_LISTENER_IDLE_TIMEOUT_SECONDS: int = 30
+    TCP_LISTENER_MAX_LINE_BYTES: int = 16384
+
 
 @lru_cache
 def get_settings() -> Settings:

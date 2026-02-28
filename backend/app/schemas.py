@@ -1,6 +1,7 @@
 import uuid
+from typing import Any
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -13,6 +14,7 @@ class LoginResponse(BaseModel):
     username: str
     role: str
     token: str
+    permissions: list[str] = []
 
 
 class RoleRead(BaseModel):
@@ -68,14 +70,35 @@ class RoleInheritanceCreate(BaseModel):
 class AlertRead(BaseModel):
     id: uuid.UUID
     asset_id: uuid.UUID | None = None
+    alert_name: str | None = None
+    alert_type: str | None = None
     severity: str
     status: str
     description: str | None = None
     acknowledged_by: uuid.UUID | None = None
     acknowledged_at: datetime | None = None
     created_at: datetime | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DecodioConfigUpdate(BaseModel):
+    enabled: bool
+    host: str
+    port: int = Field(ge=1, le=65535)
+    connect_timeout_seconds: float = Field(gt=0)
+    read_timeout_seconds: float = Field(gt=0)
+    heartbeat_interval_seconds: int = Field(gt=0)
+    ack_timeout_seconds: float = Field(gt=0)
+    reconnect_max_seconds: int = Field(gt=0)
+    json_format: str = Field(default="auto")
+    event_aliases: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class DecodioConfigRead(DecodioConfigUpdate):
+    updated_at: datetime | None = None
 
 
 class AlertAcknowledgeRequest(BaseModel):
@@ -201,3 +224,450 @@ class CoverageSimulationResponse(BaseModel):
     scenario_name: str
     model_name: str
     points: list[CoveragePoint]
+
+
+class AuditLogRead(BaseModel):
+    id: int
+    user_id: uuid.UUID | None = None
+    action: str | None = None
+    entity: str | None = None
+    details: dict = {}
+    timestamp: datetime | None = None
+    username: str | None = None
+
+
+class JammerProfileBase(BaseModel):
+    asset_id: uuid.UUID
+
+    manufacturer: str
+    model_number: str
+    variant_block: str | None = None
+    serial_number: str
+    asset_class: str = "JAMMER"
+    jammer_subtype: str
+    mission_domain: str
+    lifecycle_state: str = "ACTIVE_SERVICE"
+
+    dimensions_l_m: float | None = None
+    dimensions_w_m: float | None = None
+    dimensions_h_m: float | None = None
+    weight_kg: float | None = None
+    environmental_rating: str | None = None
+    operating_temp_min_c: float | None = None
+    operating_temp_max_c: float | None = None
+    ingress_protection_rating: str | None = None
+
+    platform_type: str
+    mounting_configuration: str | None = None
+    antenna_configuration: str | None = None
+    vehicle_power_bus_type: str | None = None
+    cooling_integration_type: str | None = None
+    time_source_interface: str | None = None
+
+    rf_coverage_min_mhz: float
+    rf_coverage_max_mhz: float
+    max_effective_radiated_power_dbm: float | None = None
+    simultaneous_channels_max: int | None = None
+    waveform_family_support: list[str] = []
+    modulation_support: list[str] = []
+    geolocation_method_support: list[str] = []
+    preset_technique_library_id: str | None = None
+
+    input_voltage_min_v: float | None = None
+    input_voltage_max_v: float | None = None
+    nominal_power_draw_w: float | None = None
+    peak_power_draw_w: float | None = None
+    battery_backup_present: bool = False
+    battery_backup_duration_min: int | None = None
+    mtbf_hours: float | None = None
+    built_in_test_level: str | None = None
+    secure_boot_supported: bool = False
+    tamper_detection_supported: bool = False
+
+    c2_interface_profiles: list[str] = []
+    ip_stack_support: list[str] = []
+    message_bus_protocols: list[str] = []
+    api_spec_version: str | None = None
+    data_model_standard_refs: list[str] = []
+    interoperability_cert_level: str | None = None
+
+    spectrum_authorization_profile: str | None = None
+    emissions_control_policy_id: str | None = None
+    rules_of_employment_profile_id: str | None = None
+    geofencing_policy_id: str | None = None
+    legal_jurisdiction_tags: list[str] = []
+    doctrinal_role_tags: list[str] = []
+
+    security_classification: str
+    crypto_module_type: str | None = None
+    authn_methods_supported: list[str] = []
+    authz_role_profile_id: str | None = None
+    command_authorization_level: str | None = None
+    data_at_rest_encryption: str | None = None
+    data_in_transit_encryption: str | None = None
+    audit_policy_id: str | None = None
+    secure_logging_enabled: bool = True
+    patch_baseline_version: str | None = None
+
+
+class JammerProfileCreate(JammerProfileBase):
+    pass
+
+
+class JammerProfileUpdate(BaseModel):
+    manufacturer: str | None = None
+    model_number: str | None = None
+    variant_block: str | None = None
+    serial_number: str | None = None
+    jammer_subtype: str | None = None
+    mission_domain: str | None = None
+    lifecycle_state: str | None = None
+
+    dimensions_l_m: float | None = None
+    dimensions_w_m: float | None = None
+    dimensions_h_m: float | None = None
+    weight_kg: float | None = None
+    environmental_rating: str | None = None
+    operating_temp_min_c: float | None = None
+    operating_temp_max_c: float | None = None
+    ingress_protection_rating: str | None = None
+
+    platform_type: str | None = None
+    mounting_configuration: str | None = None
+    antenna_configuration: str | None = None
+    vehicle_power_bus_type: str | None = None
+    cooling_integration_type: str | None = None
+    time_source_interface: str | None = None
+
+    rf_coverage_min_mhz: float | None = None
+    rf_coverage_max_mhz: float | None = None
+    max_effective_radiated_power_dbm: float | None = None
+    simultaneous_channels_max: int | None = None
+    waveform_family_support: list[str] | None = None
+    modulation_support: list[str] | None = None
+    geolocation_method_support: list[str] | None = None
+    preset_technique_library_id: str | None = None
+
+    input_voltage_min_v: float | None = None
+    input_voltage_max_v: float | None = None
+    nominal_power_draw_w: float | None = None
+    peak_power_draw_w: float | None = None
+    battery_backup_present: bool | None = None
+    battery_backup_duration_min: int | None = None
+    mtbf_hours: float | None = None
+    built_in_test_level: str | None = None
+    secure_boot_supported: bool | None = None
+    tamper_detection_supported: bool | None = None
+
+    c2_interface_profiles: list[str] | None = None
+    ip_stack_support: list[str] | None = None
+    message_bus_protocols: list[str] | None = None
+    api_spec_version: str | None = None
+    data_model_standard_refs: list[str] | None = None
+    interoperability_cert_level: str | None = None
+
+    spectrum_authorization_profile: str | None = None
+    emissions_control_policy_id: str | None = None
+    rules_of_employment_profile_id: str | None = None
+    geofencing_policy_id: str | None = None
+    legal_jurisdiction_tags: list[str] | None = None
+    doctrinal_role_tags: list[str] | None = None
+
+    security_classification: str | None = None
+    crypto_module_type: str | None = None
+    authn_methods_supported: list[str] | None = None
+    authz_role_profile_id: str | None = None
+    command_authorization_level: str | None = None
+    data_at_rest_encryption: str | None = None
+    data_in_transit_encryption: str | None = None
+    audit_policy_id: str | None = None
+    secure_logging_enabled: bool | None = None
+    patch_baseline_version: str | None = None
+
+
+class JammerProfileRead(JammerProfileBase):
+    id: uuid.UUID
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DirectionFinderProfileBase(BaseModel):
+    asset_id: uuid.UUID
+
+    manufacturer: str
+    model_number: str
+    variant_block: str | None = None
+    serial_number: str
+    platform_class: str
+    mobility_class: str
+    mission_domain: str
+    lifecycle_state: str = "ACTIVE_SERVICE"
+
+    antenna_array_type: str
+    antenna_element_count: int | None = None
+    antenna_polarization_support: list[str] = []
+    receiver_channel_count: int | None = None
+    sample_rate_max_sps: float | None = None
+    frequency_reference_type: str | None = None
+    frequency_reference_accuracy_ppb: float | None = None
+    timing_holdover_seconds: int | None = None
+
+    rf_min_mhz: float
+    rf_max_mhz: float
+    instantaneous_bandwidth_hz: float | None = None
+    df_methods_supported: list[str] = []
+    bearing_accuracy_deg_rms: float | None = None
+    bearing_output_reference: str | None = None
+    sensitivity_dbm: float | None = None
+    dynamic_range_db: float | None = None
+    calibration_profile_id: str | None = None
+
+    deployment_mode: str | None = None
+    site_id: str | None = None
+    mount_height_agl_m: float | None = None
+    sensor_boresight_offset_deg: float | None = None
+    heading_alignment_offset_deg: float | None = None
+    lever_arm_offset_m: dict[str, float] = {}
+    geodetic_datum: str = "WGS84"
+    altitude_reference: str = "MSL"
+    survey_position_accuracy_m: float | None = None
+
+    network_node_id: str | None = None
+    primary_ipv4: str | None = None
+    transport_protocols: list[str] = []
+    message_protocols: list[str] = []
+    data_format_profiles: list[str] = []
+    time_sync_protocol: str | None = None
+    ptp_profile: str | None = None
+    api_version: str | None = None
+    interoperability_profile: str | None = None
+
+    security_classification: str
+    releasability_marking: str | None = None
+    authz_policy_id: str | None = None
+    data_in_transit_encryption: str | None = None
+    secure_boot_enabled: bool = True
+    audit_policy_id: str | None = None
+
+    firmware_version: str | None = None
+    software_stack_version: str | None = None
+    configuration_baseline_id: str | None = None
+    calibration_due_date: str | None = None
+    mtbf_hours: float | None = None
+    maintenance_echelon: str | None = None
+
+    @model_validator(mode="after")
+    def validate_rf_range(self):
+        if self.rf_min_mhz <= 0:
+            raise ValueError("rf_min_mhz must be greater than 0")
+        if self.rf_max_mhz <= 0:
+            raise ValueError("rf_max_mhz must be greater than 0")
+        if self.rf_max_mhz <= self.rf_min_mhz:
+            raise ValueError("rf_max_mhz must be greater than rf_min_mhz")
+        return self
+
+
+class DirectionFinderProfileCreate(DirectionFinderProfileBase):
+    pass
+
+
+class DirectionFinderProfileUpdate(BaseModel):
+    manufacturer: str | None = None
+    model_number: str | None = None
+    variant_block: str | None = None
+    serial_number: str | None = None
+    platform_class: str | None = None
+    mobility_class: str | None = None
+    mission_domain: str | None = None
+    lifecycle_state: str | None = None
+
+    antenna_array_type: str | None = None
+    antenna_element_count: int | None = None
+    antenna_polarization_support: list[str] | None = None
+    receiver_channel_count: int | None = None
+    sample_rate_max_sps: float | None = None
+    frequency_reference_type: str | None = None
+    frequency_reference_accuracy_ppb: float | None = None
+    timing_holdover_seconds: int | None = None
+
+    rf_min_mhz: float | None = None
+    rf_max_mhz: float | None = None
+    instantaneous_bandwidth_hz: float | None = None
+    df_methods_supported: list[str] | None = None
+    bearing_accuracy_deg_rms: float | None = None
+    bearing_output_reference: str | None = None
+    sensitivity_dbm: float | None = None
+    dynamic_range_db: float | None = None
+    calibration_profile_id: str | None = None
+
+    deployment_mode: str | None = None
+    site_id: str | None = None
+    mount_height_agl_m: float | None = None
+    sensor_boresight_offset_deg: float | None = None
+    heading_alignment_offset_deg: float | None = None
+    lever_arm_offset_m: dict[str, float] | None = None
+    geodetic_datum: str | None = None
+    altitude_reference: str | None = None
+    survey_position_accuracy_m: float | None = None
+
+    network_node_id: str | None = None
+    primary_ipv4: str | None = None
+    transport_protocols: list[str] | None = None
+    message_protocols: list[str] | None = None
+    data_format_profiles: list[str] | None = None
+    time_sync_protocol: str | None = None
+    ptp_profile: str | None = None
+    api_version: str | None = None
+    interoperability_profile: str | None = None
+
+    security_classification: str | None = None
+    releasability_marking: str | None = None
+    authz_policy_id: str | None = None
+    data_in_transit_encryption: str | None = None
+    secure_boot_enabled: bool | None = None
+    audit_policy_id: str | None = None
+
+    firmware_version: str | None = None
+    software_stack_version: str | None = None
+    configuration_baseline_id: str | None = None
+    calibration_due_date: str | None = None
+    mtbf_hours: float | None = None
+    maintenance_echelon: str | None = None
+
+    @model_validator(mode="after")
+    def validate_partial_rf_range(self):
+        if self.rf_min_mhz is not None and self.rf_min_mhz <= 0:
+            raise ValueError("rf_min_mhz must be greater than 0")
+        if self.rf_max_mhz is not None and self.rf_max_mhz <= 0:
+            raise ValueError("rf_max_mhz must be greater than 0")
+        if (
+            self.rf_min_mhz is not None
+            and self.rf_max_mhz is not None
+            and self.rf_max_mhz <= self.rf_min_mhz
+        ):
+            raise ValueError("rf_max_mhz must be greater than rf_min_mhz")
+        return self
+
+
+class DirectionFinderProfileRead(DirectionFinderProfileBase):
+    id: uuid.UUID
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SmsNodeConnectRequest(BaseModel):
+    metrics: dict[str, Any] = Field(default_factory=dict)
+
+
+class SmsNodeHealthRead(BaseModel):
+    id: uuid.UUID
+    source_node: str
+    last_heartbeat: datetime
+    online: bool
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SmsDetectionBase(BaseModel):
+    source_node: str
+    timestamp_utc: datetime
+    frequency_hz: int = Field(gt=0)
+    bandwidth_hz: int | None = Field(default=None, gt=0)
+    power_dbm: float | None = None
+    snr_db: float | None = None
+    modulation: str | None = None
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    altitude_m: float | None = None
+
+    doa_azimuth_deg: float | None = Field(default=None, ge=0.0, lt=360.0)
+    doa_elevation_deg: float | None = Field(default=None, ge=-90.0, le=90.0)
+    doa_rmse_deg: float | None = Field(default=None, ge=0.0)
+
+    raw_payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class SmsDetectionCreate(SmsDetectionBase):
+    pass
+
+
+class SmsDetectionRead(SmsDetectionBase):
+    id: uuid.UUID
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SmsTrackRead(BaseModel):
+    id: uuid.UUID
+    track_code: str
+    first_seen: datetime
+    last_seen: datetime
+    frequency_min_hz: int
+    frequency_max_hz: int
+    avg_power_dbm: float | None = None
+    mobility: str | None = None
+    classification: str | None = None
+    threat_level: int
+    centroid_latitude: float | None = None
+    centroid_longitude: float | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict, validation_alias="metadata_json")
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SmsThreatRead(BaseModel):
+    id: uuid.UUID
+    track_id: uuid.UUID
+    threat_type: str
+    risk_score: float
+    priority: str
+    recommended_action: str | None = None
+    status: str
+    details: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SmsSpectrumOccupancyBin(BaseModel):
+    frequency_hz: int
+    detection_count: int
+    max_power_dbm: float | None = None
+
+
+class TcpListenerHealthRead(BaseModel):
+    enabled: bool
+    running: bool
+    host: str
+    port: int
+    active_connections: int
+    total_connections: int
+    messages_received: int
+    messages_rejected: int
+    idle_timeout_seconds: int
+    max_line_bytes: int
+
+
+class SmsAdapterIngestRequest(BaseModel):
+    source_node: str
+    detections: list[dict[str, Any]] = Field(default_factory=list)
+    metrics: dict[str, Any] = Field(default_factory=dict)
+
+
+class SmsAdapterIngestResponse(BaseModel):
+    accepted: int
+    rejected: int
+    errors: list[str] = Field(default_factory=list)
+    node_health: SmsNodeHealthRead
