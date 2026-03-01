@@ -9,6 +9,7 @@ export type AlertRecord = {
   status: string;
   description?: string | null;
   acknowledged_by?: string | null;
+  acknowledged_by_name?: string | null;
   acknowledged_at?: string | null;
   created_at?: string | null;
   latitude?: number | null;
@@ -20,3 +21,6 @@ export const getAlerts = (status?: string) =>
 
 export const acknowledgeAlert = (alertId: string, userId: string) =>
   api.post(`/alerts/${alertId}/ack`, { user_id: userId });
+
+export const clearAlert = (alertId: string) =>
+  api.post(`/alerts/${alertId}/clear`);

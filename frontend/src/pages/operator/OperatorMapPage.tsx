@@ -48,7 +48,7 @@ export default function OperatorMapPage() {
         setError(null);
         const [assetsRes, alertsRes, signalsRes, heatRes, triangulationRes] = await Promise.all([
           getAssets(),
-          getAlerts("NEW"),
+          getAlerts(),
           getRFSignals(),
           getHeatMap(),
           getTriangulation(),

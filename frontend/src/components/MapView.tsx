@@ -296,12 +296,14 @@ export default function MapView({
     return () => clearInterval(timer);
   }, []);
 
-  const alertMarkers = alerts.filter(
-    (alert) =>
-      alert.status === "NEW" &&
+  const alertMarkers = alerts.filter((alert) => {
+    const status = String(alert.status ?? "").toUpperCase();
+    return (
+      (status === "NEW" || status === "ACKNOWLEDGED") &&
       typeof alert.latitude === "number" &&
       typeof alert.longitude === "number"
-  );
+    );
+  });
   const directionFinderAssets = assets.filter(
     (asset) => (asset.type ?? "").trim().toUpperCase() === "DIRECTION_FINDER"
   );
@@ -443,11 +445,11 @@ export default function MapView({
         <CircleMarker
           key={`alert-${alert.id}`}
           center={[alert.latitude as number, alert.longitude as number]}
-          radius={blinkOn ? 12 : 6}
+          radius={String(alert.status).toUpperCase() === "NEW" ? (blinkOn ? 12 : 6) : 8}
           pathOptions={{
-            color: "#ef4444",
-            fillColor: "#ef4444",
-            fillOpacity: blinkOn ? 0.7 : 0.2,
+            color: String(alert.status).toUpperCase() === "NEW" ? "#ef4444" : "#f59e0b",
+            fillColor: String(alert.status).toUpperCase() === "NEW" ? "#ef4444" : "#f59e0b",
+            fillOpacity: String(alert.status).toUpperCase() === "NEW" ? (blinkOn ? 0.7 : 0.2) : 0.65,
             weight: 2,
           }}
         >

@@ -81,6 +81,7 @@ class AlertRead(BaseModel):
     status: str
     description: str | None = None
     acknowledged_by: uuid.UUID | None = None
+    acknowledged_by_name: str | None = None
     acknowledged_at: datetime | None = None
     created_at: datetime | None = None
     latitude: float | None = None
