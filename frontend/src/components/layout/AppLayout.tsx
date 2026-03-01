@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 import { useTheme } from "../../context/ThemeContext";
@@ -7,6 +8,8 @@ const SIDEBAR_VISIBLE_KEY = "ui.sidebar.visible";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
+  const location = useLocation();
+  const isOperatorMapRoute = location.pathname === "/operator/map";
   const [isSidebarVisible, setIsSidebarVisible] = useState<boolean>(() => {
     const stored = localStorage.getItem(SIDEBAR_VISIBLE_KEY);
     return stored === "true";
@@ -51,7 +54,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div
           style={{
             padding: theme.spacing.xl,
-            overflowY: "auto",
+            overflowY: isOperatorMapRoute ? "hidden" : "auto",
           }}
         >
           {children}

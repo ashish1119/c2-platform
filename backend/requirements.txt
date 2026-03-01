@@ -15,3 +15,5 @@ loguru
 slowapi
 numpy
 folium
+pyproj
+mgrs

@@ -17,6 +17,11 @@ class LoginResponse(BaseModel):
     permissions: list[str] = []
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class RoleRead(BaseModel):
     id: int
     name: str
@@ -103,6 +108,52 @@ class DecodioConfigRead(DecodioConfigUpdate):
 
 class AlertAcknowledgeRequest(BaseModel):
     user_id: uuid.UUID
+
+
+class GeospatialSourceRegisterRequest(BaseModel):
+    source_name: str
+    source_type: str
+    transport: str = "API"
+    classification: str = "UNCLASSIFIED"
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class GeospatialSourceRead(BaseModel):
+    source_id: str
+    source_name: str
+    source_type: str
+    transport: str
+    classification: str
+    is_active: bool
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+
+
+class GeospatialSourceUpdateRequest(BaseModel):
+    source_name: str | None = None
+    source_type: str | None = None
+    transport: str | None = None
+    classification: str | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class CoordinateConvertRequest(BaseModel):
+    source_system: str
+    target_system: str
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    easting: float | None = None
+    northing: float | None = None
+    utm_zone: int | None = Field(default=None, ge=1, le=60)
+    hemisphere: str | None = None
+    mgrs: str | None = None
+
+
+class CoordinateConvertResponse(BaseModel):
+    source_system: str
+    target_system: str
+    result: dict[str, Any]
 
 
 class AssetCreate(BaseModel):

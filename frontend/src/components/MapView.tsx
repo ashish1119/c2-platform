@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polyline, ScaleControl, ZoomControl, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import type { AssetRecord } from "../api/assets";
 import type { AlertRecord } from "../api/alerts";
@@ -19,6 +19,12 @@ type Props = {
 };
 
 const DELHI_CENTER: [number, number] = [28.7041, 77.1025];
+const MAP_SAVED_VIEW_KEY = "ui.operator.map.savedView";
+
+type SavedMapView = {
+  center: [number, number];
+  zoom: number;
+};
 
 type AssetTypeSettings = {
   label: string;
@@ -124,7 +130,15 @@ function buildAssetIcon(settings: AssetTypeSettings, status: string, zoom: numbe
   });
 }
 
-function MapCenterController({ center, onZoomChange }: { center: [number, number]; onZoomChange: (zoom: number) => void }) {
+function MapCenterController({
+  center,
+  onZoomChange,
+  shouldFollowCenter,
+}: {
+  center: [number, number];
+  onZoomChange: (zoom: number) => void;
+  shouldFollowCenter: boolean;
+}) {
   const map = useMap();
 
   useMapEvents({
@@ -134,12 +148,95 @@ function MapCenterController({ center, onZoomChange }: { center: [number, number
   });
 
   useEffect(() => {
+    if (!shouldFollowCenter) {
+      return;
+    }
     map.setView(center, map.getZoom());
-  }, [center[0], center[1], map]);
+  }, [center[0], center[1], map, shouldFollowCenter]);
 
   useEffect(() => {
     onZoomChange(map.getZoom());
   }, [map, onZoomChange]);
+
+  return null;
+}
+
+function MousePositionTracker({
+  onPositionChange,
+}: {
+  onPositionChange: (position: [number, number] | null) => void;
+}) {
+  useMapEvents({
+    mousemove: (event) => {
+      onPositionChange([event.latlng.lat, event.latlng.lng]);
+    },
+    mouseout: () => {
+      onPositionChange(null);
+    },
+  });
+
+  return null;
+}
+
+function MapViewportTracker({
+  onViewChange,
+}: {
+  onViewChange: (view: SavedMapView) => void;
+}) {
+  const map = useMap();
+
+  useMapEvents({
+    moveend: () => {
+      const center = map.getCenter();
+      onViewChange({ center: [center.lat, center.lng], zoom: map.getZoom() });
+    },
+    zoomend: () => {
+      const center = map.getCenter();
+      onViewChange({ center: [center.lat, center.lng], zoom: map.getZoom() });
+    },
+  });
+
+  useEffect(() => {
+    const center = map.getCenter();
+    onViewChange({ center: [center.lat, center.lng], zoom: map.getZoom() });
+  }, [map, onViewChange]);
+
+  return null;
+}
+
+function MapResetController({
+  center,
+  fitPoints,
+  savedView,
+  resetCounter,
+}: {
+  center: [number, number];
+  fitPoints: Array<[number, number]>;
+  savedView: SavedMapView | null;
+  resetCounter: number;
+}) {
+  const map = useMap();
+  const lastHandledResetRef = useRef(0);
+
+  useEffect(() => {
+    if (resetCounter <= 0 || resetCounter === lastHandledResetRef.current) {
+      return;
+    }
+    lastHandledResetRef.current = resetCounter;
+
+    map.invalidateSize();
+    requestAnimationFrame(() => {
+      if (savedView) {
+        map.setView(savedView.center, savedView.zoom, { animate: false });
+      } else if (fitPoints.length > 0) {
+        const bounds = L.latLngBounds(fitPoints);
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16, animate: false });
+      } else {
+        map.setView(center, 13, { animate: false });
+      }
+      map.invalidateSize();
+    });
+  }, [center, fitPoints, map, resetCounter, savedView]);
 
   return null;
 }
@@ -157,6 +254,42 @@ export default function MapView({
   const defaultCenter = DELHI_CENTER;
   const [blinkOn, setBlinkOn] = useState(true);
   const [mapZoom, setMapZoom] = useState(13);
+  const [mousePosition, setMousePosition] = useState<[number, number] | null>(null);
+  const [resetCounter, setResetCounter] = useState(0);
+  const [showAssets, setShowAssets] = useState(true);
+  const [showAlerts, setShowAlerts] = useState(true);
+  const [showSignals, setShowSignals] = useState(true);
+  const [showHeatmap, setShowHeatmap] = useState(true);
+  const [currentView, setCurrentView] = useState<SavedMapView | null>(null);
+  const [savedView, setSavedView] = useState<SavedMapView | null>(() => {
+    try {
+      const raw = localStorage.getItem(MAP_SAVED_VIEW_KEY);
+      if (!raw) {
+        return null;
+      }
+      const parsed = JSON.parse(raw) as SavedMapView;
+      if (
+        Array.isArray(parsed.center) &&
+        parsed.center.length === 2 &&
+        typeof parsed.center[0] === "number" &&
+        typeof parsed.center[1] === "number" &&
+        typeof parsed.zoom === "number"
+      ) {
+        return parsed;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (savedView) {
+      localStorage.setItem(MAP_SAVED_VIEW_KEY, JSON.stringify(savedView));
+      return;
+    }
+    localStorage.removeItem(MAP_SAVED_VIEW_KEY);
+  }, [savedView]);
 
   useEffect(() => {
     const timer = setInterval(() => setBlinkOn((current) => !current), 500);
@@ -208,7 +341,37 @@ export default function MapView({
             : defaultCenter,
     [hasAlertMarkers, hasAssets, hasSignals, hasCoverage, alertMarkers, assets, signals, coveragePoints, defaultCenter],
   );
+  const hasSavedView = savedView !== null;
+  const initialMapCenter: [number, number] = hasSavedView ? (savedView as SavedMapView).center : mapCenter;
+  const initialMapZoom = hasSavedView ? (savedView as SavedMapView).zoom : 13;
   const assetLinkPairs: Array<[[number, number], [number, number]]> = [];
+  const resetFitPoints: Array<[number, number]> = useMemo(() => {
+    const points: Array<[number, number]> = [];
+
+    if (showAlerts) {
+      for (const alert of alertMarkers) {
+        points.push([alert.latitude as number, alert.longitude as number]);
+      }
+    }
+
+    if (showAssets) {
+      for (const asset of assets) {
+        points.push([asset.latitude, asset.longitude]);
+      }
+    }
+
+    if (showSignals) {
+      for (const signal of signals) {
+        points.push([signal.latitude, signal.longitude]);
+      }
+    }
+
+    for (const point of coveragePoints) {
+      points.push([point.latitude, point.longitude]);
+    }
+
+    return points;
+  }, [alertMarkers, assets, coveragePoints, showAlerts, showAssets, showSignals, signals]);
 
   if (assetConnectionMode === "mesh" && assets.length > 1) {
     for (let i = 0; i < assets.length; i++) {
@@ -225,8 +388,13 @@ export default function MapView({
 
   return (
     <div style={{ position: "relative" }}>
-    <MapContainer center={mapCenter} zoom={13} style={{ height: mapHeight }}>
-      <MapCenterController center={mapCenter} onZoomChange={setMapZoom} />
+    <MapContainer center={initialMapCenter} zoom={initialMapZoom} zoomControl={false} style={{ height: mapHeight }}>
+      <MapCenterController center={mapCenter} onZoomChange={setMapZoom} shouldFollowCenter={!hasSavedView} />
+      <MapResetController center={mapCenter} fitPoints={resetFitPoints} savedView={savedView} resetCounter={resetCounter} />
+      <MousePositionTracker onPositionChange={setMousePosition} />
+      <MapViewportTracker onViewChange={setCurrentView} />
+      <ScaleControl position="bottomleft" />
+      <ZoomControl position="bottomright" />
       <TileLayer
         attribution="&copy; OpenStreetMap"
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -240,7 +408,7 @@ export default function MapView({
         />
       ))}
 
-      {assets.map((asset) => (
+      {showAssets && assets.map((asset) => (
         <Marker
           key={asset.id}
           position={[asset.latitude, asset.longitude]}
@@ -257,7 +425,7 @@ export default function MapView({
         </Marker>
       ))}
 
-      {directionFinderAssets.map((asset) => (
+      {showAssets && directionFinderAssets.map((asset) => (
         <Circle
           key={`df-circle-${asset.id}`}
           center={[asset.latitude, asset.longitude]}
@@ -271,7 +439,7 @@ export default function MapView({
         />
       ))}
 
-      {alertMarkers.map((alert) => (
+      {showAlerts && alertMarkers.map((alert) => (
         <CircleMarker
           key={`alert-${alert.id}`}
           center={[alert.latitude as number, alert.longitude as number]}
@@ -293,7 +461,7 @@ export default function MapView({
         </CircleMarker>
       ))}
 
-      {signals.map((signal) => (
+      {showSignals && signals.map((signal) => (
         <CircleMarker
           key={`sig-${signal.id}`}
           center={[signal.latitude, signal.longitude]}
@@ -311,7 +479,7 @@ export default function MapView({
         </CircleMarker>
       ))}
 
-      {heatCells.map((cell, idx) => (
+      {showHeatmap && heatCells.map((cell, idx) => (
         <CircleMarker
           key={`heat-${idx}`}
           center={[cell.latitude_bucket, cell.longitude_bucket]}
@@ -377,6 +545,175 @@ export default function MapView({
         </CircleMarker>
       )}
     </MapContainer>
+
+      <div
+        style={{
+          position: "absolute",
+          left: 16,
+          top: 16,
+          zIndex: 1000,
+          display: "grid",
+          gap: 6,
+        }}
+      >
+        <button
+          type="button"
+          title="Controls: ⌖ Save view | ↺ Reset to saved/default view | A Assets toggle | ! Alerts toggle | S Signals toggle | H Heatmap toggle"
+          aria-label="Map controls legend"
+          style={{
+            width: 30,
+            height: 30,
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            background: "#ffffff",
+            color: "#0f172a",
+            cursor: "help",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          ?
+        </button>
+
+        <button
+          type="button"
+          title="Save current view"
+          onClick={() => {
+            if (currentView) {
+              setSavedView(currentView);
+            }
+          }}
+          style={{
+            width: 30,
+            height: 30,
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            background: savedView ? "#ffffff" : "#f8fafc",
+            color: "#0f172a",
+            cursor: "pointer",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          ⌖
+        </button>
+
+        <button
+          type="button"
+          title="Reset view"
+          onClick={() => {
+            setResetCounter((current) => current + 1);
+          }}
+          style={{
+            width: 30,
+            height: 30,
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            background: "#ffffff",
+            color: "#0f172a",
+            cursor: "pointer",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          ↺
+        </button>
+
+        <button
+          type="button"
+          title={showAssets ? "Hide assets" : "Show assets"}
+          onClick={() => setShowAssets((current) => !current)}
+          style={{
+            width: 30,
+            height: 30,
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            background: showAssets ? "#ffffff" : "#f1f5f9",
+            color: "#0f172a",
+            cursor: "pointer",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          A
+        </button>
+
+        <button
+          type="button"
+          title={showAlerts ? "Hide alerts" : "Show alerts"}
+          onClick={() => setShowAlerts((current) => !current)}
+          style={{
+            width: 30,
+            height: 30,
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            background: showAlerts ? "#ffffff" : "#f1f5f9",
+            color: "#0f172a",
+            cursor: "pointer",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          !
+        </button>
+
+        <button
+          type="button"
+          title={showSignals ? "Hide signals" : "Show signals"}
+          onClick={() => setShowSignals((current) => !current)}
+          style={{
+            width: 30,
+            height: 30,
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            background: showSignals ? "#ffffff" : "#f1f5f9",
+            color: "#0f172a",
+            cursor: "pointer",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          S
+        </button>
+
+        <button
+          type="button"
+          title={showHeatmap ? "Hide heatmap" : "Show heatmap"}
+          onClick={() => setShowHeatmap((current) => !current)}
+          style={{
+            width: 30,
+            height: 30,
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            background: showHeatmap ? "#ffffff" : "#f1f5f9",
+            color: "#0f172a",
+            cursor: "pointer",
+            fontWeight: 700,
+            lineHeight: 1,
+          }}
+        >
+          H
+        </button>
+      </div>
+
+      {mousePosition && (
+        <div
+          style={{
+            position: "absolute",
+            left: 16,
+            bottom: 46,
+            zIndex: 1000,
+            background: "rgba(255, 255, 255, 0.92)",
+            border: "1px solid #d1d5db",
+            borderRadius: 6,
+            padding: "3px 8px",
+            fontSize: 12,
+            color: "#0f172a",
+          }}
+        >
+          {`Lat ${mousePosition[0].toFixed(6)}, Lon ${mousePosition[1].toFixed(6)}`}
+        </div>
+      )}
 
       {assetTypeLegend.length > 0 && (
         <div

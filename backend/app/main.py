@@ -17,6 +17,7 @@ from app.routers import (
     direction_finder_router,
     sms_router,
     tcp_listener_router,
+    geospatial_router,
 )
 from app.integrations.decodio.service import DecodioIntegrationService
 from app.integrations.tcp_listener.service import TcpListenerService
@@ -49,6 +50,7 @@ app.include_router(jammer_router.router)
 app.include_router(direction_finder_router.router)
 app.include_router(sms_router.router)
 app.include_router(tcp_listener_router.router)
+app.include_router(geospatial_router.router)
 
 
 def build_decodio_service(config) -> DecodioIntegrationService:
@@ -84,6 +86,8 @@ async def create_tables():
         await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('sms', 'write', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
         await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('sms_threat', 'read', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
         await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('sms_threat', 'write', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
+        await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('geospatial', 'read', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
+        await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('geospatial', 'write', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
         await conn.execute(text("""
             INSERT INTO role_permissions (role_id, permission_id)
             SELECT r.id, p.id
@@ -172,6 +176,22 @@ async def create_tables():
             WHERE r.name = 'ADMIN'
             ON CONFLICT (role_id, permission_id) DO NOTHING
         """))
+        await conn.execute(text("""
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r
+            JOIN permissions p ON p.resource = 'geospatial' AND p.action = 'read'
+            WHERE r.name = 'ADMIN'
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+        """))
+        await conn.execute(text("""
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r
+            JOIN permissions p ON p.resource = 'geospatial' AND p.action = 'write'
+            WHERE r.name = 'ADMIN'
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+        """))
         await conn.execute(text("ALTER TABLE rf_signals ADD COLUMN IF NOT EXISTS modulation VARCHAR(50) DEFAULT 'UNKNOWN'"))
         await conn.execute(text("ALTER TABLE rf_signals ADD COLUMN IF NOT EXISTS bandwidth_hz DOUBLE PRECISION"))
         await conn.execute(text("ALTER TABLE rf_signals ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION DEFAULT 0.5"))
@@ -180,6 +200,8 @@ async def create_tables():
         await conn.execute(text("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS alert_type VARCHAR(100)"))
         await conn.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details JSONB DEFAULT '{}'::jsonb"))
         await conn.execute(text("UPDATE audit_logs SET details = '{}'::jsonb WHERE details IS NULL"))
+        await conn.execute(text("ALTER TABLE geospatial_ingestion_sources ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE"))
+        await conn.execute(text("UPDATE geospatial_ingestion_sources SET is_active = TRUE WHERE is_active IS NULL"))
     async with AsyncSessionLocal() as session:
         decodio_config = await ensure_decodio_config(session)
 

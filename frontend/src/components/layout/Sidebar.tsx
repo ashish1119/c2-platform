@@ -25,6 +25,12 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     permissions.includes("sms:*") ||
     permissions.includes("*:read") ||
     permissions.includes("*:*");
+  const canReadGeospatial =
+    user?.role === "ADMIN" ||
+    permissions.includes("geospatial:read") ||
+    permissions.includes("geospatial:*") ||
+    permissions.includes("*:read") ||
+    permissions.includes("*:*");
 
   const navItem = (to: string, label: string) => {
     const active = location.pathname === to;
@@ -71,6 +77,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       {user?.role === "ADMIN" && canReadDecodio && navItem("/admin/decodio", "Decodio")}
       {user?.role === "ADMIN" && canReadAudit && navItem("/admin/audit-logs", "Audit Logs")}
       {user?.role === "ADMIN" && canReadSms && navItem("/admin/sms", "SMS")}
+      {user?.role === "ADMIN" && canReadGeospatial && navItem("/admin/geospatial", "Geospatial")}
       {user?.role === "OPERATOR" && navItem("/operator/map", "Map")}
       {user?.role === "OPERATOR" && navItem("/operator/alerts", "Alert List")}
       {user?.role === "OPERATOR" && navItem("/reports", "Reports")}

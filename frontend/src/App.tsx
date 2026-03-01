@@ -11,6 +11,7 @@ import AssetsManagementPage from "./pages/admin/AssetsManagementPage";
 import DecodioManagementPage from "./pages/admin/DecodioManagementPage";
 import AuditLogsPage from "./pages/admin/AuditLogsPage";
 import SmsManagementPage from "./pages/admin/SmsManagementPage";
+import GeospatialManagementPage from "./pages/admin/GeospatialManagementPage";
 
 export default function App() {
   return (
@@ -66,6 +67,14 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole="ADMIN">
                 <SmsManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/geospatial"
+            element={
+              <ProtectedRoute requiredRole="ADMIN" requiredPermission="geospatial:read">
+                <GeospatialManagementPage />
               </ProtectedRoute>
             }
           />

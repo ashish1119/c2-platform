@@ -230,7 +230,7 @@ export default function OperatorMapPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: isTreeVisible ? "minmax(0, 1fr) 420px" : "minmax(0, 1fr) 12px",
+            gridTemplateColumns: isTreeVisible ? "minmax(0, 1fr) 420px" : "minmax(0, 1fr) 44px",
             gap: theme.spacing.md,
             alignItems: "start",
           }}
@@ -295,7 +295,7 @@ export default function OperatorMapPage() {
                 padding: theme.spacing.md,
                 background: theme.colors.surfaceAlt,
                 maxHeight: "calc(100dvh - 190px)",
-                overflowY: "auto",
+                overflowY: "hidden",
               }}
             >
               <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: theme.spacing.sm }}>
