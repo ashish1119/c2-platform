@@ -24,3 +24,8 @@ export const acknowledgeAlert = (alertId: string, userId: string) =>
 
 export const clearAlert = (alertId: string) =>
   api.post(`/alerts/${alertId}/clear`);
+
+export const simulateAlerts = (count = 50) =>
+  api.post<{ created: number; event: string }>("/alerts/simulate", undefined, {
+    params: { count },
+  });

@@ -2,7 +2,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from fastapi import HTTPException
 from datetime import datetime
+import random
 from geoalchemy2 import Geometry
+from geoalchemy2.elements import WKTElement
 from app.models import Alert, User
 from app.core.websocket_manager import manager
 
@@ -100,3 +102,83 @@ async def clear_alert(db: AsyncSession, alert_id):
     )
 
     return {"id": str(alert.id), "status": alert.status, "event": "alert_cleared"}
+
+
+async def simulate_alerts_batch(db: AsyncSession, count: int = 50):
+    bounded_count = max(1, min(count, 200))
+
+    templates = [
+        {
+            "alert_type": "RADAR",
+            "alert_name": "RADAR alert",
+            "sender": "radar-blr-01",
+            "source_name": "Radar BLR 01",
+            "source_type": "RADAR",
+            "source_details": "band=X,mode=TRACK",
+            "description": "target_signature=fast_moving",
+            "severity": ["LOW", "MEDIUM", "HIGH"],
+        },
+        {
+            "alert_type": "DIRECTION_FINDER",
+            "alert_name": "Direction Finder Alert",
+            "sender": "df-node-blr-01",
+            "source_name": "DF Node BLR 01",
+            "source_type": "DIRECTION_FINDER",
+            "source_details": "array=ULA,doa_quality=good",
+            "description": "bearing_track=active",
+            "severity": ["MEDIUM", "HIGH", "CRITICAL"],
+        },
+        {
+            "alert_type": "JAMMER",
+            "alert_name": "JAMMER alert",
+            "sender": "jammer-blr-01",
+            "source_name": "Jammer BLR 01",
+            "source_type": "JAMMER",
+            "source_details": "mode=barrage,power=high",
+            "description": "rf_interference_detected=true",
+            "severity": ["MEDIUM", "HIGH"],
+        },
+        {
+            "alert_type": "TEMPERATURE",
+            "alert_name": "TEMPERATURE alert",
+            "sender": "thermal-blr-01",
+            "source_name": "Thermal BLR 01",
+            "source_type": "SENSOR",
+            "source_details": "sensor=thermal,module=T-9",
+            "description": "threshold_crossed=true",
+            "severity": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+        },
+    ]
+
+    alerts: list[Alert] = []
+    for index in range(bounded_count):
+        template = templates[index % len(templates)]
+        latitude = round(random.uniform(12.95, 12.99), 6)
+        longitude = round(random.uniform(77.57, 77.61), 6)
+        severity = random.choice(template["severity"])
+
+        description = (
+            f"TCP event={template['alert_type'].lower()} sender={template['sender']} "
+            f"source_name={template['source_name']} | source_type={template['source_type']} | "
+            f"source_details={template['source_details']} | {template['description']} | sample={index + 1}"
+        )
+
+        alerts.append(
+            Alert(
+                alert_name=template["alert_name"],
+                alert_type=template["alert_type"],
+                severity=severity,
+                status="NEW",
+                description=description,
+                location=WKTElement(f"POINT({longitude} {latitude})", srid=4326),
+            )
+        )
+
+    db.add_all(alerts)
+    await db.commit()
+
+    await manager.broadcast(
+        {"event": "alerts_simulated", "count": bounded_count}
+    )
+
+    return {"created": bounded_count, "event": "alerts_simulated"}

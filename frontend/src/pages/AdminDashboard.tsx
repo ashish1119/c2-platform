@@ -4,9 +4,10 @@ import PageContainer from "../components/layout/PageContainer";
 import MetricCard from "../components/ui/MetricCard";
 import AlertTable from "../components/AlertTable";
 import { getUsers } from "../api/users";
-import { getAlerts } from "../api/alerts";
+import { getAlerts, simulateAlerts } from "../api/alerts";
 import { getRFSignals } from "../api/rf";
 import { useTheme } from "../context/ThemeContext";
+import { AxiosError } from "axios";
 
 export default function AdminDashboard() {
   const { theme } = useTheme();
@@ -15,6 +16,8 @@ export default function AdminDashboard() {
   const [signals, setSignals] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [simulateLoading, setSimulateLoading] = useState(false);
+  const [simulateMessage, setSimulateMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -38,6 +41,21 @@ export default function AdminDashboard() {
     load();
   }, []);
 
+  const handleSimulateAlerts = async () => {
+    try {
+      setSimulateLoading(true);
+      setSimulateMessage(null);
+      const response = await simulateAlerts(50);
+      setSimulateMessage(`Simulated ${response.data.created} alerts successfully.`);
+    } catch (error) {
+      const axiosError = error as AxiosError<{ detail?: string }>;
+      const detail = axiosError.response?.data?.detail;
+      setSimulateMessage(detail ? `Failed to simulate alerts: ${detail}` : "Failed to simulate alerts.");
+    } finally {
+      setSimulateLoading(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageContainer title="Admin Dashboard">
@@ -56,6 +74,30 @@ export default function AdminDashboard() {
         </div>
 
         {error && <div style={{ marginBottom: theme.spacing.md }}>{error}</div>}
+
+            <div style={{ display: "flex", alignItems: "center", gap: theme.spacing.md, marginBottom: theme.spacing.md }}>
+              <button
+                type="button"
+                onClick={handleSimulateAlerts}
+                disabled={simulateLoading}
+                style={{
+                  border: "none",
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.primary,
+                  color: "#fff",
+                  cursor: simulateLoading ? "not-allowed" : "pointer",
+                  opacity: simulateLoading ? 0.7 : 1,
+                  padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                }}
+              >
+                {simulateLoading ? "Simulating..." : "Simulate 50 Alerts"}
+              </button>
+              {simulateMessage && (
+                <span style={{ color: simulateMessage.startsWith("Failed") ? theme.colors.danger : theme.colors.textSecondary }}>
+                  {simulateMessage}
+                </span>
+              )}
+            </div>
 
         <AlertTable />
       </PageContainer>
