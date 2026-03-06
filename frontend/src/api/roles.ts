@@ -6,7 +6,20 @@ export type Role = {
 	level: number;
 };
 
+export type CreateRoleRequest = {
+	name: string;
+	level: number;
+};
+
+export type UpdateRoleRequest = {
+	name: string;
+	level: number;
+};
+
 export const getRoles = () => api.get<Role[]>("/roles");
+export const createRole = (data: CreateRoleRequest) => api.post<Role>("/roles", data);
+export const updateRole = (roleId: number, data: UpdateRoleRequest) => api.put<Role>(`/roles/${roleId}`, data);
+export const deleteRole = (roleId: number) => api.delete(`/roles/${roleId}`);
 
 export const assignPermissionToRole = (roleId: number, permissionId: number) =>
 	api.post(`/roles/${roleId}/permissions`, { permission_id: permissionId });

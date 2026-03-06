@@ -157,10 +157,26 @@ async def simulate_alerts_batch(db: AsyncSession, count: int = 50):
         longitude = round(random.uniform(77.57, 77.61), 6)
         severity = random.choice(template["severity"])
 
+        df_metrics = ""
+        if template["alert_type"] == "DIRECTION_FINDER":
+            avg_freq_mhz = round(random.uniform(440.002816, 440.004320), 6)
+            doa_az_deg = round(random.uniform(314.7, 329.7), 1)
+            rssi_last_dbm = round(random.uniform(-51.0, -43.4), 1)
+            avg_snr_db = round(random.uniform(74.2, 81.5), 1)
+            duration_ms = round(random.uniform(5.243, 6416.315), 3)
+            df_metrics = (
+                f" | name=440MHZ | doa_az_type=RELATIVE"
+                f" | avg_freq_mhz={avg_freq_mhz:.6f}"
+                f" | doa_az_deg={doa_az_deg:.1f}"
+                f" | rssi_last_dbm={rssi_last_dbm:.1f}"
+                f" | avg_snr_db={avg_snr_db:.1f}"
+                f" | duration_ms={duration_ms:.3f}"
+            )
+
         description = (
             f"TCP event={template['alert_type'].lower()} sender={template['sender']} "
             f"source_name={template['source_name']} | source_type={template['source_type']} | "
-            f"source_details={template['source_details']} | {template['description']} | sample={index + 1}"
+            f"source_details={template['source_details']} | {template['description']}{df_metrics} | sample={index + 1}"
         )
 
         alerts.append(

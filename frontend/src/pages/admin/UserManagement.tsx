@@ -2,7 +2,6 @@ import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
 import UsersPage from "./UsersPage";
 import RolesPage from "./RolesPage";
-import PermissionsPage from "./PermissionsPage";
 import { useTheme } from "../../context/ThemeContext";
 import Card from "../../components/ui/Card";
 
@@ -29,13 +28,6 @@ export default function UserManagement() {
             <Card>
               <h2 style={sectionTitleStyle}>Roles</h2>
               <RolesPage />
-            </Card>
-          </section>
-
-          <section>
-            <Card>
-              <h2 style={sectionTitleStyle}>Permissions</h2>
-              <PermissionsPage />
             </Card>
           </section>
         </div>

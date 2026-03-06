@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
@@ -26,7 +27,19 @@ export default function LoginPage() {
       }
     } catch (error) {
       console.error("Login failed", error);
-      alert("Invalid credentials");
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          alert("Invalid credentials");
+          return;
+        }
+
+        if (!error.response) {
+          alert("Unable to reach server. Please open this app with your server IP (for example http://<server-ip>:3000) and ensure backend port 8000 is reachable.");
+          return;
+        }
+      }
+
+      alert("Login failed. Please try again.");
     }
   };
 

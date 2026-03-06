@@ -15,6 +15,11 @@ type SortColumn =
   | "details"
   | "type"
   | "source"
+  | "dfFreq"
+  | "dfDoa"
+  | "dfRssi"
+  | "dfSnr"
+  | "dfDuration"
   | "date"
   | "time"
   | "latitude"
@@ -33,6 +38,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
   const [detailsFilter, setDetailsFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [sourceFilter, setSourceFilter] = useState("");
+  const [dfFreqFilter, setDfFreqFilter] = useState("");
+  const [dfDoaFilter, setDfDoaFilter] = useState("");
+  const [dfRssiFilter, setDfRssiFilter] = useState("");
+  const [dfSnrFilter, setDfSnrFilter] = useState("");
+  const [dfDurationFilter, setDfDurationFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [timeFilter, setTimeFilter] = useState("");
   const [latitudeFilter, setLatitudeFilter] = useState("");
@@ -46,6 +56,7 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [ackInProgressId, setAckInProgressId] = useState<string | null>(null);
   const [clearInProgressId, setClearInProgressId] = useState<string | null>(null);
+  const [bulkActionInProgress, setBulkActionInProgress] = useState<"ack" | "clear" | null>(null);
   const [assetNameById, setAssetNameById] = useState<Record<string, string>>({});
 
   const inferAlertType = (alert: AlertRecord) => {
@@ -97,6 +108,56 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     }
 
     return "-";
+  };
+
+  const normalizeMetricKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const parseDescriptionMetrics = (alert: AlertRecord) => {
+    const metrics: Record<string, string> = {};
+    const description = alert.description ?? "";
+    const matches = description.matchAll(/([A-Za-z0-9_\-\[\] ]+?)=([^|,;]+)/g);
+    for (const match of matches) {
+      const key = normalizeMetricKey(match[1] ?? "");
+      const value = (match[2] ?? "").trim();
+      if (key && value && !metrics[key]) {
+        metrics[key] = value;
+      }
+    }
+    return metrics;
+  };
+
+  const getDfMetricText = (alert: AlertRecord, keys: string[]) => {
+    const normalizedType = (alert.alert_type ?? "").trim().toUpperCase();
+    if (!(normalizedType === "DF" || normalizedType === "DIRECTION_FINDER")) {
+      return "-";
+    }
+    const metrics = parseDescriptionMetrics(alert);
+    for (const key of keys) {
+      const value = metrics[normalizeMetricKey(key)];
+      if (value) return value;
+    }
+    return "-";
+  };
+
+  const getDfFreqValue = (alert: AlertRecord) =>
+    getDfMetricText(alert, ["avg_freq_mhz", "avg freq [mhz]", "freq_mhz", "frequency_mhz", "frequency"]);
+
+  const getDfDoaValue = (alert: AlertRecord) =>
+    getDfMetricText(alert, ["avg_doa_az_deg", "avg doa az [deg]", "doa_az_deg", "doa_deg", "bearing", "azimuth", "doa"]);
+
+  const getDfRssiValue = (alert: AlertRecord) =>
+    getDfMetricText(alert, ["rssi_last_dbm", "rssilastdbm", "rssi_dbm", "rssi"]);
+
+  const getDfSnrValue = (alert: AlertRecord) =>
+    getDfMetricText(alert, ["avg_snr_db", "avg snr [db]", "snr_db", "snr"]);
+
+  const getDfDurationValue = (alert: AlertRecord) =>
+    getDfMetricText(alert, ["duration_ms", "duration [ms]", "duration"]);
+
+  const toSortableNumber = (value: string) => {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) return parsed;
+    return Number.NEGATIVE_INFINITY;
   };
 
   const renderOthers = (alert: AlertRecord) => {
@@ -166,6 +227,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
   const detailsOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => inferAlertName(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
   const typeOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => inferAlertType(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
   const sourceOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => inferAlertSource(alert)))).sort((a, b) => a.localeCompare(b)), [alerts, assetNameById]);
+  const dfFreqOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getDfFreqValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
+  const dfDoaOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getDfDoaValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
+  const dfRssiOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getDfRssiValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
+  const dfSnrOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getDfSnrValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
+  const dfDurationOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getDfDurationValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
   const dateOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getDateValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
   const timeOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getTimeValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
   const latitudeOptions = useMemo(() => Array.from(new Set(alerts.map((alert) => getLatitudeValue(alert)))).sort((a, b) => a.localeCompare(b)), [alerts]);
@@ -186,6 +252,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
       const detailsValue = inferAlertName(alert);
       const typeValue = inferAlertType(alert);
       const sourceValue = inferAlertSource(alert);
+      const dfFreqValue = getDfFreqValue(alert);
+      const dfDoaValue = getDfDoaValue(alert);
+      const dfRssiValue = getDfRssiValue(alert);
+      const dfSnrValue = getDfSnrValue(alert);
+      const dfDurationValue = getDfDurationValue(alert);
       const dateValue = getDateValue(alert);
       const timeValue = getTimeValue(alert);
       const latitudeValue = getLatitudeValue(alert);
@@ -198,6 +269,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
       if (!matchesFilter(detailsValue, detailsFilter)) return false;
       if (!matchesFilter(typeValue, typeFilter)) return false;
       if (!matchesFilter(sourceValue, sourceFilter)) return false;
+      if (!matchesFilter(dfFreqValue, dfFreqFilter)) return false;
+      if (!matchesFilter(dfDoaValue, dfDoaFilter)) return false;
+      if (!matchesFilter(dfRssiValue, dfRssiFilter)) return false;
+      if (!matchesFilter(dfSnrValue, dfSnrFilter)) return false;
+      if (!matchesFilter(dfDurationValue, dfDurationFilter)) return false;
       if (!matchesFilter(dateValue, dateFilter)) return false;
       if (!matchesFilter(timeValue, timeFilter)) return false;
       if (!matchesFilter(latitudeValue, latitudeFilter)) return false;
@@ -214,6 +290,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     dateFilter,
     detailsFilter,
     displayIdByAlertId,
+    dfDoaFilter,
+    dfDurationFilter,
+    dfFreqFilter,
+    dfRssiFilter,
+    dfSnrFilter,
     idFilter,
     latitudeFilter,
     longitudeFilter,
@@ -254,6 +335,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
       if (sortColumn === "details") return inferAlertName(alert);
       if (sortColumn === "type") return inferAlertType(alert);
       if (sortColumn === "source") return inferAlertSource(alert);
+      if (sortColumn === "dfFreq") return toSortableNumber(getDfFreqValue(alert));
+      if (sortColumn === "dfDoa") return toSortableNumber(getDfDoaValue(alert));
+      if (sortColumn === "dfRssi") return toSortableNumber(getDfRssiValue(alert));
+      if (sortColumn === "dfSnr") return toSortableNumber(getDfSnrValue(alert));
+      if (sortColumn === "dfDuration") return toSortableNumber(getDfDurationValue(alert));
       if (sortColumn === "date") return getDateSortValue(alert);
       if (sortColumn === "time") return getTimeSortValue(alert);
       if (sortColumn === "latitude") return typeof alert.latitude === "number" ? alert.latitude : Number.NEGATIVE_INFINITY;
@@ -327,11 +413,54 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     }
   };
 
+  const handleAcknowledgeAll = async () => {
+    if (!user) return;
+    const targetIds = sortedAlerts.filter((alert) => alert.status === "NEW").map((alert) => alert.id);
+    if (targetIds.length === 0) return;
+
+    try {
+      setBulkActionInProgress("ack");
+      setError(null);
+      await Promise.all(targetIds.map((id) => acknowledgeAlert(id, user.id)));
+      await loadAlerts();
+    } catch {
+      setError("Failed to acknowledge all matching alerts.");
+    } finally {
+      setBulkActionInProgress(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    const targetIds = sortedAlerts
+      .filter((alert) => alert.status === "ACKNOWLEDGED")
+      .map((alert) => alert.id);
+    if (targetIds.length === 0) return;
+
+    try {
+      setBulkActionInProgress("clear");
+      setError(null);
+      await Promise.all(targetIds.map((id) => clearAlert(id)));
+      await loadAlerts();
+    } catch {
+      setError("Failed to clear all matching alerts.");
+    } finally {
+      setBulkActionInProgress(null);
+    }
+  };
+
+  const actionableNewCount = sortedAlerts.filter((alert) => alert.status === "NEW").length;
+  const actionableAckCount = sortedAlerts.filter((alert) => alert.status === "ACKNOWLEDGED").length;
+
   const exportHeaders = [
     "ID",
     "Details",
     "Type",
     "Source",
+    "Freq (MHz)",
+    "DOA Az (deg)",
+    "RssiLast (dBm)",
+    "Avg SNR (dB)",
+    "Duration (ms)",
     "Date",
     "Time",
     "Latitude",
@@ -348,6 +477,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
         inferAlertName(alert),
         inferAlertType(alert),
         inferAlertSource(alert),
+        getDfFreqValue(alert),
+        getDfDoaValue(alert),
+        getDfRssiValue(alert),
+        getDfSnrValue(alert),
+        getDfDurationValue(alert),
         getDateValue(alert),
         getTimeValue(alert),
         getLatitudeValue(alert),
@@ -438,6 +572,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     setDetailsFilter("");
     setTypeFilter("");
     setSourceFilter("");
+    setDfFreqFilter("");
+    setDfDoaFilter("");
+    setDfRssiFilter("");
+    setDfSnrFilter("");
+    setDfDurationFilter("");
     setDateFilter("");
     setTimeFilter("");
     setLatitudeFilter("");
@@ -452,6 +591,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     detailsFilter,
     typeFilter,
     sourceFilter,
+    dfFreqFilter,
+    dfDoaFilter,
+    dfRssiFilter,
+    dfSnrFilter,
+    dfDurationFilter,
     dateFilter,
     timeFilter,
     latitudeFilter,
@@ -466,6 +610,44 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: theme.spacing.sm }}>
         <h3 style={{ marginTop: 0, marginBottom: 0 }}>Alert List</h3>
         <div style={{ display: "inline-flex", gap: theme.spacing.sm }}>
+          {showAcknowledge && (
+            <>
+              <button
+                type="button"
+                onClick={handleAcknowledgeAll}
+                disabled={!user || actionableNewCount === 0 || bulkActionInProgress !== null}
+                style={{
+                  border: "none",
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.primary,
+                  color: "#fff",
+                  cursor: !user || actionableNewCount === 0 || bulkActionInProgress !== null ? "not-allowed" : "pointer",
+                  opacity: !user || actionableNewCount === 0 || bulkActionInProgress !== null ? 0.65 : 1,
+                  padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                }}
+              >
+                {bulkActionInProgress === "ack" ? "ACK ALL..." : `ACK ALL (${actionableNewCount})`}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearAll}
+                disabled={actionableAckCount === 0 || bulkActionInProgress !== null}
+                style={{
+                  border: "none",
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.warning,
+                  color: "#fff",
+                  cursor: actionableAckCount === 0 || bulkActionInProgress !== null ? "not-allowed" : "pointer",
+                  opacity: actionableAckCount === 0 || bulkActionInProgress !== null ? 0.65 : 1,
+                  padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                }}
+              >
+                {bulkActionInProgress === "clear" ? "Clear All..." : `Clear All (${actionableAckCount})`}
+              </button>
+            </>
+          )}
+
           <button
             type="button"
             onClick={clearAllFilters}
@@ -536,6 +718,31 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
               </button>
             </th>
             <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <button type="button" onClick={() => toggleSort("dfFreq")} style={sortButtonStyle}>
+                {`Freq (MHz)${getSortLabel("dfFreq")}`}
+              </button>
+            </th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <button type="button" onClick={() => toggleSort("dfDoa")} style={sortButtonStyle}>
+                {`DOA Az (deg)${getSortLabel("dfDoa")}`}
+              </button>
+            </th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <button type="button" onClick={() => toggleSort("dfRssi")} style={sortButtonStyle}>
+                {`RssiLast (dBm)${getSortLabel("dfRssi")}`}
+              </button>
+            </th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <button type="button" onClick={() => toggleSort("dfSnr")} style={sortButtonStyle}>
+                {`Avg SNR (dB)${getSortLabel("dfSnr")}`}
+              </button>
+            </th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <button type="button" onClick={() => toggleSort("dfDuration")} style={sortButtonStyle}>
+                {`Duration (ms)${getSortLabel("dfDuration")}`}
+              </button>
+            </th>
+            <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
               <button type="button" onClick={() => toggleSort("date")} style={sortButtonStyle}>
                 {`Date${getSortLabel("date")}`}
               </button>
@@ -597,6 +804,36 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
               </datalist>
             </th>
             <th style={{ padding: theme.spacing.xs, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <input value={dfFreqFilter} onChange={(event) => setDfFreqFilter(event.target.value)} placeholder="Search" list="df-freq-filter-options" style={filterInputStyle} />
+              <datalist id="df-freq-filter-options">
+                {dfFreqOptions.map((option) => <option key={option} value={option} />)}
+              </datalist>
+            </th>
+            <th style={{ padding: theme.spacing.xs, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <input value={dfDoaFilter} onChange={(event) => setDfDoaFilter(event.target.value)} placeholder="Search" list="df-doa-filter-options" style={filterInputStyle} />
+              <datalist id="df-doa-filter-options">
+                {dfDoaOptions.map((option) => <option key={option} value={option} />)}
+              </datalist>
+            </th>
+            <th style={{ padding: theme.spacing.xs, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <input value={dfRssiFilter} onChange={(event) => setDfRssiFilter(event.target.value)} placeholder="Search" list="df-rssi-filter-options" style={filterInputStyle} />
+              <datalist id="df-rssi-filter-options">
+                {dfRssiOptions.map((option) => <option key={option} value={option} />)}
+              </datalist>
+            </th>
+            <th style={{ padding: theme.spacing.xs, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <input value={dfSnrFilter} onChange={(event) => setDfSnrFilter(event.target.value)} placeholder="Search" list="df-snr-filter-options" style={filterInputStyle} />
+              <datalist id="df-snr-filter-options">
+                {dfSnrOptions.map((option) => <option key={option} value={option} />)}
+              </datalist>
+            </th>
+            <th style={{ padding: theme.spacing.xs, borderBottom: `1px solid ${theme.colors.border}` }}>
+              <input value={dfDurationFilter} onChange={(event) => setDfDurationFilter(event.target.value)} placeholder="Search" list="df-duration-filter-options" style={filterInputStyle} />
+              <datalist id="df-duration-filter-options">
+                {dfDurationOptions.map((option) => <option key={option} value={option} />)}
+              </datalist>
+            </th>
+            <th style={{ padding: theme.spacing.xs, borderBottom: `1px solid ${theme.colors.border}` }}>
               <input value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} placeholder="Search" list="date-filter-options" style={filterInputStyle} />
               <datalist id="date-filter-options">
                 {dateOptions.map((option) => <option key={option} value={option} />)}
@@ -647,6 +884,11 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{inferAlertName(alert)}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{inferAlertType(alert)}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{inferAlertSource(alert)}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{getDfFreqValue(alert)}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{getDfDoaValue(alert)}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{getDfRssiValue(alert)}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{getDfSnrValue(alert)}</td>
+              <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{getDfDurationValue(alert)}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{getDateValue(alert)}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{getTimeValue(alert)}</td>
               <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{typeof alert.latitude === "number" ? alert.latitude.toFixed(6) : "-"}</td>
@@ -676,7 +918,7 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
           ))}
           {sortedAlerts.length === 0 && (
             <tr>
-              <td style={{ padding: theme.spacing.sm }} colSpan={11}>No matching alerts found.</td>
+              <td style={{ padding: theme.spacing.sm }} colSpan={16}>No matching alerts found.</td>
             </tr>
           )}
         </tbody>

@@ -16,5 +16,13 @@ export type CreateUserRequest = {
 	role_id?: number;
 };
 
+export type UpdateUserRequest = {
+	username: string;
+	email: string;
+	role_id?: number | null;
+};
+
 export const getUsers = () => api.get<UserRecord[]>("/users");
 export const createUser = (data: CreateUserRequest) => api.post<UserRecord>("/users", data);
+export const updateUser = (userId: string, data: UpdateUserRequest) => api.put<UserRecord>(`/users/${userId}`, data);
+export const deleteUser = (userId: string) => api.delete(`/users/${userId}`);

@@ -3,13 +3,91 @@ import uuid
 from sqlalchemy import select, insert, delete
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status
 from app.models import AuditLog
-from app.models import Role, Permission, role_permissions, role_inheritance
+from app.models import Role, Permission, User, role_permissions, role_inheritance
 
 
 async def list_roles(db: AsyncSession):
 	result = await db.execute(select(Role))
 	return result.scalars().all()
+
+
+async def create_role(name: str, level: int, db: AsyncSession):
+	clean_name = name.strip()
+	if not clean_name:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Role name is required",
+		)
+
+	role = Role(name=clean_name, level=level)
+	db.add(role)
+	try:
+		await db.commit()
+	except IntegrityError:
+		await db.rollback()
+		raise HTTPException(
+			status_code=status.HTTP_409_CONFLICT,
+			detail="Role name already exists",
+		)
+
+	await db.refresh(role)
+	return role
+
+
+async def update_role(role_id: int, name: str, level: int, db: AsyncSession):
+	role = (await db.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
+	if role is None:
+		raise HTTPException(
+			status_code=status.HTTP_404_NOT_FOUND,
+			detail="Role not found",
+		)
+
+	clean_name = name.strip()
+	if not clean_name:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Role name is required",
+		)
+
+	role.name = clean_name
+	role.level = level
+
+	try:
+		await db.commit()
+	except IntegrityError:
+		await db.rollback()
+		raise HTTPException(
+			status_code=status.HTTP_409_CONFLICT,
+			detail="Role name already exists",
+		)
+
+	await db.refresh(role)
+	return role
+
+
+async def delete_role(role_id: int, db: AsyncSession):
+	role = (await db.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
+	if role is None:
+		raise HTTPException(
+			status_code=status.HTTP_404_NOT_FOUND,
+			detail="Role not found",
+		)
+
+	assigned_user = (await db.execute(select(User.id).where(User.role_id == role_id).limit(1))).scalar_one_or_none()
+	if assigned_user is not None:
+		raise HTTPException(
+			status_code=status.HTTP_400_BAD_REQUEST,
+			detail="Cannot delete role assigned to users",
+		)
+
+	await db.execute(delete(role_permissions).where(role_permissions.c.role_id == role_id))
+	await db.execute(delete(role_inheritance).where(role_inheritance.c.parent_role_id == role_id))
+	await db.execute(delete(role_inheritance).where(role_inheritance.c.child_role_id == role_id))
+	await db.delete(role)
+	await db.commit()
 
 
 async def create_permission(resource: str, action: str, scope: str, db: AsyncSession):

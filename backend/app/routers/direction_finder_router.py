@@ -23,11 +23,27 @@ from app.services.direction_finder_service import (
 router = APIRouter(prefix="/direction-finders", tags=["direction-finders"])
 
 
+def _to_direction_finder_profile_read(row) -> DirectionFinderProfileRead:
+    payload = {column.name: getattr(row, column.name) for column in row.__table__.columns}
+    payload["antenna_polarization_support"] = payload.get("antenna_polarization_support") or []
+    payload["df_methods_supported"] = payload.get("df_methods_supported") or []
+    payload["lever_arm_offset_m"] = payload.get("lever_arm_offset_m") or {}
+    payload["transport_protocols"] = payload.get("transport_protocols") or []
+    payload["message_protocols"] = payload.get("message_protocols") or []
+    payload["data_format_profiles"] = payload.get("data_format_profiles") or []
+    payload["geodetic_datum"] = payload.get("geodetic_datum") or "WGS84"
+    payload["altitude_reference"] = payload.get("altitude_reference") or "MSL"
+    payload["secure_boot_enabled"] = (
+        True if payload.get("secure_boot_enabled") is None else payload.get("secure_boot_enabled")
+    )
+    return DirectionFinderProfileRead.model_validate(payload)
+
+
 @router.post("/", response_model=DirectionFinderProfileRead)
 async def create(data: DirectionFinderProfileCreate, db: AsyncSession = Depends(get_db)):
     try:
         row = await create_direction_finder_profile(data, db)
-        return row
+        return _to_direction_finder_profile_read(row)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -35,7 +51,7 @@ async def create(data: DirectionFinderProfileCreate, db: AsyncSession = Depends(
 @router.get("/", response_model=list[DirectionFinderProfileRead])
 async def list_all(db: AsyncSession = Depends(get_db)):
     rows = await list_direction_finder_profiles(db)
-    return rows
+    return [_to_direction_finder_profile_read(row) for row in rows]
 
 
 @router.get("/{profile_id}", response_model=DirectionFinderProfileRead)
@@ -43,7 +59,7 @@ async def get_one(profile_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     row = await get_direction_finder_profile(profile_id, db)
     if row is None:
         raise HTTPException(status_code=404, detail="Direction finder profile not found")
-    return row
+    return _to_direction_finder_profile_read(row)
 
 
 @router.patch("/{profile_id}", response_model=DirectionFinderProfileRead)
@@ -52,7 +68,7 @@ async def update(profile_id: uuid.UUID, data: DirectionFinderProfileUpdate, db: 
         row = await update_direction_finder_profile(profile_id, data, db)
         if row is None:
             raise HTTPException(status_code=404, detail="Direction finder profile not found")
-        return row
+        return _to_direction_finder_profile_read(row)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

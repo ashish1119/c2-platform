@@ -30,10 +30,26 @@ class RoleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RoleCreate(BaseModel):
+    name: str
+    level: int = Field(default=1, ge=1)
+
+
+class RoleUpdate(BaseModel):
+    name: str
+    level: int = Field(ge=1)
+
+
 class UserCreate(BaseModel):
     username: str
     email: str
     password: str
+    role_id: int | None = None
+
+
+class UserUpdate(BaseModel):
+    username: str
+    email: str
     role_id: int | None = None
 
 
@@ -163,6 +179,22 @@ class AssetCreate(BaseModel):
     status: str = "ACTIVE"
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+    height_m: float | None = Field(default=None, ge=0)
+    range_m: float | None = Field(default=None, gt=0)
+    bearing_deg: float | None = Field(default=None, ge=0, lt=360)
+    fov_deg: float | None = Field(default=None, gt=0, le=360)
+
+
+class AssetUpdate(BaseModel):
+    name: str
+    type: str | None = None
+    status: str = "ACTIVE"
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    height_m: float | None = Field(default=None, ge=0)
+    range_m: float | None = Field(default=None, gt=0)
+    bearing_deg: float | None = Field(default=None, ge=0, lt=360)
+    fov_deg: float | None = Field(default=None, gt=0, le=360)
 
 
 class AssetRead(BaseModel):
@@ -172,6 +204,10 @@ class AssetRead(BaseModel):
     status: str
     latitude: float
     longitude: float
+    height_m: float | None = None
+    range_m: float | None = None
+    bearing_deg: float | None = None
+    fov_deg: float | None = None
     df_radius_m: float | None = None
     created_at: datetime | None = None
 
@@ -316,6 +352,8 @@ class JammerProfileBase(BaseModel):
     vehicle_power_bus_type: str | None = None
     cooling_integration_type: str | None = None
     time_source_interface: str | None = None
+    ip_address: str
+    port: int = Field(ge=1, le=65535)
 
     rf_coverage_min_mhz: float
     rf_coverage_max_mhz: float
@@ -391,6 +429,8 @@ class JammerProfileUpdate(BaseModel):
     vehicle_power_bus_type: str | None = None
     cooling_integration_type: str | None = None
     time_source_interface: str | None = None
+    ip_address: str | None = None
+    port: int | None = Field(default=None, ge=1, le=65535)
 
     rf_coverage_min_mhz: float | None = None
     rf_coverage_max_mhz: float | None = None
@@ -744,3 +784,134 @@ class SmsAdapterHealthRead(BaseModel):
     last_message_at: datetime | None = None
     last_error: str | None = None
     nodes: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CrfsStreamRead(BaseModel):
+    stream_guid: str
+    stream_name: str | None = None
+    color: int | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrfsSignalRead(BaseModel):
+    id: int
+    timestamp: datetime
+    center_frequency: float | None = None
+    bandwidth: float | None = None
+    power: float | None = None
+    snr: float | None = None
+    modulation: str = "UNKNOWN"
+    classification: str | None = None
+    aoa_bearing: float | None = None
+    aoa_elevation: float | None = None
+    origin_guid: str
+    stream_guid: str
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrfsLocationRead(BaseModel):
+    id: int
+    latitude: float
+    longitude: float
+    altitude: float | None = None
+    speed: float | None = None
+    timestamp: datetime
+    origin_guid: str
+    stream_guid: str
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrfsEventRead(BaseModel):
+    id: int
+    event_type: str
+    frequency_center: float | None = None
+    frequency_span: float | None = None
+    power: float | None = None
+    timestamp: datetime
+    origin_guid: str
+    stream_guid: str
+    payload_json: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrfsAlertRead(BaseModel):
+    id: uuid.UUID
+    alert_name: str | None = None
+    alert_type: str | None = None
+    severity: str
+    status: str
+    description: str | None = None
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrfsIngestNodeCreate(BaseModel):
+    node_name: str
+    host: str
+    port: int = Field(ge=1, le=65535)
+    enabled: bool = True
+    description: str | None = None
+
+
+class CrfsIngestNodeUpdate(BaseModel):
+    host: str | None = None
+    port: int | None = Field(default=None, ge=1, le=65535)
+    enabled: bool | None = None
+    description: str | None = None
+
+
+class CrfsIngestNodeRead(BaseModel):
+    id: uuid.UUID
+    node_name: str
+    host: str
+    port: int
+    enabled: bool
+    description: str | None = None
+    last_seen: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CrfsIngestHealthRead(BaseModel):
+    enabled: bool
+    running: bool
+    host: str
+    port: int
+    length_endian: str
+    active_connections: int
+    total_connections: int
+    frames_received: int
+    frames_processed: int
+    frames_rejected: int
+    frames_failed: int
+    max_message_bytes: int
+    idle_timeout_seconds: int
+    last_message_at: datetime | None = None
+    last_error: str | None = None
+    realtime: dict[str, Any] = Field(default_factory=dict)
+
+
+class CrfsIngestControlResponse(BaseModel):
+    status: str
+    health: CrfsIngestHealthRead
+
+
+class CrfsOperatorDashboardRead(BaseModel):
+    streams: list[CrfsStreamRead] = Field(default_factory=list)
+    signals: list[CrfsSignalRead] = Field(default_factory=list)
+    locations: list[CrfsLocationRead] = Field(default_factory=list)
+    events: list[CrfsEventRead] = Field(default_factory=list)
+    alerts: list[CrfsAlertRead] = Field(default_factory=list)
+    realtime_events: list[dict[str, Any]] = Field(default_factory=list)

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
 import PageContainer from "../components/layout/PageContainer";
 import MetricCard from "../components/ui/MetricCard";
-import AlertTable from "../components/AlertTable";
+import Card from "../components/ui/Card";
 import { getUsers } from "../api/users";
 import { getAlerts, simulateAlerts } from "../api/alerts";
 import { getRFSignals } from "../api/rf";
@@ -99,7 +100,37 @@ export default function AdminDashboard() {
               )}
             </div>
 
-        <AlertTable />
+        <Card>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: theme.spacing.md,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: theme.typography.h3.fontSize, fontWeight: theme.typography.h3.fontWeight }}>
+                CRFS Live
+              </div>
+              <div style={{ color: theme.colors.textSecondary }}>Open live CRFS ingest health and recent activity.</div>
+            </div>
+            <Link
+              to="/crfs/live"
+              style={{
+                textDecoration: "none",
+                borderRadius: theme.radius.md,
+                background: theme.colors.primary,
+                color: theme.colors.surface,
+                padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                fontWeight: 600,
+              }}
+            >
+              Open CRFS Live
+            </Link>
+          </div>
+        </Card>
+
       </PageContainer>
     </AppLayout>
   );

@@ -1,12 +1,66 @@
 import math
+from datetime import datetime, timezone
+
 from sqlalchemy import select, func, Float, cast
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from geoalchemy2.elements import WKTElement
 from geoalchemy2 import Geometry
+
+from app.logging_config import logger
 from app.models import RFSignal
 
 
+def _rf_partition_bounds(detected_at: datetime | None) -> tuple[str, str, datetime, datetime]:
+    timestamp = detected_at or datetime.now(timezone.utc)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    else:
+        timestamp = timestamp.astimezone(timezone.utc)
+
+    start = timestamp.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start.month == 12:
+        end = start.replace(year=start.year + 1, month=1)
+    else:
+        end = start.replace(month=start.month + 1)
+
+    suffix = f"{start.year:04d}_{start.month:02d}"
+    table_name = f"rf_signals_{suffix}"
+    index_name = f"idx_rf_location_{suffix}"
+    return table_name, index_name, start, end
+
+
+async def ensure_rf_signal_partition(db: AsyncSession, detected_at: datetime | None) -> None:
+    table_name, index_name, start, end = _rf_partition_bounds(detected_at)
+    start_literal = start.strftime("%Y-%m-%d %H:%M:%S%z")
+    end_literal = end.strftime("%Y-%m-%d %H:%M:%S%z")
+
+    await db.execute(
+        text(
+            f"""
+            CREATE TABLE IF NOT EXISTS {table_name}
+            PARTITION OF rf_signals
+            FOR VALUES FROM ('{start_literal}') TO ('{end_literal}')
+            """
+        )
+    )
+    await db.execute(
+        text(
+            f"""
+            CREATE INDEX IF NOT EXISTS {index_name}
+            ON {table_name}
+            USING GIST (location)
+            """
+        )
+    )
+
+
 async def ingest_signal(data, db: AsyncSession):
+    try:
+        await ensure_rf_signal_partition(db, data.detected_at)
+    except Exception as exc:
+        logger.warning(f"RF partition ensure failed: {exc}")
+
     signal = RFSignal(
         frequency=data.frequency,
         modulation=data.modulation,

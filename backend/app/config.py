@@ -24,6 +24,16 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
     ]
+    BACKEND_CORS_ORIGIN_REGEX: str = (
+        r"^https?://("
+        r"localhost"
+        r"|127\.0\.0\.1"
+        r"|0\.0\.0\.0"
+        r"|192\.168\.\d+\.\d+"
+        r"|10\.\d+\.\d+\.\d+"
+        r"|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+"
+        r")(:\d+)?$"
+    )
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 60
@@ -50,6 +60,20 @@ class Settings(BaseSettings):
     TCP_LISTENER_PORT: int = 9300
     TCP_LISTENER_IDLE_TIMEOUT_SECONDS: int = 30
     TCP_LISTENER_MAX_LINE_BYTES: int = 16384
+
+    # CRFS pbd2 integration
+    CRFS_ENABLED: bool = False
+    CRFS_HOST: str = "0.0.0.0"
+    CRFS_PORT: int = 9400
+    CRFS_IDLE_TIMEOUT_SECONDS: int = 30
+    CRFS_MAX_MESSAGE_BYTES: int = 1048576
+    CRFS_LENGTH_ENDIAN: str = "big"
+    CRFS_SIGNAL_POWER_ALERT_THRESHOLD: float = -45.0
+    CRFS_AOA_DELTA_ALERT_THRESHOLD_DEG: float = 20.0
+
+    # Event streaming backend
+    REDIS_URL: str | None = None
+    CRFS_REDIS_STREAM: str = "crfs.events"
 
 
 @lru_cache

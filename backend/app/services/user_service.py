@@ -40,3 +40,64 @@ async def create_user(data, db: AsyncSession):
     await db.refresh(user)
 
     return user
+
+
+async def update_user(user_id, data, db: AsyncSession):
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    username = data.username.strip()
+    email = data.email.strip()
+    if not username or not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username and email are required",
+        )
+
+    role_id = getattr(data, "role_id", None)
+    if role_id is not None:
+        role = (await db.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
+        if role is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid role_id",
+            )
+
+    user.username = username
+    user.email = email
+    user.role_id = role_id
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username or email already exists",
+        )
+
+    await db.refresh(user)
+    return user
+
+
+async def delete_user(user_id, db: AsyncSession):
+    user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    await db.delete(user)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete user due to related records",
+        )

@@ -1,5 +1,6 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from geoalchemy2.elements import WKTElement
 from app.models import Asset, JammerProfile
 
 
@@ -52,3 +53,47 @@ async def delete_jammer_profile(profile_id, db: AsyncSession):
     await db.delete(row)
     await db.commit()
     return True
+
+
+async def ensure_default_jammer(db: AsyncSession):
+    existing_asset_row = await db.execute(
+        select(Asset)
+        .where(Asset.type == "JAMMER")
+        .order_by(Asset.created_at.asc())
+    )
+    jammer_asset = existing_asset_row.scalars().first()
+
+    if jammer_asset is None:
+        jammer_asset = Asset(
+            name="Vector Jammer Unit 1",
+            type="JAMMER",
+            status="ACTIVE",
+            location=WKTElement("POINT(77.5680 12.9480)", srid=4326),
+        )
+        db.add(jammer_asset)
+        await db.flush()
+
+    existing_profile_row = await db.execute(
+        select(JammerProfile).where(JammerProfile.asset_id == jammer_asset.id)
+    )
+    jammer_profile = existing_profile_row.scalars().first()
+
+    if jammer_profile is None:
+        jammer_profile = JammerProfile(
+            asset_id=jammer_asset.id,
+            manufacturer="Example Defense Systems Ltd",
+            model_number="XJ-4000",
+            serial_number="SN-XJ4-24-000198",
+            jammer_subtype="COMMUNICATIONS_JAMMER",
+            mission_domain="LAND",
+            platform_type="GROUND_VEHICLE",
+            ip_address="127.0.0.1",
+            port=5001,
+            rf_coverage_min_mhz=20.0,
+            rf_coverage_max_mhz=6000.0,
+            security_classification="SECRET",
+            lifecycle_state="ACTIVE_SERVICE",
+        )
+        db.add(jammer_profile)
+
+    await db.commit()

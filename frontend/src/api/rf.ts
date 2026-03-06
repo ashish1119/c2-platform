@@ -44,8 +44,17 @@ export type TriangulationResult = {
   warning?: string | null;
 };
 
+export type TriangulationQuery = {
+  limit?: number;
+  ray_length_m?: number;
+  flip_180?: boolean;
+  parallel_angle_threshold_deg?: number;
+  max_intersection_distance_m?: number;
+};
+
 export const getRFSignals = () => api.get<RFSignal[]>("/rf/signals");
 
 export const getHeatMap = () => api.get<HeatCell[]>("/rf/heatmap");
 
-export const getTriangulation = () => api.get<TriangulationResult>("/rf/triangulation");
+export const getTriangulation = (params?: TriangulationQuery) =>
+  api.get<TriangulationResult>("/rf/triangulation", { params });

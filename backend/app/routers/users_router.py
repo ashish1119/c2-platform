@@ -1,10 +1,11 @@
+import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-from app.schemas import UserCreate, UserRead
+from app.schemas import UserCreate, UserRead, UserUpdate
 from app.models import User
-from app.services.user_service import create_user
+from app.services.user_service import create_user, update_user, delete_user
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -18,3 +19,14 @@ async def create(data: UserCreate, db: AsyncSession = Depends(get_db)):
 async def list_users(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User))
     return result.scalars().all()
+
+
+@router.put("/{user_id}", response_model=UserRead)
+async def update(user_id: uuid.UUID, data: UserUpdate, db: AsyncSession = Depends(get_db)):
+    return await update_user(user_id, data, db)
+
+
+@router.delete("/{user_id}")
+async def remove(user_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    await delete_user(user_id, db)
+    return {"status": "ok"}

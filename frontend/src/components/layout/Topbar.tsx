@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { changePassword } from "../../api/auth";
+import { branding } from "../../theme/branding";
 
 type TopbarProps = {
   isSidebarVisible: boolean;
@@ -20,19 +21,30 @@ export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProp
   const [passwordStatus, setPasswordStatus] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
+  const hasPermission = (requiredPermission: string) => {
+    const permissions = user?.permissions ?? [];
+    const [requiredResource, requiredAction] = requiredPermission.split(":");
+
+    return (
+      permissions.includes(requiredPermission) ||
+      permissions.includes(`${requiredResource}:*`) ||
+      permissions.includes(`*:${requiredAction}`) ||
+      permissions.includes("*:*")
+    );
+  };
+
   const pageTitle = (() => {
     const pathname = location.pathname;
     if (pathname === "/admin") return "Admin Dashboard";
     if (pathname === "/admin/users") return "User Management";
     if (pathname === "/admin/assets") return "Asset Management";
-    if (pathname === "/admin/decodio") return "Decodio Control";
-    if (pathname === "/admin/audit-logs") return "Audit Logs";
-    if (pathname === "/admin/sms") return "SMS Monitoring";
     if (pathname === "/operator") return "Operations Center";
     if (pathname === "/operator/map") return "Operator Map";
     if (pathname === "/operator/alerts") return "Operator Alerts";
     if (pathname === "/planning") return "Planning Tool";
     if (pathname === "/reports") return "Reports";
+    if (pathname === "/crfs/live") return "CRFS Live";
+    if (pathname === "/jammer/control") return "Jammer Control";
     return "";
   })();
 
@@ -49,8 +61,12 @@ export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProp
         padding: `0 ${theme.spacing.xl}`,
       }}
     >
-      <div style={{ fontWeight: 600, minWidth: "240px" }}>
-        Enterprise Command Platform
+      <div style={{ minWidth: "240px", display: "flex", alignItems: "center" }}>
+        <img
+          src={branding.topbarLogoSrc}
+          alt={branding.logoAlt}
+          style={{ height: 30, width: "auto", display: "block" }}
+        />
       </div>
 
       <div
@@ -80,6 +96,22 @@ export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProp
         >
           {isSidebarVisible ? "Hide Menu" : "Show Menu"}
         </button>
+
+        {user?.role === "ADMIN" && hasPermission("crfs:read") && (
+          <button
+            onClick={() => navigate("/crfs/live")}
+            style={{
+              background: theme.colors.primary,
+              color: theme.colors.surface,
+              border: `1px solid ${theme.colors.border}`,
+              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+              borderRadius: theme.radius.md,
+              cursor: "pointer",
+            }}
+          >
+            CRFS Live
+          </button>
+        )}
 
         <label
           style={{

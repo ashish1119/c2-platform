@@ -32,6 +32,10 @@ CREATE TABLE assets (
     type VARCHAR(100),
     status VARCHAR(50) DEFAULT 'ACTIVE',
     location GEOGRAPHY(POINT, 4326),
+    height_m DOUBLE PRECISION,
+    range_m DOUBLE PRECISION,
+    bearing_deg DOUBLE PRECISION,
+    fov_deg DOUBLE PRECISION,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -68,6 +72,8 @@ CREATE TABLE jammer_profiles (
     vehicle_power_bus_type VARCHAR(100),
     cooling_integration_type VARCHAR(100),
     time_source_interface VARCHAR(100),
+    ip_address VARCHAR(64) NOT NULL,
+    port INTEGER NOT NULL,
 
     rf_coverage_min_mhz DOUBLE PRECISION NOT NULL,
     rf_coverage_max_mhz DOUBLE PRECISION NOT NULL,

@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, TIMESTAMP, func, Integer, BigInteger, Float, Table, UniqueConstraint
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, TIMESTAMP, func, Integer, BigInteger, Float, Table, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geography
@@ -64,6 +64,10 @@ class Asset(Base):
     type = Column(String)
     status = Column(String)
     location = Column(Geography("POINT", srid=4326))
+    height_m = Column(Float)
+    range_m = Column(Float)
+    bearing_deg = Column(Float)
+    fov_deg = Column(Float)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     alerts = relationship("Alert", back_populates="asset")
     jammer_profile = relationship("JammerProfile", back_populates="asset", uselist=False)
@@ -135,6 +139,8 @@ class JammerProfile(Base):
     vehicle_power_bus_type = Column(String)
     cooling_integration_type = Column(String)
     time_source_interface = Column(String)
+    ip_address = Column(String, nullable=False)
+    port = Column(Integer, nullable=False)
 
     rf_coverage_min_mhz = Column(Float, nullable=False)
     rf_coverage_max_mhz = Column(Float, nullable=False)
@@ -361,6 +367,93 @@ class RFSignal(Base):
     doa_deg = Column(Float)
     location = Column(Geography("POINT", srid=4326))
     detected_at = Column(TIMESTAMP(timezone=True), primary_key=True, nullable=False)
+
+
+class CrfsStream(Base):
+    __tablename__ = "crfs_streams"
+
+    stream_guid = Column(String, primary_key=True)
+    stream_name = Column(String, nullable=True)
+    color = Column(Integer, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CrfsSignal(Base):
+    __tablename__ = "crfs_signals"
+    __table_args__ = (
+        Index("ix_crfs_signals_timestamp", "timestamp"),
+        Index("ix_crfs_signals_stream_guid", "stream_guid"),
+        Index("ix_crfs_signals_origin_guid", "origin_guid"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
+    center_frequency = Column(Float)
+    bandwidth = Column(Float)
+    power = Column(Float)
+    snr = Column(Float)
+    modulation = Column(String, default="UNKNOWN")
+    classification = Column(String)
+    aoa_bearing = Column(Float)
+    aoa_elevation = Column(Float)
+    origin_guid = Column(String, nullable=False)
+    stream_guid = Column(String, ForeignKey("crfs_streams.stream_guid"), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class CrfsLocation(Base):
+    __tablename__ = "crfs_locations"
+    __table_args__ = (
+        Index("ix_crfs_locations_timestamp", "timestamp"),
+        Index("ix_crfs_locations_stream_guid", "stream_guid"),
+        Index("ix_crfs_locations_origin_guid", "origin_guid"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    altitude = Column(Float)
+    speed = Column(Float)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
+    origin_guid = Column(String, nullable=False)
+    stream_guid = Column(String, ForeignKey("crfs_streams.stream_guid"), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class CrfsEvent(Base):
+    __tablename__ = "crfs_events"
+    __table_args__ = (
+        Index("ix_crfs_events_timestamp", "timestamp"),
+        Index("ix_crfs_events_event_type", "event_type"),
+        Index("ix_crfs_events_stream_guid", "stream_guid"),
+        Index("ix_crfs_events_origin_guid", "origin_guid"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    event_type = Column(String, nullable=False)
+    frequency_center = Column(Float)
+    frequency_span = Column(Float)
+    power = Column(Float)
+    timestamp = Column(TIMESTAMP(timezone=True), nullable=False)
+    origin_guid = Column(String, nullable=False)
+    stream_guid = Column(String, ForeignKey("crfs_streams.stream_guid"), nullable=False)
+    payload_json = Column("payload", JSONB, default=dict)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class CrfsIngestNode(Base):
+    __tablename__ = "crfs_ingest_nodes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    node_name = Column(String, nullable=False, unique=True, index=True)
+    host = Column(String, nullable=False)
+    port = Column(Integer, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True)
+    description = Column(String)
+    last_seen = Column(TIMESTAMP(timezone=True))
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class CoverageRun(Base):

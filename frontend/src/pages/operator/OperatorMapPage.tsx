@@ -1,25 +1,129 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AxiosError } from "axios";
 import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
-import MapView from "../../components/MapView";
-import { getAssets, type AssetRecord } from "../../api/assets";
+import MapView, { type JammerControlConfig } from "../../components/MapView";
+import {
+  getAssets,
+  getJammerProfiles,
+  updateJammerProfile,
+  type AssetRecord,
+  type JammerProfileRecord,
+} from "../../api/assets";
 import { getAlerts, type AlertRecord } from "../../api/alerts";
 import {
   getHeatMap,
   getRFSignals,
-  getTriangulation,
   type HeatCell,
   type RFSignal,
-  type TriangulationResult,
 } from "../../api/rf";
 import { useTheme } from "../../context/ThemeContext";
+import api from "../../api/axios";
 
 const ASSET_TREE_VISIBLE_KEY = "ui.operator.assetTree.visible";
 const ASSET_TREE_PINNED_KEY = "ui.operator.assetTree.pinned";
+const OPERATOR_MAP_PANEL_HEIGHT = "calc(100vh - 190px)";
+const OPERATOR_MAP_MIN_HEIGHT_PX = 420;
+
+const MODULE_ID_OPTIONS = ["1", "2", "3", "4"];
+const GAIN_OPTIONS = Array.from({ length: 35 }, (_, index) => String(index + 1));
+const JAMMING_CODE_OPTIONS: Array<{ code: number; name: string }> = [
+  { code: 0, name: "CW" },
+  { code: 1, name: "TBS_868" },
+  { code: 2, name: "TBS_915" },
+  { code: 3, name: "TBS_868+915" },
+  { code: 4, name: "ELRS_868" },
+  { code: 5, name: "ELRS_915" },
+  { code: 6, name: "ELRS_2450_A" },
+  { code: 7, name: "ELRS_868+915" },
+  { code: 8, name: "TBS+ELRS_A" },
+  { code: 9, name: "GNSS_70M" },
+  { code: 10, name: "OFDM_5M" },
+  { code: 11, name: "OFDM_10M" },
+  { code: 12, name: "OFDM_20M" },
+  { code: 13, name: "OFDM_70M" },
+  { code: 14, name: "OFDM_100M" },
+  { code: 15, name: "OFDM_150M" },
+  { code: 16, name: "OFDM_140M" },
+  { code: 17, name: "OFDM_200M" },
+  { code: 18, name: "LFM_5M" },
+  { code: 19, name: "LFM_10M" },
+];
+
+type JammerTreeControlState = {
+  moduleId: string;
+  jammingCode: string;
+  frequency: string;
+  gain: string;
+};
+
+const DEFAULT_JAMMER_TREE_CONTROL_STATE: JammerTreeControlState = {
+  moduleId: "1",
+  jammingCode: "0",
+  frequency: "",
+  gain: "35",
+};
+
+function buildJammerApiTarget(ipAddress: string, port: number): string {
+  const host = ipAddress.trim();
+  if (!host) {
+    throw new Error("Jammer API IP is missing in jammer profile.");
+  }
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("Jammer API port is invalid in jammer profile.");
+  }
+
+  return `${host}:${port}`;
+}
+
+function extractApiErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof AxiosError) {
+    const payload = error.response?.data as
+      | { detail?: string; message?: string }
+      | string
+      | undefined;
+
+    if (typeof payload === "string" && payload.trim()) {
+      return payload;
+    }
+
+    if (payload && typeof payload === "object") {
+      if (typeof payload.detail === "string" && payload.detail.trim()) {
+        return payload.detail;
+      }
+      if (typeof payload.message === "string" && payload.message.trim()) {
+        return payload.message;
+      }
+    }
+
+    if (error.message) {
+      return error.message;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+const resolveAlertsWsUrl = () => {
+  if (typeof window === "undefined") {
+    return "ws://localhost:8000/ws/alerts";
+  }
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.hostname}:8000/ws/alerts`;
+};
 
 export default function OperatorMapPage() {
   const { theme } = useTheme();
   const [assets, setAssets] = useState<AssetRecord[]>([]);
+  const [jammerProfiles, setJammerProfiles] = useState<JammerProfileRecord[]>([]);
+  const [jammerActionAssetId, setJammerActionAssetId] = useState<string | null>(null);
+  const [jammerToast, setJammerToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [jammerTreeControlByAssetId, setJammerTreeControlByAssetId] = useState<Record<string, JammerTreeControlState>>({});
   const [showAllAssets, setShowAllAssets] = useState(true);
   const [selectedAssetTypes, setSelectedAssetTypes] = useState<string[]>([]);
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
@@ -38,56 +142,55 @@ export default function OperatorMapPage() {
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [signals, setSignals] = useState<RFSignal[]>([]);
   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
-  const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setError(null);
-        const [assetsRes, alertsRes, signalsRes, heatRes, triangulationRes] = await Promise.all([
-          getAssets(),
-          getAlerts(),
-          getRFSignals(),
-          getHeatMap(),
-          getTriangulation(),
-        ]);
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const [assetsRes, jammerProfilesRes, alertsRes, signalsRes, heatRes] = await Promise.all([
+        getAssets(),
+        getJammerProfiles(),
+        getAlerts(),
+        getRFSignals(),
+        getHeatMap(),
+      ]);
 
-        const loadedAssets = assetsRes.data;
-        const allTypes = Array.from(new Set(loadedAssets.map((asset) => (asset.type ?? "UNKNOWN").toUpperCase()))).sort();
-        const allIds = loadedAssets.map((asset) => asset.id);
+      const loadedAssets = assetsRes.data;
+      const allTypes = Array.from(new Set(loadedAssets.map((asset) => (asset.type ?? "UNKNOWN").toUpperCase()))).sort();
+      const allIds = loadedAssets.map((asset) => asset.id);
 
-        setAssets(loadedAssets);
-        setSelectedAssetTypes((current) => {
-          if (!hasInitializedSelectionsRef.current) {
-            return allTypes;
-          }
-          return current.filter((t) => allTypes.includes(t));
-        });
-        setSelectedAssetIds((current) => {
-          if (!hasInitializedSelectionsRef.current) {
-            return allIds;
-          }
-          return current.filter((id) => allIds.includes(id));
-        });
+      setAssets(loadedAssets);
+      setSelectedAssetTypes((current) => {
         if (!hasInitializedSelectionsRef.current) {
-          hasInitializedSelectionsRef.current = true;
+          return allTypes;
         }
-
-        setAlerts(alertsRes.data);
-        setSignals(signalsRes.data);
-        setHeatCells(heatRes.data);
-        setTriangulation(triangulationRes.data);
-      } catch {
-        setError("Failed to load map data.");
-      } finally {
-        setLoading(false);
+        return current.filter((t) => allTypes.includes(t));
+      });
+      setSelectedAssetIds((current) => {
+        if (!hasInitializedSelectionsRef.current) {
+          return allIds;
+        }
+        return current.filter((id) => allIds.includes(id));
+      });
+      if (!hasInitializedSelectionsRef.current) {
+        hasInitializedSelectionsRef.current = true;
       }
-    };
 
+      setJammerProfiles(jammerProfilesRes.data);
+      setAlerts(alertsRes.data);
+      setSignals(signalsRes.data);
+      setHeatCells(heatRes.data);
+    } catch {
+      setError("Failed to load map data.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
     load();
-    const ws = new WebSocket("ws://localhost:8000/ws/alerts");
+    const ws = new WebSocket(resolveAlertsWsUrl());
     ws.onmessage = () => load();
 
     const interval = setInterval(load, 15000);
@@ -95,7 +198,7 @@ export default function OperatorMapPage() {
       clearInterval(interval);
       ws.close();
     };
-  }, []);
+  }, [load]);
 
   const assetTypeGroups = useMemo(
     () => Array.from(new Set(assets.map((asset) => (asset.type ?? "UNKNOWN").toUpperCase()))).sort(),
@@ -140,6 +243,28 @@ export default function OperatorMapPage() {
     return grouped;
   }, [assets]);
 
+  useEffect(() => {
+    if (!showAllAssets) {
+      return;
+    }
+
+    const allAssetIds = assets.map((asset) => asset.id);
+
+    setSelectedAssetTypes((current) => {
+      if (current.length === assetTypeGroups.length && current.every((type, index) => type === assetTypeGroups[index])) {
+        return current;
+      }
+      return assetTypeGroups;
+    });
+
+    setSelectedAssetIds((current) => {
+      if (current.length === allAssetIds.length && current.every((assetId, index) => assetId === allAssetIds[index])) {
+        return current;
+      }
+      return allAssetIds;
+    });
+  }, [assets, assetTypeGroups, showAllAssets]);
+
   const filteredAssets = useMemo(() => {
     if (showAllAssets) {
       return assets;
@@ -152,6 +277,151 @@ export default function OperatorMapPage() {
       return allowedTypes.has(typeKey) && allowedIds.has(asset.id);
     });
   }, [assets, selectedAssetIds, selectedAssetTypes, showAllAssets]);
+
+  const jammerProfileByAssetId = useMemo(
+    () =>
+      jammerProfiles.reduce((acc, profile) => {
+        acc[profile.asset_id] = profile;
+        return acc;
+      }, {} as Record<string, JammerProfileRecord>),
+    [jammerProfiles]
+  );
+
+  const jammerLifecycleByAssetId = useMemo(
+    () =>
+      jammerProfiles.reduce((acc, profile) => {
+        acc[profile.asset_id] = profile.lifecycle_state ?? "ACTIVE_SERVICE";
+        return acc;
+      }, {} as Record<string, string>),
+    [jammerProfiles]
+  );
+
+  const handleJammerToggle = useCallback(
+    async (assetId: string, nextAction: "start" | "stop", config?: JammerControlConfig) => {
+      const profile = jammerProfileByAssetId[assetId];
+      const jammerName = assets.find((asset) => asset.id === assetId)?.name ?? "Jammer";
+      if (!profile) {
+        setError("Jammer profile not found for selected asset.");
+        setJammerToast({ type: "error", message: "Jammer profile not found for selected asset." });
+        return;
+      }
+
+      if (nextAction === "start" && !config) {
+        setError("Jammer configuration is required before starting.");
+        setJammerToast({ type: "error", message: "Select module, code, frequency and gain before starting jammer." });
+        return;
+      }
+
+      try {
+        setError(null);
+        setJammerActionAssetId(assetId);
+
+        const apiTarget = buildJammerApiTarget(profile.ip_address, profile.port);
+
+        if (nextAction === "start") {
+          const moduleId = Number(config?.moduleId);
+          const jammingCode = Number(config?.jammingCode);
+          const gain = Number(config?.gain);
+
+          if (!Number.isInteger(moduleId) || moduleId < 1 || moduleId > 4) {
+            throw new Error("Module ID must be between 1 and 4.");
+          }
+
+          if (!Number.isInteger(jammingCode) || jammingCode < 0 || jammingCode > 19) {
+            throw new Error("Jamming code must be between 0 and 19.");
+          }
+
+          if (!Number.isInteger(gain) || gain < 1 || gain > 35) {
+            throw new Error("Gain must be between 1 and 35.");
+          }
+
+          const configurePayload: Record<string, number> = {
+            moduleId,
+            jammingCode,
+            ch1Gain: gain,
+            ch2Gain: gain,
+          };
+
+          if (typeof config?.frequency === "number" && Number.isFinite(config.frequency)) {
+            configurePayload.frequency = config.frequency;
+          }
+
+          await api.post("/jammer-control/configure", configurePayload, {
+            params: {
+              api_target: apiTarget,
+            },
+          });
+
+          await api.post(
+            "/jammer-control/jamming/start",
+            { moduleId },
+            {
+              params: {
+                api_target: apiTarget,
+              },
+            }
+          );
+        } else {
+          await api.post(
+            "/jammer-control/jamming/stop",
+            {},
+            {
+              params: {
+                api_target: apiTarget,
+              },
+            }
+          );
+        }
+
+        await updateJammerProfile(profile.id, {
+          lifecycle_state: nextAction === "start" ? "JAMMING" : "ACTIVE_SERVICE",
+        });
+        await load();
+        setJammerToast({
+          type: "success",
+          message:
+            nextAction === "start"
+              ? `Started jamming for ${jammerName}.`
+              : `Stopped jamming for ${jammerName}.`,
+        });
+      } catch (err: unknown) {
+        const details = extractApiErrorMessage(err, `Failed to ${nextAction === "start" ? "start" : "stop"} jamming.`);
+        setError(details);
+        setJammerToast({
+          type: "error",
+          message: `Failed to ${nextAction === "start" ? "start" : "stop"} jamming for ${jammerName}. ${details}`,
+        });
+      } finally {
+        setJammerActionAssetId(null);
+      }
+    },
+    [assets, jammerProfileByAssetId, load]
+  );
+
+  const setJammerTreeControlField = useCallback(
+    (assetId: string, field: keyof JammerTreeControlState, value: string) => {
+      setJammerTreeControlByAssetId((current) => ({
+        ...current,
+        [assetId]: {
+          ...(current[assetId] ?? DEFAULT_JAMMER_TREE_CONTROL_STATE),
+          [field]: value,
+        },
+      }));
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!jammerToast) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setJammerToast(null);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [jammerToast]);
 
   const setAllSelections = () => {
     setSelectedAssetTypes(assetTypeGroups);
@@ -210,12 +480,20 @@ export default function OperatorMapPage() {
   };
 
   const isGroupChecked = (assetType: string) => {
+    if (showAllAssets) {
+      return true;
+    }
+
     const groupAssetIds = getGroupAssetIds(assetType);
     return groupAssetIds.length > 0 && groupAssetIds.every((assetId) => selectedAssetIds.includes(assetId));
   };
 
   const groupSummary = (assetType: string) => {
     const groupAssetIds = getGroupAssetIds(assetType);
+    if (showAllAssets) {
+      return `${groupAssetIds.length}/${groupAssetIds.length}`;
+    }
+
     const selectedCount = groupAssetIds.filter((assetId) => selectedAssetIds.includes(assetId)).length;
     return `${selectedCount}/${groupAssetIds.length}`;
   };
@@ -225,7 +503,20 @@ export default function OperatorMapPage() {
       <PageContainer title="Operator Map">
         {loading && <div style={{ marginBottom: theme.spacing.md, color: theme.colors.textSecondary }}>Loading map feeds...</div>}
         {error && <div style={{ marginBottom: theme.spacing.md, color: theme.colors.danger }}>{error}</div>}
-        {triangulation?.warning && <div style={{ marginBottom: theme.spacing.md, color: theme.colors.warning }}>{triangulation.warning}</div>}
+        {jammerToast && (
+          <div
+            style={{
+              marginBottom: theme.spacing.md,
+              color: jammerToast.type === "success" ? theme.colors.success : theme.colors.danger,
+              background: theme.colors.surfaceAlt,
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: theme.radius.md,
+              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+            }}
+          >
+            {jammerToast.message}
+          </div>
+        )}
 
         <div
           style={{
@@ -235,14 +526,23 @@ export default function OperatorMapPage() {
             alignItems: "start",
           }}
         >
-          <div style={{ border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.md, overflow: "hidden" }}>
+          <div
+            style={{
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: theme.radius.md,
+              overflow: "hidden",
+              minHeight: OPERATOR_MAP_MIN_HEIGHT_PX,
+            }}
+          >
             <MapView
               assets={filteredAssets}
               alerts={alerts}
               signals={signals}
               heatCells={heatCells}
-              triangulation={triangulation}
-              mapHeight="calc(100dvh - 190px)"
+              jammerLifecycleByAssetId={jammerLifecycleByAssetId}
+              onJammerToggle={handleJammerToggle}
+              jammerActionInProgressId={jammerActionAssetId}
+              mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
             />
           </div>
 
@@ -251,7 +551,8 @@ export default function OperatorMapPage() {
               onMouseEnter={() => setIsTreeVisible(true)}
               style={{
                 width: "44px",
-                height: "calc(100dvh - 190px)",
+                height: OPERATOR_MAP_PANEL_HEIGHT,
+                minHeight: OPERATOR_MAP_MIN_HEIGHT_PX,
                 borderRadius: theme.radius.md,
                 border: `1px solid ${theme.colors.border}`,
                 background: theme.colors.surfaceAlt,
@@ -294,7 +595,8 @@ export default function OperatorMapPage() {
                 borderRadius: theme.radius.md,
                 padding: theme.spacing.md,
                 background: theme.colors.surfaceAlt,
-                maxHeight: "calc(100dvh - 190px)",
+                maxHeight: OPERATOR_MAP_PANEL_HEIGHT,
+                minHeight: OPERATOR_MAP_MIN_HEIGHT_PX,
                 overflowY: "hidden",
               }}
             >
@@ -391,16 +693,153 @@ export default function OperatorMapPage() {
 
                       {expanded && (
                         <div style={{ paddingLeft: 18, display: "grid", gap: 4 }}>
-                          {groupAssets.map((asset) => (
-                            <label key={asset.id} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedAssetIds.includes(asset.id)}
-                                onChange={() => toggleAssetId(asset.id, assetType)}
-                              />
-                              <span>{asset.name}</span>
-                            </label>
-                          ))}
+                          {groupAssets.map((asset) => {
+                            const isJammerAsset = assetType === "JAMMER";
+                            const jammerState = jammerLifecycleByAssetId[asset.id] ?? "ACTIVE_SERVICE";
+                            const isJamming = jammerState.toUpperCase() === "JAMMING";
+                            const actionPending = jammerActionAssetId === asset.id;
+                            const hasJammerProfile = Boolean(jammerProfileByAssetId[asset.id]);
+                            const jammerTreeControl =
+                              jammerTreeControlByAssetId[asset.id] ?? DEFAULT_JAMMER_TREE_CONTROL_STATE;
+
+                            return (
+                              <div key={asset.id} style={{ display: "grid", gap: 6 }}>
+                                <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={showAllAssets || selectedAssetIds.includes(asset.id)}
+                                    onChange={() => toggleAssetId(asset.id, assetType)}
+                                  />
+                                  <span>{asset.name}</span>
+                                </label>
+
+                                {isJammerAsset && (
+                                  <div
+                                    style={{
+                                      marginLeft: 24,
+                                      border: `1px solid ${theme.colors.border}`,
+                                      borderRadius: theme.radius.sm,
+                                      background: theme.colors.surfaceAlt,
+                                      padding: theme.spacing.xs,
+                                      display: "grid",
+                                      gap: theme.spacing.xs,
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 12, color: theme.colors.textSecondary }}>
+                                      Jammer State: {jammerState}
+                                    </div>
+
+                                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
+                                      Module
+                                      <select
+                                        value={jammerTreeControl.moduleId}
+                                        onChange={(event) =>
+                                          setJammerTreeControlField(asset.id, "moduleId", event.target.value)
+                                        }
+                                        disabled={actionPending || !hasJammerProfile}
+                                      >
+                                        {MODULE_ID_OPTIONS.map((moduleId) => (
+                                          <option key={moduleId} value={moduleId}>
+                                            {moduleId}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+
+                                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
+                                      Code
+                                      <select
+                                        value={jammerTreeControl.jammingCode}
+                                        onChange={(event) =>
+                                          setJammerTreeControlField(asset.id, "jammingCode", event.target.value)
+                                        }
+                                        disabled={actionPending || !hasJammerProfile}
+                                      >
+                                        {JAMMING_CODE_OPTIONS.map((option) => (
+                                          <option key={option.code} value={String(option.code)}>
+                                            {option.code} - {option.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+
+                                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
+                                      Frequency (MHz)
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        value={jammerTreeControl.frequency}
+                                        onChange={(event) =>
+                                          setJammerTreeControlField(asset.id, "frequency", event.target.value)
+                                        }
+                                        disabled={actionPending || !hasJammerProfile}
+                                        placeholder="optional"
+                                      />
+                                    </label>
+
+                                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
+                                      Gain
+                                      <select
+                                        value={jammerTreeControl.gain}
+                                        onChange={(event) =>
+                                          setJammerTreeControlField(asset.id, "gain", event.target.value)
+                                        }
+                                        disabled={actionPending || !hasJammerProfile}
+                                      >
+                                        {GAIN_OPTIONS.map((gain) => (
+                                          <option key={gain} value={gain}>
+                                            {gain}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+
+                                    {!hasJammerProfile && (
+                                      <div style={{ fontSize: 12, color: theme.colors.danger }}>
+                                        Jammer profile not found.
+                                      </div>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      disabled={actionPending || !hasJammerProfile}
+                                      onClick={() => {
+                                        if (isJamming) {
+                                          handleJammerToggle(asset.id, "stop");
+                                          return;
+                                        }
+
+                                        const parsedFrequency = jammerTreeControl.frequency.trim()
+                                          ? Number(jammerTreeControl.frequency)
+                                          : undefined;
+
+                                        handleJammerToggle(asset.id, "start", {
+                                          moduleId: Number(jammerTreeControl.moduleId),
+                                          jammingCode: Number(jammerTreeControl.jammingCode),
+                                          frequency:
+                                            typeof parsedFrequency === "number" && Number.isFinite(parsedFrequency)
+                                              ? parsedFrequency
+                                              : undefined,
+                                          gain: Number(jammerTreeControl.gain),
+                                        });
+                                      }}
+                                      style={{
+                                        border: "none",
+                                        borderRadius: theme.radius.md,
+                                        background: isJamming ? theme.colors.danger : theme.colors.success,
+                                        color: "#fff",
+                                        cursor: actionPending || !hasJammerProfile ? "not-allowed" : "pointer",
+                                        opacity: actionPending || !hasJammerProfile ? 0.7 : 1,
+                                        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                                      }}
+                                    >
+                                      {actionPending ? "Processing..." : isJamming ? "Stop Jamming" : "Start Jamming"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
