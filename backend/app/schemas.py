@@ -1,5 +1,6 @@
 import uuid
 from typing import Any
+from typing import Literal
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -760,6 +761,61 @@ class TcpListenerHealthRead(BaseModel):
     messages_rejected: int
     idle_timeout_seconds: int
     max_line_bytes: int
+
+
+class TcpListenerEndpointUpdateRequest(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(ge=1, le=65535)
+
+
+class TcpListenerConnectionTestRequest(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(ge=1, le=65535)
+
+
+class TcpListenerConnectionTestRead(BaseModel):
+    success: bool
+    message: str
+
+
+class TcpListenerSendTestRequest(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(ge=1, le=65535)
+    event_type: str = Field(default="temperature", min_length=1, max_length=64)
+    value: float | None = None
+    unit: str | None = Field(default=None, max_length=32)
+    severity_hint: str | None = Field(default=None, max_length=32)
+    sender_id: str = Field(default="ui-sender-01", min_length=1, max_length=128)
+    source_name: str = Field(default="UI_TCP_Sender", min_length=1, max_length=128)
+    source_type: str = Field(default="SIMULATOR", min_length=1, max_length=64)
+    latitude: float = Field(default=28.567, ge=-90, le=90)
+    longitude: float = Field(default=77.321, ge=-180, le=180)
+
+
+class TcpListenerSendTestRead(BaseModel):
+    success: bool
+    message: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class TcpClientConnectRequest(BaseModel):
+    host: str = Field(min_length=1, max_length=255)
+    port: int = Field(ge=1, le=65535)
+    protocol: Literal["line", "proto"] = "line"
+    length_endian: Literal["big", "little"] = "little"
+
+
+class TcpClientStatusRead(BaseModel):
+    connected: bool
+    target_host: str | None = None
+    target_port: int | None = None
+    protocol: str | None = None
+    length_endian: str | None = None
+    messages_received: int
+    messages_rejected: int
+    last_message_at: str | None = None
+    last_error: str | None = None
+    recent_messages: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SmsAdapterIngestRequest(BaseModel):

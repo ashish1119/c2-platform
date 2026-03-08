@@ -17,6 +17,7 @@ import {
   type HeatCell,
   type RFSignal,
 } from "../../api/rf";
+import { getTcpClientStatus, type TcpClientStatus } from "../../api/tcpListener";
 import { useTheme } from "../../context/ThemeContext";
 import api from "../../api/axios";
 
@@ -24,6 +25,7 @@ const ASSET_TREE_VISIBLE_KEY = "ui.operator.assetTree.visible";
 const ASSET_TREE_PINNED_KEY = "ui.operator.assetTree.pinned";
 const OPERATOR_MAP_PANEL_HEIGHT = "calc(100vh - 190px)";
 const OPERATOR_MAP_MIN_HEIGHT_PX = 420;
+const TCP_STATUS_REFRESH_MS = 2000;
 
 const MODULE_ID_OPTIONS = ["1", "2", "3", "4"];
 const GAIN_OPTIONS = Array.from({ length: 35 }, (_, index) => String(index + 1));
@@ -142,18 +144,29 @@ export default function OperatorMapPage() {
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [signals, setSignals] = useState<RFSignal[]>([]);
   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+  const [tcpRecentMessages, setTcpRecentMessages] = useState<TcpClientStatus["recent_messages"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const refreshTcpStatus = useCallback(async () => {
+    try {
+      const tcpStatusRes = await getTcpClientStatus();
+      setTcpRecentMessages(tcpStatusRes.data.recent_messages ?? []);
+    } catch {
+      // Keep last known TCP frames on transient read failures.
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const [assetsRes, jammerProfilesRes, alertsRes, signalsRes, heatRes] = await Promise.all([
+      const [assetsRes, jammerProfilesRes, alertsRes, signalsRes, heatRes, tcpStatusRes] = await Promise.all([
         getAssets(),
         getJammerProfiles(),
         getAlerts(),
         getRFSignals(),
         getHeatMap(),
+        getTcpClientStatus().catch(() => null),
       ]);
 
       const loadedAssets = assetsRes.data;
@@ -181,6 +194,7 @@ export default function OperatorMapPage() {
       setAlerts(alertsRes.data);
       setSignals(signalsRes.data);
       setHeatCells(heatRes.data);
+      setTcpRecentMessages(tcpStatusRes?.data?.recent_messages ?? []);
     } catch {
       setError("Failed to load map data.");
     } finally {
@@ -194,11 +208,15 @@ export default function OperatorMapPage() {
     ws.onmessage = () => load();
 
     const interval = setInterval(load, 15000);
+    const tcpInterval = setInterval(() => {
+      refreshTcpStatus();
+    }, TCP_STATUS_REFRESH_MS);
     return () => {
       clearInterval(interval);
+      clearInterval(tcpInterval);
       ws.close();
     };
-  }, [load]);
+  }, [load, refreshTcpStatus]);
 
   const assetTypeGroups = useMemo(
     () => Array.from(new Set(assets.map((asset) => (asset.type ?? "UNKNOWN").toUpperCase()))).sort(),
@@ -539,6 +557,7 @@ export default function OperatorMapPage() {
               alerts={alerts}
               signals={signals}
               heatCells={heatCells}
+              tcpRecentMessages={tcpRecentMessages}
               jammerLifecycleByAssetId={jammerLifecycleByAssetId}
               onJammerToggle={handleJammerToggle}
               jammerActionInProgressId={jammerActionAssetId}

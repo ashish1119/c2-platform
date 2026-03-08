@@ -46,15 +46,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
         <Topbar
           isSidebarVisible={isSidebarVisible}
           onToggleSidebar={() => setIsSidebarVisible((prev) => !prev)}
         />
         <div
           style={{
+            flex: 1,
+            minHeight: 0,
             padding: theme.spacing.xl,
             overflowY: isOperatorMapRoute ? "hidden" : "auto",
+            overflowX: isOperatorMapRoute ? "hidden" : "auto",
           }}
         >
           {children}

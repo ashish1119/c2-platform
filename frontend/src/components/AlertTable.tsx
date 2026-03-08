@@ -30,6 +30,14 @@ type SortColumn =
 
 type SortDirection = "asc" | "desc";
 
+const resolveAlertsWsUrl = () => {
+  if (typeof window === "undefined") {
+    return "ws://localhost:8000/ws/alerts";
+  }
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.hostname}:8000/ws/alerts`;
+};
+
 export default function AlertTable({ showAcknowledge = true }: Props) {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -376,7 +384,7 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
 
   useEffect(() => {
     loadAlerts();
-    const ws = new WebSocket("ws://localhost:8000/ws/alerts");
+    const ws = new WebSocket(resolveAlertsWsUrl());
     ws.onmessage = () => {
       loadAlerts();
     };

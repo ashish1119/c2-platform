@@ -1,15 +1,25 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import AdminDashboard from "./pages/AdminDashboard";
-import { OperatorMapPage, OperatorAlertsPage } from "./pages/operator";
+import { OperatorMapPage, OperatorAlertsPage, OperatorTcpClientPage } from "./pages/operator";
 import ReportsPage from "./pages/ReportsPage";
 import PlanningPage from "./pages/PlanningPage";
 import CrfsLivePage from "./pages/CrfsLivePage";
 import JammerControlPage from "./pages/JammerControlPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import UserManagement from "./pages/admin/UserManagement";
 import AssetsManagementPage from "./pages/admin/AssetsManagementPage";
+
+function FallbackRedirect() {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Navigate to={user.role === "ADMIN" ? "/admin" : "/operator/map"} replace />;
+}
 
 export default function App() {
   return (
@@ -72,6 +82,24 @@ export default function App() {
           />
 
           <Route
+            path="/operator/tcp-client"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorTcpClientPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/tcpclient"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <Navigate to="/operator/tcp-client" replace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/reports"
             element={
               <ProtectedRoute requiredRole="OPERATOR">
@@ -106,6 +134,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route path="*" element={<FallbackRedirect />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

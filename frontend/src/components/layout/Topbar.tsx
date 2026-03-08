@@ -41,6 +41,7 @@ export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProp
     if (pathname === "/operator") return "Operations Center";
     if (pathname === "/operator/map") return "Operator Map";
     if (pathname === "/operator/alerts") return "Operator Alerts";
+    if (pathname === "/operator/tcp-client") return "TCP Client";
     if (pathname === "/planning") return "Planning Tool";
     if (pathname === "/reports") return "Reports";
     if (pathname === "/crfs/live") return "CRFS Live";

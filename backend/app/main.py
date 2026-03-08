@@ -98,6 +98,8 @@ async def create_tables():
         await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('crfs', 'read', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
         await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('crfs', 'write', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
         await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('crfs', 'replay', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
+        await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('tcp_listener', 'read', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
+        await conn.execute(text("INSERT INTO permissions (resource, action, scope) VALUES ('tcp_listener', 'write', 'GLOBAL') ON CONFLICT (resource, action) DO NOTHING"))
         await conn.execute(text("""
             INSERT INTO role_permissions (role_id, permission_id)
             SELECT r.id, p.id
@@ -230,7 +232,39 @@ async def create_tables():
             INSERT INTO role_permissions (role_id, permission_id)
             SELECT r.id, p.id
             FROM roles r
+            JOIN permissions p ON p.resource = 'tcp_listener' AND p.action = 'read'
+            WHERE r.name = 'ADMIN'
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+        """))
+        await conn.execute(text("""
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r
+            JOIN permissions p ON p.resource = 'tcp_listener' AND p.action = 'write'
+            WHERE r.name = 'ADMIN'
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+        """))
+        await conn.execute(text("""
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r
             JOIN permissions p ON p.resource = 'crfs' AND p.action = 'read'
+            WHERE r.name = 'OPERATOR'
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+        """))
+        await conn.execute(text("""
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r
+            JOIN permissions p ON p.resource = 'tcp_listener' AND p.action = 'read'
+            WHERE r.name = 'OPERATOR'
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+        """))
+        await conn.execute(text("""
+            INSERT INTO role_permissions (role_id, permission_id)
+            SELECT r.id, p.id
+            FROM roles r
+            JOIN permissions p ON p.resource = 'tcp_listener' AND p.action = 'write'
             WHERE r.name = 'OPERATOR'
             ON CONFLICT (role_id, permission_id) DO NOTHING
         """))

@@ -7,6 +7,7 @@ import "leaflet-draw/dist/leaflet.draw.css";
 import type { AssetRecord } from "../api/assets";
 import type { AlertRecord } from "../api/alerts";
 import type { HeatCell, RFSignal, TriangulationResult } from "../api/rf";
+import type { TcpClientStatus } from "../api/tcpListener";
 import type { CoveragePoint } from "../api/planning";
 import { useTheme } from "../context/ThemeContext";
 
@@ -14,6 +15,7 @@ type Props = {
   assets?: AssetRecord[];
   alerts?: AlertRecord[];
   signals?: RFSignal[];
+  tcpRecentMessages?: TcpClientStatus["recent_messages"];
   heatCells?: HeatCell[];
   coveragePoints?: CoveragePoint[];
   triangulation?: TriangulationResult | null;
@@ -47,6 +49,7 @@ const MAX_JAMMER_POPUP_ALPHA = 0.95;
 const JAMMER_RANGE_SPOKE_COUNT = 12;
 const JAMMER_SIGNAL_RING_COUNT = 6;
 const JAMMER_SIGNAL_PULSE_STEPS = 5;
+const TCP_DF_LINE_DISTANCE_METERS = 10_000;
 const OFFLINE_LOCAL_TILE_URL =
   (((import.meta as any).env?.VITE_OFFLINE_TILE_URL as string | undefined)?.trim() || "/tiles/{z}/{x}/{y}.png");
 const OFFLINE_GRID_TILE_DATA_URI =
@@ -449,6 +452,44 @@ function destinationPointFromBearing(
 
   return [(lat2 * 180) / Math.PI, (((lon2 * 180) / Math.PI + 540) % 360) - 180];
 }
+
+function extractTcpBearing(parsedFields?: Record<string, string>): {
+  bearingDeg: number;
+  sourceKey: string;
+  sourceValue: string;
+} | null {
+  if (!parsedFields) {
+    return null;
+  }
+
+  const keyPattern = /(bearing|aoa|doa|azimuth|direction|angle|value)/i;
+
+  for (const [key, value] of Object.entries(parsedFields)) {
+    if (!keyPattern.test(key)) {
+      continue;
+    }
+
+    const match = value.match(/-?\d+(?:\.\d+)?/);
+    if (!match) {
+      continue;
+    }
+
+    const parsed = Number(match[0]);
+    if (!Number.isFinite(parsed)) {
+      continue;
+    }
+
+    const normalized = ((parsed % 360) + 360) % 360;
+    return {
+      bearingDeg: normalized,
+      sourceKey: key,
+      sourceValue: value,
+    };
+  }
+
+  return null;
+}
+
 function buildPointDetails(latLngs: L.LatLng[], closedShape: boolean, includeDistance: boolean = false): string {
   let cumulativeMeters = 0;
 
@@ -1070,6 +1111,7 @@ export default function MapView({
   assets = [],
   alerts = [],
   signals = [],
+  tcpRecentMessages = [],
   heatCells = [],
   coveragePoints = [],
   triangulation = null,
@@ -1097,7 +1139,7 @@ export default function MapView({
   });
   const [polygonColor, setPolygonColor] = useState("#0ea5e9");
   const [polylineColor, setPolylineColor] = useState("#16a34a");
-  const [circleColor, setCircleColor] = useState("#9333ea");
+  const [circleColor, setCircleColor] = useState("#f59e0b");
   const [activeDrawShape, setActiveDrawShape] = useState<DrawShapeType | null>(null);
   const [baseMapId, setBaseMapId] = useState<string>("osm");
   const [showBaseMapSelector, setShowBaseMapSelector] = useState(false);
@@ -1232,6 +1274,53 @@ export default function MapView({
   const directionFinderAssets = visibleAssets.filter(
     (asset) => (asset.type ?? "").trim().toUpperCase() === "DIRECTION_FINDER"
   );
+  const pointerAnchorAsset =
+    directionFinderAssets.find((asset) => asset.name?.toLowerCase().includes("bravo east"))
+    ?? directionFinderAssets[0]
+    ?? null;
+  const latestTcpFrame = useMemo(() => {
+    if (tcpRecentMessages.length === 0) {
+      return null;
+    }
+
+    return tcpRecentMessages.reduce((latest, current) => {
+      const latestTs = latest.received_at ? new Date(latest.received_at).getTime() : Number.NEGATIVE_INFINITY;
+      const currentTs = current.received_at ? new Date(current.received_at).getTime() : Number.NEGATIVE_INFINITY;
+      return currentTs > latestTs ? current : latest;
+    });
+  }, [tcpRecentMessages]);
+  const latestTcpFrameWithBearing = useMemo(() => {
+    if (!latestTcpFrame) {
+      return null;
+    }
+
+    const extracted = extractTcpBearing(latestTcpFrame.parsed_fields);
+    if (!extracted) {
+      return null;
+    }
+
+    return {
+      frame: latestTcpFrame,
+      ...extracted,
+    };
+  }, [latestTcpFrame]);
+  const tcpPointerLine = useMemo(() => {
+    if (!pointerAnchorAsset || !latestTcpFrameWithBearing) {
+      return null;
+    }
+
+    const start: [number, number] = [pointerAnchorAsset.latitude, pointerAnchorAsset.longitude];
+    const end = destinationPointFromBearing(
+      start,
+      latestTcpFrameWithBearing.bearingDeg,
+      TCP_DF_LINE_DISTANCE_METERS,
+    );
+
+    return {
+      start,
+      end,
+    };
+  }, [pointerAnchorAsset, latestTcpFrameWithBearing]);
   const jammerAssets = visibleAssets.filter((asset) => isJammerAssetType(asset.type));
   const activeJammerAssets = useMemo(
     () =>
@@ -1709,6 +1798,31 @@ export default function MapView({
         </CircleMarker>
       ))}
 
+      {tcpPointerLine && pointerAnchorAsset && latestTcpFrameWithBearing && (
+        <>
+          <CircleMarker
+            center={tcpPointerLine.end}
+            radius={6}
+            pathOptions={{ color: "#ef4444", fillColor: "#ef4444", fillOpacity: 0.85, weight: 2 }}
+          >
+            <Popup>
+              <div>
+                <strong>TCP DF Bearing Line</strong>
+                <div>Anchor: {pointerAnchorAsset.name}</div>
+                <div>Bearing: {latestTcpFrameWithBearing.bearingDeg.toFixed(1)} deg</div>
+                <div>Field: {latestTcpFrameWithBearing.sourceKey} = {latestTcpFrameWithBearing.sourceValue}</div>
+                <div>Length: {(TCP_DF_LINE_DISTANCE_METERS / 1000).toFixed(1)} km</div>
+                <div>Frame Time: {latestTcpFrameWithBearing.frame.received_at ? new Date(latestTcpFrameWithBearing.frame.received_at).toLocaleString() : "-"}</div>
+                <div>Protocol: {latestTcpFrameWithBearing.frame.protocol ?? "-"}</div>
+              </div>
+            </Popup>
+          </CircleMarker>
+          <Polyline
+            positions={[tcpPointerLine.start, tcpPointerLine.end]}
+            pathOptions={{ color: '#ef4444', weight: 4, dashArray: '8 6', opacity: 0.85 }}
+          />
+        </>
+      )}
     </MapContainer>
 
       <div

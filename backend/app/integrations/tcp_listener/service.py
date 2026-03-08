@@ -1,17 +1,23 @@
 import asyncio
+from collections import deque
 import json
+from datetime import datetime, timezone
+import re
 from typing import Any
 
 from geoalchemy2.elements import WKTElement
 
 from app.core.websocket_manager import manager
 from app.database import AsyncSessionLocal
+from app.integrations.crfs.codec import decode_data_generic_payload
 from app.integrations.tcp_listener.models import TcpIncomingMessage
 from app.logging_config import logger
 from app.models import Alert
 
 
 class TcpListenerService:
+    _CLIENT_PROTO_FRAME_LIMIT_BYTES = 2_097_152
+
     def __init__(
         self,
         enabled: bool,
@@ -30,6 +36,18 @@ class TcpListenerService:
         self._total_connections = 0
         self._messages_received = 0
         self._messages_rejected = 0
+        self._client_task: asyncio.Task | None = None
+        self._client_writer: asyncio.StreamWriter | None = None
+        self._client_connected = False
+        self._client_target_host: str | None = None
+        self._client_target_port: int | None = None
+        self._client_protocol = "line"
+        self._client_length_endian = "little"
+        self._client_messages_received = 0
+        self._client_messages_rejected = 0
+        self._client_last_message_at: datetime | None = None
+        self._client_last_error: str | None = None
+        self._client_recent_messages: deque[dict[str, Any]] = deque(maxlen=50)
 
     async def start(self) -> None:
         if not self.enabled:
@@ -45,6 +63,8 @@ class TcpListenerService:
         logger.info(f"TCP listener started on {self.host}:{self.port}")
 
     async def stop(self) -> None:
+        await self.disconnect_client()
+
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
@@ -59,6 +79,325 @@ class TcpListenerService:
 
         self._writers.clear()
         logger.info("TCP listener stopped")
+
+    async def connect_client(
+        self,
+        host: str,
+        port: int,
+        protocol: str = "line",
+        length_endian: str = "little",
+    ) -> None:
+        host = host.strip()
+        if not host:
+            raise ValueError("host is required")
+
+        protocol = str(protocol).strip().lower()
+        if protocol not in {"line", "proto"}:
+            raise ValueError("protocol must be 'line' or 'proto'")
+
+        length_endian = str(length_endian).strip().lower()
+        if length_endian not in {"big", "little"}:
+            raise ValueError("length_endian must be 'big' or 'little'")
+
+        await self.disconnect_client()
+
+        self._client_target_host = host
+        self._client_target_port = port
+        self._client_protocol = protocol
+        self._client_length_endian = length_endian
+        self._client_last_error = None
+
+        try:
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=5)
+        except Exception as exc:
+            self._client_last_error = str(exc)
+            raise
+
+        self._client_writer = writer
+        self._client_connected = True
+        self._client_task = asyncio.create_task(
+            self._run_client_reader(
+                reader,
+                writer,
+                host,
+                port,
+                protocol=protocol,
+                length_endian=length_endian,
+            )
+        )
+        logger.info(f"TCP outbound client connected to {host}:{port} (protocol={protocol}, endian={length_endian})")
+
+    async def disconnect_client(self) -> None:
+        task = self._client_task
+        self._client_task = None
+
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
+
+        writer = self._client_writer
+        self._client_writer = None
+        if writer is not None:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+
+        self._client_connected = False
+
+    async def _run_client_reader(
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+        host: str,
+        port: int,
+        protocol: str,
+        length_endian: str,
+    ) -> None:
+        conn_id = f"client:{host}:{port}"
+        try:
+            if protocol == "proto":
+                await self._run_proto_reader(reader=reader, conn_id=conn_id, length_endian=length_endian)
+            else:
+                await self._run_line_reader(reader=reader, conn_id=conn_id)
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            self._client_last_error = str(exc)
+            logger.warning(f"TCP outbound client error ({conn_id}): {exc}")
+        finally:
+            if self._client_writer is writer:
+                self._client_writer = None
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+            self._client_connected = False
+            logger.info(f"TCP outbound client disconnected from {host}:{port}")
+
+    async def _run_line_reader(self, reader: asyncio.StreamReader, conn_id: str) -> None:
+        while True:
+            raw = await reader.readline()
+            if not raw:
+                break
+
+            if len(raw) > self.max_line_bytes:
+                self._client_messages_rejected += 1
+                self._messages_rejected += 1
+                logger.warning(f"TCP outbound client frame too large from {conn_id}: {len(raw)} bytes")
+                continue
+
+            line = raw.decode("utf-8", errors="replace").strip()
+            if not line:
+                continue
+
+            self._client_messages_received += 1
+            self._client_last_message_at = datetime.now(timezone.utc)
+            self._client_recent_messages.append(self._build_client_frame_snapshot(raw, self._client_last_message_at))
+
+            # Attempt alert ingestion only for JSON-like frames.
+            frame = raw.strip()
+            if self._looks_like_json(frame):
+                json_line = frame.decode("utf-8", errors="replace").strip()
+                processed = await self._process_message_line(json_line, conn_id)
+                if not processed:
+                    self._client_messages_rejected += 1
+
+    async def _run_proto_reader(self, reader: asyncio.StreamReader, conn_id: str, length_endian: str) -> None:
+        while True:
+            length_bytes = await self._read_with_timeout(reader, 4)
+            if not length_bytes:
+                break
+
+            frame_length = int.from_bytes(length_bytes, byteorder=length_endian, signed=False)
+            if frame_length <= 0 or frame_length > self._CLIENT_PROTO_FRAME_LIMIT_BYTES:
+                self._client_messages_rejected += 1
+                self._client_last_error = f"Invalid proto frame length {frame_length} from {conn_id}"
+                logger.warning(self._client_last_error)
+                break
+
+            payload = await self._read_with_timeout(reader, frame_length)
+            if not payload:
+                self._client_messages_rejected += 1
+                break
+
+            self._client_messages_received += 1
+            self._client_last_message_at = datetime.now(timezone.utc)
+
+            decoded_fields: dict[str, str] = {}
+            decode_error: str | None = None
+
+            try:
+                decoded = decode_data_generic_payload(payload)
+                if decoded.name:
+                    decoded_fields["Name"] = str(decoded.name)
+                if decoded.stream_name:
+                    decoded_fields["Stream"] = str(decoded.stream_name)
+                if decoded.origin_name:
+                    decoded_fields["Origin"] = str(decoded.origin_name)
+                if decoded.unix_time is not None:
+                    decoded_fields["UnixTime"] = f"{decoded.unix_time:.3f}"
+
+                # Include a compact view of telemetry fields for operator readability.
+                for key, value in list(decoded.telemetry.items())[:10]:
+                    if isinstance(value, list):
+                        shown = ", ".join(str(item) for item in value[:4])
+                        if len(value) > 4:
+                            shown = f"{shown}, ..."
+                        decoded_fields[key] = shown[:128]
+                    else:
+                        decoded_fields[key] = str(value)[:128]
+            except Exception as exc:
+                decode_error = str(exc)
+                decoded_fields["DecodeError"] = decode_error[:160]
+                self._client_messages_rejected += 1
+                logger.warning(f"TCP outbound proto decode failed ({conn_id}): {exc}")
+
+            self._client_recent_messages.append(
+                self._build_proto_client_frame_snapshot(
+                    payload=payload,
+                    received_at=self._client_last_message_at,
+                    parsed_fields=decoded_fields,
+                    decode_error=decode_error,
+                )
+            )
+
+    def get_client_snapshot(self) -> dict[str, Any]:
+        return {
+            "connected": self._client_connected,
+            "target_host": self._client_target_host,
+            "target_port": self._client_target_port,
+            "protocol": self._client_protocol,
+            "length_endian": self._client_length_endian,
+            "messages_received": self._client_messages_received,
+            "messages_rejected": self._client_messages_rejected,
+            "last_message_at": self._client_last_message_at.isoformat() if self._client_last_message_at else None,
+            "last_error": self._client_last_error,
+            "recent_messages": list(self._client_recent_messages),
+        }
+
+    @staticmethod
+    def _looks_like_json(raw: bytes) -> bool:
+        stripped = raw.lstrip()
+        return stripped.startswith(b"{") or stripped.startswith(b"[")
+
+    @staticmethod
+    def _extract_ascii_segments(raw: bytes, min_length: int = 4) -> list[str]:
+        segments: list[str] = []
+        current: list[str] = []
+
+        for byte in raw:
+            if 32 <= byte <= 126:
+                current.append(chr(byte))
+                continue
+
+            if len(current) >= min_length:
+                segments.append("".join(current).strip())
+            current = []
+
+        if len(current) >= min_length:
+            segments.append("".join(current).strip())
+
+        return [segment for segment in segments if segment]
+
+    @staticmethod
+    def _extract_key_values(segments: list[str]) -> dict[str, str]:
+        parsed: dict[str, str] = {}
+        for segment in segments:
+            match = re.match(r"^([A-Za-z][A-Za-z0-9 _/\\-]{1,64})\s*[:=]\s*(.+)$", segment)
+            if not match:
+                continue
+
+            key = match.group(1).strip()
+            value = match.group(2).strip()
+            if key and value:
+                parsed[key] = value[:128]
+        return parsed
+
+    def _build_client_frame_snapshot(self, raw: bytes, received_at: datetime) -> dict[str, Any]:
+        ascii_segments = self._extract_ascii_segments(raw)
+        ascii_preview = " | ".join(ascii_segments[:4])
+        parsed_fields = self._extract_key_values(ascii_segments)
+        text_preview = raw.decode("utf-8", errors="replace")[:256].strip()
+
+        return {
+            "received_at": received_at.isoformat(),
+            "protocol": "line",
+            "byte_length": len(raw),
+            "raw": text_preview,
+            "ascii_preview": ascii_preview,
+            "hex_preview": raw[:96].hex(" "),
+            "parsed_fields": parsed_fields,
+        }
+
+    def _build_proto_client_frame_snapshot(
+        self,
+        payload: bytes,
+        received_at: datetime,
+        parsed_fields: dict[str, str],
+        decode_error: str | None,
+    ) -> dict[str, Any]:
+        ascii_segments = self._extract_ascii_segments(payload)
+        ascii_preview = " | ".join(ascii_segments[:4])
+        snapshot: dict[str, Any] = {
+            "received_at": received_at.isoformat(),
+            "protocol": "proto",
+            "byte_length": len(payload),
+            "raw": payload.decode("utf-8", errors="replace")[:256].strip(),
+            "ascii_preview": ascii_preview,
+            "hex_preview": payload[:128].hex(" "),
+            "parsed_fields": parsed_fields,
+        }
+        if decode_error:
+            snapshot["decode_error"] = decode_error
+        return snapshot
+
+    async def _read_with_timeout(self, reader: asyncio.StreamReader, size: int) -> bytes:
+        if size <= 0:
+            return b""
+        try:
+            return await asyncio.wait_for(reader.readexactly(size), timeout=self.idle_timeout_seconds)
+        except asyncio.IncompleteReadError:
+            return b""
+
+    async def update_endpoint(self, host: str, port: int) -> None:
+        host = host.strip()
+        if not host:
+            raise ValueError("host is required")
+
+        previous_host = self.host
+        previous_port = self.port
+        was_running = self._server is not None
+
+        if previous_host == host and previous_port == port:
+            return
+
+        self.host = host
+        self.port = port
+
+        if not self.enabled:
+            return
+
+        if not was_running:
+            await self.start()
+            return
+
+        await self.stop()
+        try:
+            await self.start()
+        except Exception:
+            self.host = previous_host
+            self.port = previous_port
+            # Best-effort rollback to the previous endpoint.
+            await self.start()
+            raise
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         peer = writer.get_extra_info("peername")
@@ -97,7 +436,7 @@ class TcpListenerService:
                 pass
             logger.info(f"TCP client disconnected: {conn_id}")
 
-    async def _process_message_line(self, line: str, conn_id: str) -> None:
+    async def _process_message_line(self, line: str, conn_id: str) -> bool:
         try:
             payload: dict[str, Any] = json.loads(line)
             message = TcpIncomingMessage(**payload)
@@ -105,7 +444,7 @@ class TcpListenerService:
         except Exception as exc:
             logger.warning(f"TCP invalid message from {conn_id}: {exc}")
             self._messages_rejected += 1
-            return
+            return False
 
         severity = self._resolve_severity(message)
         alert_type, alert_name = self._resolve_alert_identity(message.event_type)
@@ -144,6 +483,8 @@ class TcpListenerService:
                     "timestamp": message.ts.isoformat(),
                 }
             )
+
+        return True
 
     def get_health_snapshot(self) -> dict[str, Any]:
         return {
