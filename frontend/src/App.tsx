@@ -10,6 +10,7 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import UserManagement from "./pages/admin/UserManagement";
 import AssetsManagementPage from "./pages/admin/AssetsManagementPage";
+import OperatorDashboard from "./pages/OperatorDashboard";
 
 function FallbackRedirect() {
   const { user } = useAuth();
@@ -59,6 +60,15 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole="OPERATOR">
                 <Navigate to="/operator/map" replace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/dashboard"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorDashboard />
               </ProtectedRoute>
             }
           />

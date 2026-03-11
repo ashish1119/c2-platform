@@ -39,6 +39,7 @@ export default function Topbar({ isSidebarVisible, onToggleSidebar }: TopbarProp
     if (pathname === "/admin/users") return "User Management";
     if (pathname === "/admin/assets") return "Asset Management";
     if (pathname === "/operator") return "Operations Center";
+    if (pathname === "/operator/dashboard") return "Operator Dashboard";
     if (pathname === "/operator/map") return "Operator Map";
     if (pathname === "/operator/alerts") return "Operator Alerts";
     if (pathname === "/operator/tcp-client") return "TCP Client";
