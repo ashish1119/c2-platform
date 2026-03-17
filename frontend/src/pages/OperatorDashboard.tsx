@@ -478,13 +478,3088 @@
 
 
 
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import { getAssets, type AssetRecord } from "../api/assets";
+// import { getHeatMap, getRFSignals, getTriangulation, type HeatCell, type RFSignal, type TriangulationResult } from "../api/rf";
+
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import { MapContainer, TileLayer, Marker, Polyline, CircleMarker } from "react-leaflet";
+// import "leaflet/dist/leaflet.css";
+
+// export default function OperatorDashboard() {
+
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
+
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState<string | null>(null);
+
+//   useEffect(() => {
+
+//     const load = async () => {
+
+//       try {
+
+//         setError(null);
+
+//         const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//           getRFSignals(),
+//           getHeatMap(),
+//           getTriangulation(),
+//         ]);
+
+//         setSignals(signalsRes.data);
+//         setHeatCells(heatRes.data);
+//         setTriangulation(triangulationRes.data);
+
+//       } catch {
+//         setError("Failed to load operator data.");
+//       }
+
+//       setLoading(false);
+//     };
+
+//     load();
+//     const interval = setInterval(load, 15000);
+//     return () => clearInterval(interval);
+
+//   }, []);
+
+//   const modulationData = useMemo(() => {
+
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others },
+//     ];
+
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+//   return (
+
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+
+//         {loading && <div>Loading...</div>}
+//         {error && <div style={{ color: "red" }}>{error}</div>}
+
+//         {/* TOP DASHBOARD */}
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "1fr 1fr",
+//             gap: theme.spacing.lg,
+//             marginBottom: theme.spacing.xl,
+//           }}
+//         >
+
+//           {/* PIE CHART */}
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div style={{
+//               height: 320,
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`,
+//               borderRadius: theme.radius.md,
+//               padding: theme.spacing.sm
+//             }}>
+
+//               <ResponsiveContainer width="100%" height="100%">
+
+//                 <PieChart>
+
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index % COLORS.length]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+
+//                 </PieChart>
+
+//               </ResponsiveContainer>
+
+//             </div>
+//           </div>
+
+//           {/* RF SIGNAL TABLE */}
+//           <div>
+
+//             <h3>RF Signals</h3>
+
+//             <table style={{
+//               width: "100%",
+//               borderCollapse: "collapse",
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`
+//             }}>
+
+//               <thead>
+//                 <tr>
+//                   <th>Frequency</th>
+//                   <th>Modulation</th>
+//                   <th>Power</th>
+//                   <th>Timestamp</th>
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+
+//                 {signals.slice(0, 20).map((signal) => (
+
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                     <td>{new Date(signal.detected_at).toLocaleString()}</td>
+//                   </tr>
+
+//                 ))}
+
+//               </tbody>
+
+//             </table>
+
+//           </div>
+
+//         </div>
+
+//         {/* RF TRIANGULATION MAP */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Triangulation Map</h3>
+
+//           <div style={{
+//             height: 500,
+//             border: `1px solid ${theme.colors.border}`,
+//             borderRadius: theme.radius.md
+//           }}>
+
+//             <MapContainer
+//               center={[12.97, 77.59]}
+//               zoom={12}
+//               style={{ height: "100%", width: "100%" }}
+//             >
+
+//               <TileLayer
+//                 attribution='&copy; OpenStreetMap'
+//                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//               />
+
+//               {/* ANTENNA RAYS */}
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Polyline
+//                   key={i}
+//                   positions={[
+//                     [ray.source_latitude, ray.source_longitude],
+//                     [ray.end_latitude, ray.end_longitude]
+//                   ]}
+//                   color="red"
+//                 />
+
+//               ))}
+
+//               {/* ANTENNA LOCATIONS */}
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Marker
+//                   key={"src" + i}
+//                   position={[ray.source_latitude, ray.source_longitude]}
+//                 />
+
+//               ))}
+
+//               {/* HEAT DENSITY */}
+//               {heatCells.map((cell, i) => (
+
+//                 <CircleMarker
+//                   key={i}
+//                   center={[cell.latitude_bucket, cell.longitude_bucket]}
+//                   radius={5 + cell.density * 2}
+//                   color="orange"
+//                 />
+
+//               ))}
+
+//             </MapContainer>
+
+//           </div>
+
+//         </div>
+
+//         <AlertTable />
+
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
+
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import { getHeatMap, getRFSignals, getTriangulation, type HeatCell, type RFSignal, type TriangulationResult } from "../api/rf";
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import { MapContainer, TileLayer, Marker, Polyline, CircleMarker } from "react-leaflet";
+// import "leaflet/dist/leaflet.css";
+
+// import Plot from "react-plotly.js";
+// import ReactECharts from "echarts-for-react";
+
+// export default function OperatorDashboard() {
+
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
+
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState<string | null>(null);
+
+//   useEffect(() => {
+
+//     const load = async () => {
+
+//       try {
+
+//         const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//           getRFSignals(),
+//           getHeatMap(),
+//           getTriangulation(),
+//         ]);
+
+//         setSignals(signalsRes.data);
+//         setHeatCells(heatRes.data);
+//         setTriangulation(triangulationRes.data);
+
+//       } catch {
+//         setError("Failed to load operator data.");
+//       }
+
+//       setLoading(false);
+//     };
+
+//     load();
+//     const interval = setInterval(load, 5000);
+//     return () => clearInterval(interval);
+
+//   }, []);
+
+//   /* ---------------------------
+//      MODULATION PIE CHART DATA
+//   ----------------------------*/
+
+//   const modulationData = useMemo(() => {
+
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others },
+//     ];
+
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+
+//   /* ---------------------------
+//      SPECTROGRAM DATA
+//   ----------------------------*/
+
+//   const spectrogramData = useMemo(() => {
+
+//     const freq = signals.map(s => s.frequency / 1e6);
+//     const power = signals.map(s => s.power_level);
+
+//     return {
+//       x: freq,
+//       y: signals.map((_, i) => i),
+//       z: power.map(p => [p]),
+//     };
+
+//   }, [signals]);
+
+//   const spectrogramOption = useMemo(() => {
+
+//     const data = signals.map((s, i) => [
+//       s.frequency / 1e6,
+//       i,
+//       s.power_level
+//     ]);
+
+//     return {
+//       tooltip: {},
+
+//       xAxis: {
+//         type: "value",
+//         name: "Frequency (MHz)"
+//       },
+
+//       yAxis: {
+//         type: "value",
+//         name: "Time Index"
+//       },
+
+//       visualMap: {
+//         min: -100,
+//         max: 0,
+//         calculable: true,
+//         orient: "horizontal",
+//         left: "center",
+//         bottom: "5%"
+//       },
+
+//       series: [
+//         {
+//           name: "Spectrogram",
+//           type: "heatmap",
+//           data: data
+//         }
+//       ]
+//     };
+
+//   }, [signals]);
+
+
+//   return (
+
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+
+//         {loading && <div>Loading...</div>}
+//         {error && <div style={{ color: "red" }}>{error}</div>}
+
+//         {/* ---------------------------
+//            TOP SECTION
+//         ---------------------------- */}
+
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "1fr 1fr",
+//             gap: theme.spacing.lg,
+//             marginBottom: theme.spacing.xl,
+//           }}
+//         >
+
+//           {/* MODULATION PIE */}
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div style={{
+//               height: 320,
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`,
+//               borderRadius: theme.radius.md,
+//               padding: theme.spacing.sm
+//             }}>
+
+//               <ResponsiveContainer width="100%" height="100%">
+//                 <PieChart>
+
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+
+//                 </PieChart>
+//               </ResponsiveContainer>
+
+//             </div>
+//           </div>
+
+//           {/* SIGNAL TABLE */}
+//           <div>
+
+//             <h3>RF Signals</h3>
+
+//             <table style={{
+//               width: "100%",
+//               borderCollapse: "collapse",
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`
+//             }}>
+
+//               <thead>
+//                 <tr>
+//                   <th>Frequency</th>
+//                   <th>Modulation</th>
+//                   <th>Power</th>
+//                   <th>Timestamp</th>
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+
+//                 {signals.slice(0, 20).map(signal => (
+
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                     <td>{new Date(signal.detected_at).toLocaleString()}</td>
+//                   </tr>
+
+//                 ))}
+
+//               </tbody>
+
+//             </table>
+
+//           </div>
+
+//         </div>
+
+
+//         {/* ---------------------------
+//            SPECTROGRAM PANEL
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           {/* <h3>RF Spectrogram</h3> */}
+
+//           {/* <Plot
+//             data={[
+//               {
+//                 x: spectrogramData.x,
+//                 y: spectrogramData.y,
+//                 z: spectrogramData.z,
+//                 type: "heatmap",
+//                 colorscale: "Jet" as const
+//               }
+//             ]}
+//             layout={{
+//               height: 350,
+//               margin: { t: 20 },
+//               xaxis: { title: "Frequency (MHz)" },
+//               yaxis: { title: "Time Index" },
+//               paper_bgcolor: "#0b132b",
+//               plot_bgcolor: "#0b132b",
+//               font: { color: "#ffffff" }
+//             }}
+//             style={{ width: "100%" }}
+//           /> */}
+
+//           <div style={{ marginBottom: theme.spacing.xl }}>
+//             <h3>RF Spectrogram</h3>
+
+//             <ReactECharts
+//               option={spectrogramOption}
+//               style={{ height: 350, width: "100%" }}
+//             />
+//           </div>
+
+//         </div>
+
+
+//         {/* ---------------------------
+//            RF TRIANGULATION MAP
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Triangulation Map</h3>
+
+//           <div style={{
+//             height: 500,
+//             border: `1px solid ${theme.colors.border}`,
+//             borderRadius: theme.radius.md
+//           }}>
+
+//             <MapContainer
+//               center={[12.97, 77.59]}
+//               zoom={12}
+//               style={{ height: "100%", width: "100%" }}
+//             >
+
+//               <TileLayer
+//                 attribution='© OpenStreetMap'
+//                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//               />
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Polyline
+//                   key={i}
+//                   positions={[
+//                     [ray.source_latitude, ray.source_longitude],
+//                     [ray.end_latitude, ray.end_longitude]
+//                   ]}
+//                   color="red"
+//                 />
+
+//               ))}
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Marker
+//                   key={"src" + i}
+//                   position={[ray.source_latitude, ray.source_longitude]}
+//                 />
+
+//               ))}
+
+//               {heatCells.map((cell, i) => (
+
+//                 <CircleMarker
+//                   key={i}
+//                   center={[cell.latitude_bucket, cell.longitude_bucket]}
+//                   radius={5 + cell.density * 2}
+//                   color="orange"
+//                 />
+
+//               ))}
+
+//             </MapContainer>
+
+//           </div>
+
+//         </div>
+
+//         <AlertTable />
+
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
+
+
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import { getHeatMap, getRFSignals, getTriangulation, type HeatCell, type RFSignal, type TriangulationResult } from "../api/rf";
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import { MapContainer, TileLayer, Marker, Polyline, CircleMarker } from "react-leaflet";
+// import "leaflet/dist/leaflet.css";
+
+// import ReactECharts from "echarts-for-react";
+
+// export default function OperatorDashboard() {
+
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
+
+//   const [spectrogramMatrix, setSpectrogramMatrix] = useState<number[][]>([]);
+//   const [spectrogramFreq, setSpectrogramFreq] = useState<number[]>([]);
+//   const [spectrogramTime, setSpectrogramTime] = useState<number[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+
+//     const load = async () => {
+
+//       const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//         getRFSignals(),
+//         getHeatMap(),
+//         getTriangulation(),
+//       ]);
+
+//       setSignals(signalsRes.data);
+//       setHeatCells(heatRes.data);
+//       setTriangulation(triangulationRes.data);
+
+//       setLoading(false);
+//     };
+
+//     load();
+
+//     const interval = setInterval(load, 5000);
+//     return () => clearInterval(interval);
+
+//   }, []);
+
+//   /* ---------------------------
+//      MODULATION PIE CHART
+//   ----------------------------*/
+
+//   const modulationData = useMemo(() => {
+
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others },
+//     ];
+
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+//   /* ---------------------------
+//      WAV FILE HANDLER
+//   ----------------------------*/
+
+//   const handleWavUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+
+//     const file = event.target.files?.[0];
+//     if (!file) return;
+
+//     const arrayBuffer = await file.arrayBuffer();
+
+//     const audioCtx = new AudioContext();
+//     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+//     const samples = audioBuffer.getChannelData(0);
+
+//     const fftSize = 512;
+//     const hopSize = 256;
+
+//     const frames = Math.floor((samples.length - fftSize) / hopSize);
+
+//     // const matrix: number[][] = [];
+
+//     // for (let i = 0; i < frames; i++) {
+
+//     //   const frame = samples.slice(i * hopSize, i * hopSize + fftSize);
+
+//     //   const spectrum = frame.map(v => 20 * Math.log10(Math.abs(v) + 1e-6));
+
+//     //   matrix.push(spectrum.slice(0, fftSize / 2));
+//     // }
+
+//     const matrix: number[][] = [];
+
+//     for (let i = 0; i < frames; i++) {
+
+//       const frame = samples.slice(i * hopSize, i * hopSize + fftSize);
+
+//       const spectrum = Array.from(frame, v => 20 * Math.log10(Math.abs(v) + 1e-6));
+
+//       matrix.push(spectrum.slice(0, fftSize / 2));
+//     }
+
+//     const freq = Array.from({ length: fftSize / 2 }, (_, i) =>
+//       i * audioBuffer.sampleRate / fftSize
+//     );
+
+//     const time = Array.from({ length: frames }, (_, i) =>
+//       i * hopSize / audioBuffer.sampleRate
+//     );
+
+//     setSpectrogramMatrix(matrix);
+//     setSpectrogramFreq(freq);
+//     setSpectrogramTime(time);
+//   };
+
+//   /* ---------------------------
+//      SPECTROGRAM OPTION
+//   ----------------------------*/
+
+//   const spectrogramOption = useMemo(() => {
+
+//     const data: any[] = [];
+
+//     spectrogramMatrix.forEach((row, t) => {
+//       row.forEach((value, f) => {
+//         data.push([spectrogramFreq[f], spectrogramTime[t], value]);
+//       });
+//     });
+
+//     return {
+
+//       tooltip: {},
+
+//       xAxis: {
+//         type: "value",
+//         name: "Frequency (Hz)"
+//       },
+
+//       yAxis: {
+//         type: "value",
+//         name: "Time (s)"
+//       },
+
+//       visualMap: {
+//         min: -100,
+//         max: 0,
+//         calculable: true,
+//         orient: "horizontal",
+//         left: "center",
+//         bottom: "5%"
+//       },
+
+//       series: [
+//         {
+//           type: "heatmap",
+//           data
+//         }
+//       ]
+
+//     };
+
+//   }, [spectrogramMatrix, spectrogramFreq, spectrogramTime]);
+
+//   return (
+
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+
+//         {loading && <div>Loading...</div>}
+
+//         {/* ---------------------------
+//            TOP SECTION
+//         ---------------------------- */}
+
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "1fr 1fr",
+//             gap: theme.spacing.lg,
+//             marginBottom: theme.spacing.xl,
+//           }}
+//         >
+
+//           {/* MODULATION PIE */}
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div style={{
+//               height: 320,
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`,
+//               borderRadius: theme.radius.md,
+//               padding: theme.spacing.sm
+//             }}>
+
+//               <ResponsiveContainer width="100%" height="100%">
+//                 <PieChart>
+
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+
+//                 </PieChart>
+//               </ResponsiveContainer>
+
+//             </div>
+//           </div>
+
+//           {/* SIGNAL TABLE */}
+//           <div>
+
+//             <h3>RF Signals</h3>
+
+//             <table style={{
+//               width: "100%",
+//               borderCollapse: "collapse",
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`
+//             }}>
+
+//               <thead>
+//                 <tr>
+//                   <th>Frequency</th>
+//                   <th>Modulation</th>
+//                   <th>Power</th>
+//                   <th>Timestamp</th>
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+
+//                 {signals.slice(0, 20).map(signal => (
+
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                     <td>{new Date(signal.detected_at).toLocaleString()}</td>
+//                   </tr>
+
+//                 ))}
+
+//               </tbody>
+
+//             </table>
+
+//           </div>
+
+//         </div>
+
+//         {/* ---------------------------
+//            WAV SPECTROGRAM PANEL
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Spectrogram (Upload WAV)</h3>
+
+//           <input
+//             type="file"
+//             accept=".wav"
+//             onChange={handleWavUpload}
+//             style={{ marginBottom: "10px" }}
+//           />
+
+//           {spectrogramMatrix.length > 0 && (
+
+//             <ReactECharts
+//               option={spectrogramOption}
+//               style={{ height: 400, width: "100%" }}
+//             />
+
+//           )}
+
+//         </div>
+
+//         {/* ---------------------------
+//            RF TRIANGULATION MAP
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Triangulation Map</h3>
+
+//           <div style={{
+//             height: 500,
+//             border: `1px solid ${theme.colors.border}`,
+//             borderRadius: theme.radius.md
+//           }}>
+
+//             <MapContainer
+//               center={[12.97, 77.59]}
+//               zoom={12}
+//               style={{ height: "100%", width: "100%" }}
+//             >
+
+//               <TileLayer
+//                 attribution='© OpenStreetMap'
+//                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//               />
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Polyline
+//                   key={i}
+//                   positions={[
+//                     [ray.source_latitude, ray.source_longitude],
+//                     [ray.end_latitude, ray.end_longitude]
+//                   ]}
+//                   color="red"
+//                 />
+
+//               ))}
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Marker
+//                   key={"src" + i}
+//                   position={[ray.source_latitude, ray.source_longitude]}
+//                 />
+
+//               ))}
+
+//               {heatCells.map((cell, i) => (
+
+//                 <CircleMarker
+//                   key={i}
+//                   center={[cell.latitude_bucket, cell.longitude_bucket]}
+//                   radius={5 + cell.density * 2}
+//                   color="orange"
+//                 />
+
+//               ))}
+
+//             </MapContainer>
+
+//           </div>
+
+//         </div>
+
+//         <AlertTable />
+
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
+
+
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import { getHeatMap, getRFSignals, getTriangulation, type HeatCell, type RFSignal, type TriangulationResult } from "../api/rf";
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import { MapContainer, TileLayer, Marker, Polyline, CircleMarker } from "react-leaflet";
+// import "leaflet/dist/leaflet.css";
+
+// import ReactECharts from "echarts-for-react";
+
+// // import { fft } from "fft-js";
+// // import { fft } from "fft-js";
+
+// import FFT from "fft.js";
+// import { fft } from "fft-js";
+
+// export default function OperatorDashboard() {
+
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
+
+//   const [spectrogramMatrix, setSpectrogramMatrix] = useState<number[][]>([]);
+//   const [spectrogramFreq, setSpectrogramFreq] = useState<number[]>([]);
+//   const [spectrogramTime, setSpectrogramTime] = useState<number[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+
+//     const load = async () => {
+
+//       const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//         getRFSignals(),
+//         getHeatMap(),
+//         getTriangulation(),
+//       ]);
+
+//       setSignals(signalsRes.data);
+//       setHeatCells(heatRes.data);
+//       setTriangulation(triangulationRes.data);
+
+//       setLoading(false);
+//     };
+
+//     load();
+
+//     const interval = setInterval(load, 5000);
+//     return () => clearInterval(interval);
+
+//   }, []);
+
+//   /* ---------------------------
+//      MODULATION PIE
+//   ----------------------------*/
+
+//   const modulationData = useMemo(() => {
+
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others },
+//     ];
+
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+
+//   /* ---------------------------
+//      WAV FILE SPECTROGRAM (REAL FFT)
+//   ----------------------------*/
+
+//   const handleWavUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+
+//     const file = event.target.files?.[0];
+//     if (!file) return;
+
+//     const arrayBuffer = await file.arrayBuffer();
+
+//     const audioCtx = new AudioContext();
+//     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+//     const samples: Float32Array = audioBuffer.getChannelData(0);
+
+//     const fftSize = 1024;
+//     const hopSize = 512;
+
+//     const frames = Math.floor((samples.length - fftSize) / hopSize);
+
+//     const matrix: number[][] = [];
+
+//     for (let i = 0; i < frames; i++) {
+
+//       const frame = Array.from(
+//         samples.slice(i * hopSize, i * hopSize + fftSize)
+//       );
+
+//       const phasors = fft(frame);
+
+//       const magnitudes = phasors
+//         .slice(0, fftSize / 2)
+//         .map((p: any) => {
+
+//           const re = p[0];
+//           const im = p[1];
+
+//           const mag = Math.sqrt(re * re + im * im);
+
+//           return 20 * Math.log10(mag + 1e-6);
+
+//         });
+
+//       matrix.push(magnitudes);
+
+//     }
+
+//     const freq = Array.from({ length: fftSize / 2 }, (_, i) =>
+//       i * audioBuffer.sampleRate / fftSize
+//     );
+
+//     const time = Array.from({ length: frames }, (_, i) =>
+//       i * hopSize / audioBuffer.sampleRate
+//     );
+
+//     setSpectrogramMatrix(matrix);
+//     setSpectrogramFreq(freq);
+//     setSpectrogramTime(time);
+//   };
+
+
+//   /* ---------------------------
+//      SPECTROGRAM CHART OPTION
+//   ----------------------------*/
+
+//   const spectrogramOption = useMemo(() => {
+
+//     const data: any[] = [];
+
+//     spectrogramMatrix.forEach((row, t) => {
+
+//       row.forEach((value, f) => {
+
+//         data.push([
+//           spectrogramFreq[f],
+//           spectrogramTime[t],
+//           value
+//         ]);
+
+//       });
+
+//     });
+
+//     return {
+
+//       tooltip: {},
+
+//       xAxis: {
+//         type: "value",
+//         name: "Frequency (Hz)"
+//       },
+
+//       yAxis: {
+//         type: "value",
+//         name: "Time (s)"
+//       },
+
+//       visualMap: {
+//         min: -120,
+//         max: 0,
+//         calculable: true,
+//         orient: "horizontal",
+//         left: "center",
+//         bottom: "5%"
+//       },
+
+//       series: [
+//         {
+//           type: "heatmap",
+//           data
+//         }
+//       ]
+
+//     };
+
+//   }, [spectrogramMatrix, spectrogramFreq, spectrogramTime]);
+
+
+//   return (
+
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+
+//         {loading && <div>Loading...</div>}
+
+//         {/* ---------------------------
+//            TOP DASHBOARD
+//         ---------------------------- */}
+
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "1fr 1fr",
+//             gap: theme.spacing.lg,
+//             marginBottom: theme.spacing.xl,
+//           }}
+//         >
+
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div style={{
+//               height: 320,
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`,
+//               borderRadius: theme.radius.md,
+//               padding: theme.spacing.sm
+//             }}>
+
+//               <ResponsiveContainer width="100%" height="100%">
+//                 <PieChart>
+
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+
+//                 </PieChart>
+//               </ResponsiveContainer>
+
+//             </div>
+//           </div>
+
+
+//           <div>
+
+//             <h3>RF Signals</h3>
+
+//             <table style={{
+//               width: "100%",
+//               borderCollapse: "collapse",
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`
+//             }}>
+
+//               <thead>
+//                 <tr>
+//                   <th>Frequency</th>
+//                   <th>Modulation</th>
+//                   <th>Power</th>
+//                   <th>Timestamp</th>
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+
+//                 {signals.slice(0, 20).map(signal => (
+
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                     <td>{new Date(signal.detected_at).toLocaleString()}</td>
+//                   </tr>
+
+//                 ))}
+
+//               </tbody>
+
+//             </table>
+
+//           </div>
+
+//         </div>
+
+
+//         {/* ---------------------------
+//            WAV SPECTROGRAM
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Spectrogram (Upload WAV)</h3>
+
+//           <input
+//             type="file"
+//             accept=".wav"
+//             onChange={handleWavUpload}
+//             style={{ marginBottom: "10px" }}
+//           />
+
+//           {spectrogramMatrix.length > 0 && (
+
+//             <ReactECharts
+//               option={spectrogramOption}
+//               style={{ height: 400, width: "100%" }}
+//             />
+
+//           )}
+
+//         </div>
+
+
+//         {/* ---------------------------
+//            TRIANGULATION MAP
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Triangulation Map</h3>
+
+//           <div style={{
+//             height: 500,
+//             border: `1px solid ${theme.colors.border}`,
+//             borderRadius: theme.radius.md
+//           }}>
+
+//             <MapContainer
+//               center={[12.97, 77.59]}
+//               zoom={12}
+//               style={{ height: "100%", width: "100%" }}
+//             >
+
+//               <TileLayer
+//                 attribution='© OpenStreetMap'
+//                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//               />
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Polyline
+//                   key={i}
+//                   positions={[
+//                     [ray.source_latitude, ray.source_longitude],
+//                     [ray.end_latitude, ray.end_longitude]
+//                   ]}
+//                   color="red"
+//                 />
+
+//               ))}
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Marker
+//                   key={"src" + i}
+//                   position={[ray.source_latitude, ray.source_longitude]}
+//                 />
+
+//               ))}
+
+//               {heatCells.map((cell, i) => (
+
+//                 <CircleMarker
+//                   key={i}
+//                   center={[cell.latitude_bucket, cell.longitude_bucket]}
+//                   radius={5 + cell.density * 2}
+//                   color="orange"
+//                 />
+
+//               ))}
+
+//             </MapContainer>
+
+//           </div>
+
+//         </div>
+
+//         <AlertTable />
+
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
+
+
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import { getHeatMap, getRFSignals, getTriangulation, type HeatCell, type RFSignal, type TriangulationResult } from "../api/rf";
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import { MapContainer, TileLayer, Marker, Polyline, CircleMarker } from "react-leaflet";
+// import "leaflet/dist/leaflet.css";
+
+// import ReactECharts from "echarts-for-react";
+// import { fft } from "fft-js";
+
+// export default function OperatorDashboard() {
+
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
+
+//   const [spectrogramMatrix, setSpectrogramMatrix] = useState<number[][]>([]);
+//   const [spectrogramFreq, setSpectrogramFreq] = useState<number[]>([]);
+//   const [spectrogramTime, setSpectrogramTime] = useState<number[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+
+//     const load = async () => {
+
+//       const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//         getRFSignals(),
+//         getHeatMap(),
+//         getTriangulation(),
+//       ]);
+
+//       setSignals(signalsRes.data);
+//       setHeatCells(heatRes.data);
+//       setTriangulation(triangulationRes.data);
+
+//       setLoading(false);
+//     };
+
+//     load();
+
+//     const interval = setInterval(load, 5000);
+//     return () => clearInterval(interval);
+
+//   }, []);
+
+//   /* ---------------------------
+//      MODULATION PIE
+//   ----------------------------*/
+
+//   const modulationData = useMemo(() => {
+
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others },
+//     ];
+
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+//   /* ---------------------------
+//      WAV SPECTROGRAM (REAL FFT)
+//   ----------------------------*/
+
+//   const handleWavUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+
+//     const file = event.target.files?.[0];
+//     if (!file) return;
+
+//     const arrayBuffer = await file.arrayBuffer();
+
+//     const audioCtx = new AudioContext();
+//     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+//     const samples: Float32Array = audioBuffer.getChannelData(0);
+
+//     const fftSize = 1024;
+//     const hopSize = 512;
+
+//     const frames = Math.floor((samples.length - fftSize) / hopSize);
+
+//     const matrix: number[][] = [];
+
+//     for (let i = 0; i < frames; i++) {
+
+//       const frame = Array.from(
+//         samples.slice(i * hopSize, i * hopSize + fftSize)
+//       );
+
+//       const phasors = fft(frame);
+
+//       const magnitudes = phasors
+//         .slice(0, fftSize / 2)
+//         .map((p: any) => {
+
+//           const re = p[0];
+//           const im = p[1];
+
+//           const mag = Math.sqrt(re * re + im * im);
+
+//           return 20 * Math.log10(mag + 1e-6);
+
+//         });
+
+//       matrix.push(magnitudes);
+
+//     }
+
+//     const freq = Array.from({ length: fftSize / 2 }, (_, i) =>
+//       i * audioBuffer.sampleRate / fftSize
+//     );
+
+//     const time = Array.from({ length: frames }, (_, i) =>
+//       i * hopSize / audioBuffer.sampleRate
+//     );
+
+//     setSpectrogramMatrix(matrix);
+//     setSpectrogramFreq(freq);
+//     setSpectrogramTime(time);
+//   };
+
+//   /* ---------------------------
+//      SPECTROGRAM OPTION
+//   ----------------------------*/
+
+//   const spectrogramOption = useMemo(() => {
+
+//     const data: any[] = [];
+
+//     spectrogramMatrix.forEach((row, t) => {
+
+//       row.forEach((value, f) => {
+
+//         data.push([
+//           spectrogramTime[t],   // X = Time
+//           spectrogramFreq[f],   // Y = Frequency
+//           value                 // Power
+//         ]);
+
+//       });
+
+//     });
+
+//     return {
+
+//       tooltip: {},
+
+//       xAxis: {
+//         type: "value",
+//         name: "Time (s)"
+//       },
+
+//       yAxis: {
+//         type: "value",
+//         name: "Frequency (Hz)"
+//       },
+
+//       visualMap: {
+//         min: -120,
+//         max: 0,
+//         calculable: true,
+//         orient: "horizontal",
+//         left: "center",
+//         bottom: "5%"
+//       },
+
+//       dataZoom: [
+//         {
+//           type: "inside",
+//           xAxisIndex: 0
+//         },
+//         {
+//           type: "inside",
+//           yAxisIndex: 0
+//         },
+//         {
+//           type: "slider",
+//           xAxisIndex: 0
+//         },
+//         {
+//           type: "slider",
+//           yAxisIndex: 0
+//         }
+//       ],
+
+//       series: [
+//         {
+//           type: "heatmap",
+//           data
+//         }
+//       ]
+
+//     };
+
+//   }, [spectrogramMatrix, spectrogramFreq, spectrogramTime]);
+
+
+//   return (
+
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+
+//         {loading && <div>Loading...</div>}
+
+//         {/* ---------------------------
+//            TOP DASHBOARD
+//         ---------------------------- */}
+
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "1fr 1fr",
+//             gap: theme.spacing.lg,
+//             marginBottom: theme.spacing.xl,
+//           }}
+//         >
+
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div style={{
+//               height: 320,
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`,
+//               borderRadius: theme.radius.md,
+//               padding: theme.spacing.sm
+//             }}>
+
+//               <ResponsiveContainer width="100%" height="100%">
+//                 <PieChart>
+
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+
+//                 </PieChart>
+//               </ResponsiveContainer>
+
+//             </div>
+//           </div>
+
+
+//           <div>
+
+//             <h3>RF Signals</h3>
+
+//             <table style={{
+//               width: "100%",
+//               borderCollapse: "collapse",
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`
+//             }}>
+
+//               <thead>
+//                 <tr>
+//                   <th>Frequency</th>
+//                   <th>Modulation</th>
+//                   <th>Power</th>
+//                   <th>Timestamp</th>
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+
+//                 {signals.slice(0, 20).map(signal => (
+
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                     <td>{new Date(signal.detected_at).toLocaleString()}</td>
+//                   </tr>
+
+//                 ))}
+
+//               </tbody>
+
+//             </table>
+
+//           </div>
+
+//         </div>
+
+
+//         {/* ---------------------------
+//            WAV SPECTROGRAM
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Spectrogram (Upload WAV)</h3>
+
+//           <input
+//             type="file"
+//             accept=".wav"
+//             onChange={handleWavUpload}
+//             style={{ marginBottom: "10px" }}
+//           />
+
+//           {spectrogramMatrix.length > 0 && (
+
+//             <ReactECharts
+//               option={spectrogramOption}
+//               style={{ height: 450, width: "100%" }}
+//             />
+
+//           )}
+
+//         </div>
+
+
+//         {/* ---------------------------
+//            TRIANGULATION MAP
+//         ---------------------------- */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Triangulation Map</h3>
+
+//           <div style={{
+//             height: 500,
+//             border: `1px solid ${theme.colors.border}`,
+//             borderRadius: theme.radius.md
+//           }}>
+
+//             <MapContainer
+//               center={[12.97, 77.59]}
+//               zoom={12}
+//               style={{ height: "100%", width: "100%" }}
+//             >
+
+//               <TileLayer
+//                 attribution='© OpenStreetMap'
+//                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//               />
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Polyline
+//                   key={i}
+//                   positions={[
+//                     [ray.source_latitude, ray.source_longitude],
+//                     [ray.end_latitude, ray.end_longitude]
+//                   ]}
+//                   color="red"
+//                 />
+
+//               ))}
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Marker
+//                   key={"src" + i}
+//                   position={[ray.source_latitude, ray.source_longitude]}
+//                 />
+
+//               ))}
+
+//               {heatCells.map((cell, i) => (
+
+//                 <CircleMarker
+//                   key={i}
+//                   center={[cell.latitude_bucket, cell.longitude_bucket]}
+//                   radius={5 + cell.density * 2}
+//                   color="orange"
+//                 />
+
+//               ))}
+
+//             </MapContainer>
+
+//           </div>
+
+//         </div>
+
+//         <AlertTable />
+
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
+
+
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import {
+//   getHeatMap,
+//   getRFSignals,
+//   getTriangulation,
+//   type HeatCell,
+//   type RFSignal,
+//   type TriangulationResult
+// } from "../api/rf";
+
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import {
+//   MapContainer,
+//   TileLayer,
+//   Marker,
+//   Polyline,
+//   CircleMarker
+// } from "react-leaflet";
+
+// import "leaflet/dist/leaflet.css";
+
+// import ReactECharts from "echarts-for-react";
+// import { fft } from "fft-js";
+
+// export default function OperatorDashboard() {
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] =
+//     useState<TriangulationResult | null>(null);
+
+//   const [spectrogramMatrix, setSpectrogramMatrix] = useState<number[][]>([]);
+//   const [spectrogramFreq, setSpectrogramFreq] = useState<number[]>([]);
+//   const [spectrogramTime, setSpectrogramTime] = useState<number[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+//     const load = async () => {
+//       const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//         getRFSignals(),
+//         getHeatMap(),
+//         getTriangulation()
+//       ]);
+
+//       setSignals(signalsRes.data);
+//       setHeatCells(heatRes.data);
+//       setTriangulation(triangulationRes.data);
+
+//       setLoading(false);
+//     };
+
+//     load();
+
+//     const interval = setInterval(load, 5000);
+//     return () => clearInterval(interval);
+//   }, []);
+
+//   /* ---------------------------
+//      MODULATION PIE
+//   ---------------------------- */
+
+//   const modulationData = useMemo(() => {
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others }
+//     ];
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+//   /* ---------------------------
+//      WAV SPECTROGRAM (FFT)
+//   ---------------------------- */
+
+//   const handleWavUpload = async (
+//     event: React.ChangeEvent<HTMLInputElement>
+//   ) => {
+//     const file = event.target.files?.[0];
+//     if (!file) return;
+
+//     const arrayBuffer = await file.arrayBuffer();
+
+//     const audioCtx = new AudioContext();
+//     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+//     const samples: Float32Array = audioBuffer.getChannelData(0);
+
+//     const fftSize = 2048;
+//     const hopSize = 256;
+
+//     const frames = Math.floor((samples.length - fftSize) / hopSize);
+
+//     const matrix: number[][] = [];
+
+//     for (let i = 0; i < frames; i++) {
+//       const frame = Array.from(
+//         samples.slice(i * hopSize, i * hopSize + fftSize)
+//       );
+
+//       const phasors = fft(frame);
+
+//       const magnitudes = phasors
+//         .slice(0, fftSize / 2)
+//         .map((p: any) => {
+//           const re = p[0];
+//           const im = p[1];
+
+//           const mag = Math.sqrt(re * re + im * im);
+
+//           return 20 * Math.log10(mag + 1e-6);
+//         });
+
+//       matrix.push(magnitudes);
+//     }
+
+//     const freq = Array.from({ length: fftSize / 2 }, (_, i) =>
+//       (i * audioBuffer.sampleRate) / fftSize
+//     );
+
+//     const time = Array.from({ length: frames }, (_, i) =>
+//       (i * hopSize) / audioBuffer.sampleRate
+//     );
+
+//     setSpectrogramMatrix(matrix);
+//     setSpectrogramFreq(freq);
+//     setSpectrogramTime(time);
+//   };
+
+//   /* ---------------------------
+//      SDR STYLE SPECTROGRAM
+//   ---------------------------- */
+
+//   const spectrogramOption = useMemo(() => {
+//     const data: any[] = [];
+
+//     spectrogramMatrix.forEach((row, t) => {
+//       row.forEach((value, f) => {
+//         if (value < -110) return;
+
+//         data.push([
+//           spectrogramTime[t],
+//           spectrogramFreq[f],
+//           value
+//         ]);
+//       });
+//     });
+
+//     return {
+//       backgroundColor: "#081020",
+
+//       tooltip: {
+//         formatter: (p: any) =>
+//           `Time: ${p.value[0].toFixed(2)} s<br/>
+//            Freq: ${Math.round(p.value[1])} Hz<br/>
+//            Power: ${p.value[2].toFixed(1)} dB`
+//       },
+
+//       xAxis: {
+//         type: "value",
+//         name: "Time (s)",
+//         nameLocation: "middle",
+//         nameGap: 35,
+//         axisLine: { lineStyle: { color: "#aaa" } }
+//       },
+
+//       yAxis: {
+//         type: "value",
+//         name: "Frequency (Hz)",
+//         min: 0,
+//         max: 20000,
+//         nameLocation: "middle",
+//         nameGap: 50,
+//         axisLine: { lineStyle: { color: "#aaa" } }
+//       },
+
+//       visualMap: {
+//         min: -120,
+//         max: 0,
+//         calculable: true,
+//         orient: "vertical",
+//         right: 10,
+//         top: "center",
+
+//         inRange: {
+//           color: [
+//             "#000000",
+//             "#0000ff",
+//             "#00ffff",
+//             "#00ff00",
+//             "#ffff00",
+//             "#ff0000"
+//           ]
+//         }
+//       },
+
+//       dataZoom: [
+//         { type: "inside" },
+//         { type: "slider" }
+//       ],
+
+//       series: [
+//         {
+//           type: "heatmap",
+//           progressive: 1000,
+//           data
+//         }
+//       ]
+//     };
+//   }, [spectrogramMatrix, spectrogramFreq, spectrogramTime]);
+
+//   return (
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+//         {loading && <div>Loading...</div>}
+
+//         {/* DASHBOARD TOP */}
+
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "1fr 1fr",
+//             gap: theme.spacing.lg,
+//             marginBottom: theme.spacing.xl
+//           }}
+//         >
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div
+//               style={{
+//                 height: 320,
+//                 background: theme.colors.surfaceAlt,
+//                 border: `1px solid ${theme.colors.border}`,
+//                 borderRadius: theme.radius.md,
+//                 padding: theme.spacing.sm
+//               }}
+//             >
+//               <ResponsiveContainer width="100%" height="100%">
+//                 <PieChart>
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+//                 </PieChart>
+//               </ResponsiveContainer>
+//             </div>
+//           </div>
+
+//           {/* RF TABLE */}
+
+//           <div>
+//             <h3>RF Signals</h3>
+
+//             <table
+//               style={{
+//                 width: "100%",
+//                 borderCollapse: "collapse",
+//                 background: theme.colors.surfaceAlt,
+//                 border: `1px solid ${theme.colors.border}`
+//               }}
+//             >
+//               <thead>
+//                 <tr>
+//                   <th>Frequency</th>
+//                   <th>Modulation</th>
+//                   <th>Power</th>
+//                   <th>Timestamp</th>
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+//                 {signals.slice(0, 20).map((signal) => (
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                     <td>
+//                       {new Date(signal.detected_at).toLocaleString()}
+//                     </td>
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//           </div>
+//         </div>
+
+//         {/* SPECTROGRAM */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+//           <h3>RF Spectrogram (Upload WAV)</h3>
+
+//           <input
+//             type="file"
+//             accept=".wav"
+//             onChange={handleWavUpload}
+//             style={{ marginBottom: "10px" }}
+//           />
+
+//           {spectrogramMatrix.length > 0 && (
+//             <ReactECharts
+//               option={spectrogramOption}
+//               style={{ height: 500, width: "100%" }}
+//             />
+//           )}
+//         </div>
+
+//         {/* MAP */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+//           <h3>RF Triangulation Map</h3>
+
+//           <div
+//             style={{
+//               height: 500,
+//               border: `1px solid ${theme.colors.border}`,
+//               borderRadius: theme.radius.md
+//             }}
+//           >
+//             <MapContainer
+//               center={[12.97, 77.59]}
+//               zoom={12}
+//               style={{ height: "100%", width: "100%" }}
+//             >
+//               <TileLayer
+//                 attribution="© OpenStreetMap"
+//                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//               />
+
+//               {triangulation?.rays.map((ray, i) => (
+//                 <Polyline
+//                   key={i}
+//                   positions={[
+//                     [ray.source_latitude, ray.source_longitude],
+//                     [ray.end_latitude, ray.end_longitude]
+//                   ]}
+//                   color="red"
+//                 />
+//               ))}
+
+//               {triangulation?.rays.map((ray, i) => (
+//                 <Marker
+//                   key={i}
+//                   position={[
+//                     ray.source_latitude,
+//                     ray.source_longitude
+//                   ]}
+//                 />
+//               ))}
+
+//               {heatCells.map((cell, i) => (
+//                 <CircleMarker
+//                   key={i}
+//                   center={[
+//                     cell.latitude_bucket,
+//                     cell.longitude_bucket
+//                   ]}
+//                   radius={5 + cell.density * 2}
+//                   color="orange"
+//                 />
+//               ))}
+//             </MapContainer>
+//           </div>
+//         </div>
+
+//         <AlertTable />
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
+
+
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import { getHeatMap, getRFSignals, getTriangulation, type HeatCell, type RFSignal, type TriangulationResult } from "../api/rf";
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import {
+//   MapContainer,
+//   TileLayer,
+//   Marker,
+//   Polyline,
+//   CircleMarker
+// } from "react-leaflet";
+
+// import "leaflet/dist/leaflet.css";
+
+// import ReactECharts from "echarts-for-react";
+// import { fft } from "fft-js";
+
+// export default function OperatorDashboard() {
+
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] =
+//     useState<TriangulationResult | null>(null);
+
+//   const [spectrogramMatrix, setSpectrogramMatrix] = useState<number[][]>([]);
+//   const [spectrumData, setSpectrumData] = useState<number[]>([]);
+//   const [freqAxis, setFreqAxis] = useState<number[]>([]);
+//   const [timeAxis, setTimeAxis] = useState<number[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+
+//     const load = async () => {
+
+//       const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//         getRFSignals(),
+//         getHeatMap(),
+//         getTriangulation()
+//       ]);
+
+//       setSignals(signalsRes.data);
+//       setHeatCells(heatRes.data);
+//       setTriangulation(triangulationRes.data);
+
+//       setLoading(false);
+//     };
+
+//     load();
+
+//   }, []);
+
+//   /* ---------------------------
+//      MODULATION PIE
+//   ---------------------------- */
+
+//   const modulationData = useMemo(() => {
+
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others },
+//     ];
+
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+//   /* ---------------------------
+//      WAV PROCESSING
+//   ---------------------------- */
+
+//   const handleWavUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+
+//     const file = event.target.files?.[0];
+//     if (!file) return;
+
+//     const arrayBuffer = await file.arrayBuffer();
+
+//     const audioCtx = new AudioContext();
+//     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+//     const samples: Float32Array = audioBuffer.getChannelData(0);
+
+//     const fftSize = 2048;
+//     const hopSize = 256;
+
+//     const frames = Math.floor((samples.length - fftSize) / hopSize);
+
+//     const waterfall: number[][] = [];
+
+//     let lastSpectrum: number[] = [];
+
+//     for (let i = 0; i < frames; i++) {
+
+//       const frame = Array.from(
+//         samples.slice(i * hopSize, i * hopSize + fftSize)
+//       );
+
+//       const phasors = fft(frame);
+
+//       const mags = phasors.slice(0, fftSize / 2).map((p: any) => {
+
+//         const re = p[0];
+//         const im = p[1];
+
+//         const mag = Math.sqrt(re * re + im * im);
+
+//         return 20 * Math.log10(mag + 1e-6);
+
+//       });
+
+//       lastSpectrum = mags;
+//       waterfall.push(mags);
+
+//     }
+
+//     const freq = Array.from({ length: fftSize / 2 }, (_, i) =>
+//       i * audioBuffer.sampleRate / fftSize
+//     );
+
+//     const time = Array.from({ length: frames }, (_, i) =>
+//       i * hopSize / audioBuffer.sampleRate
+//     );
+
+//     setSpectrumData(lastSpectrum);
+//     setSpectrogramMatrix(waterfall);
+//     setFreqAxis(freq);
+//     setTimeAxis(time);
+//   };
+
+//   /* ---------------------------
+//      FFT SPECTRUM (TOP PANEL)
+//   ---------------------------- */
+
+//   const spectrumOption = useMemo(() => {
+
+//     return {
+
+//       xAxis: {
+//         type: "value",
+//         name: "Frequency (Hz)"
+//       },
+
+//       yAxis: {
+//         type: "value",
+//         name: "Power (dB)"
+//       },
+
+//       series: [
+//         {
+//           type: "line",
+//           data: freqAxis.map((f, i) => [f, spectrumData[i] || -120]),
+//           showSymbol: false
+//         }
+//       ],
+
+//       tooltip: {}
+
+//     };
+
+//   }, [spectrumData, freqAxis]);
+
+//   /* ---------------------------
+//      WATERFALL SPECTROGRAM
+//   ---------------------------- */
+
+//   const waterfallOption = useMemo(() => {
+
+//     const data: any[] = [];
+
+//     spectrogramMatrix.forEach((row, t) => {
+
+//       row.forEach((v, f) => {
+
+//         data.push([
+//           freqAxis[f],
+//           t,
+//           v
+//         ]);
+
+//       });
+
+//     });
+
+//     return {
+
+//       xAxis: {
+//         type: "value",
+//         name: "Frequency (Hz)"
+//       },
+
+//       yAxis: {
+//         type: "value",
+//         name: "Time"
+//       },
+
+//       visualMap: {
+//         min: -120,
+//         max: 0,
+//         orient: "vertical",
+//         right: 10,
+//         top: "center",
+//         inRange: {
+//           color: [
+//             "#000000",
+//             "#0000ff",
+//             "#00ffff",
+//             "#00ff00",
+//             "#ffff00",
+//             "#ff0000"
+//           ]
+//         }
+//       },
+
+//       dataZoom: [
+//         { type: "inside" },
+//         { type: "slider" }
+//       ],
+
+//       series: [
+//         {
+//           type: "heatmap",
+//           data
+//         }
+//       ]
+
+//     };
+
+//   }, [spectrogramMatrix, freqAxis]);
+
+//   return (
+
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+
+//         {loading && <div>Loading...</div>}
+
+//         {/* PIE + TABLE */}
+
+//         <div style={{
+//           display: "grid",
+//           gridTemplateColumns: "1fr 1fr",
+//           gap: theme.spacing.lg,
+//           marginBottom: theme.spacing.xl
+//         }}>
+
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div style={{
+//               height: 320,
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`,
+//               borderRadius: theme.radius.md,
+//               padding: theme.spacing.sm
+//             }}>
+
+//               <ResponsiveContainer width="100%" height="100%">
+//                 <PieChart>
+
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+
+//                 </PieChart>
+//               </ResponsiveContainer>
+
+//             </div>
+//           </div>
+
+//           <div>
+//             <h3>RF Signals</h3>
+
+//             <table style={{
+//               width: "100%",
+//               borderCollapse: "collapse",
+//               background: theme.colors.surfaceAlt,
+//               border: `1px solid ${theme.colors.border}`
+//             }}>
+//               <thead>
+//                 <tr>
+//                   <th>Frequency</th>
+//                   <th>Modulation</th>
+//                   <th>Power</th>
+//                   <th>Timestamp</th>
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+//                 {signals.slice(0, 20).map(signal => (
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                     <td>{new Date(signal.detected_at).toLocaleString()}</td>
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//           </div>
+
+//         </div>
+
+//         {/* SDR DISPLAY */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Spectrum Analyzer (Upload WAV)</h3>
+
+//           <input
+//             type="file"
+//             accept=".wav"
+//             onChange={handleWavUpload}
+//             style={{ marginBottom: "10px" }}
+//           />
+
+//           {spectrogramMatrix.length > 0 && (
+
+//             <>
+//               <ReactECharts option={spectrumOption} style={{ height: 200 }} />
+//               <ReactECharts option={waterfallOption} style={{ height: 350 }} />
+//             </>
+
+//           )}
+
+//         </div>
+
+//         {/* MAP */}
+
+//         <div style={{ marginBottom: theme.spacing.xl }}>
+
+//           <h3>RF Triangulation Map</h3>
+
+//           <div style={{
+//             height: 500,
+//             border: `1px solid ${theme.colors.border}`,
+//             borderRadius: theme.radius.md
+//           }}>
+
+//             <MapContainer
+//               center={[12.97, 77.59]}
+//               zoom={12}
+//               style={{ height: "100%", width: "100%" }}
+//             >
+
+//               <TileLayer
+//                 attribution='© OpenStreetMap'
+//                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//               />
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Polyline
+//                   key={i}
+//                   positions={[
+//                     [ray.source_latitude, ray.source_longitude],
+//                     [ray.end_latitude, ray.end_longitude]
+//                   ]}
+//                   color="red"
+//                 />
+
+//               ))}
+
+//               {triangulation?.rays.map((ray, i) => (
+
+//                 <Marker
+//                   key={"src" + i}
+//                   position={[ray.source_latitude, ray.source_longitude]}
+//                 />
+
+//               ))}
+
+//               {heatCells.map((cell, i) => (
+
+//                 <CircleMarker
+//                   key={i}
+//                   center={[cell.latitude_bucket, cell.longitude_bucket]}
+//                   radius={5 + cell.density * 2}
+//                   color="orange"
+//                 />
+
+//               ))}
+
+//             </MapContainer>
+
+//           </div>
+
+//         </div>
+
+//         <AlertTable />
+
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
+
+// import { useEffect, useState, useMemo } from "react";
+// import AppLayout from "../components/layout/AppLayout";
+// import PageContainer from "../components/layout/PageContainer";
+// import AlertTable from "../components/AlertTable";
+
+// import {
+//   getHeatMap,
+//   getRFSignals,
+//   getTriangulation,
+//   type HeatCell,
+//   type RFSignal,
+//   type TriangulationResult
+// } from "../api/rf";
+
+// import { useTheme } from "../context/ThemeContext";
+
+// import {
+//   ResponsiveContainer,
+//   PieChart,
+//   Pie,
+//   Tooltip,
+//   Legend,
+//   Cell
+// } from "recharts";
+
+// import {
+//   MapContainer,
+//   TileLayer,
+//   Marker,
+//   Polyline,
+//   CircleMarker
+// } from "react-leaflet";
+
+// import "leaflet/dist/leaflet.css";
+
+// import Plot from "react-plotly.js";
+// import { fft } from "fft-js";
+
+// export default function OperatorDashboard() {
+
+//   const { theme } = useTheme();
+
+//   const [signals, setSignals] = useState<RFSignal[]>([]);
+//   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
+//   const [triangulation, setTriangulation] =
+//     useState<TriangulationResult | null>(null);
+
+//   const [spectrogram, setSpectrogram] = useState<number[][]>([]);
+//   const [freqAxis, setFreqAxis] = useState<number[]>([]);
+//   const [timeAxis, setTimeAxis] = useState<number[]>([]);
+//   const [spectrum, setSpectrum] = useState<number[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+
+//   useEffect(() => {
+
+//     const load = async () => {
+
+//       const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+//         getRFSignals(),
+//         getHeatMap(),
+//         getTriangulation()
+//       ]);
+
+//       setSignals(signalsRes.data);
+//       setHeatCells(heatRes.data);
+//       setTriangulation(triangulationRes.data);
+
+//       setLoading(false);
+//     };
+
+//     load();
+
+//   }, []);
+
+//   /* ---------------------------
+//      MODULATION PIE
+//   ---------------------------- */
+
+//   const modulationData = useMemo(() => {
+
+//     let AM = 0;
+//     let FM = 0;
+//     let Others = 0;
+
+//     signals.forEach((s) => {
+
+//       const mod = s.modulation?.toUpperCase();
+
+//       if (mod === "AM") AM++;
+//       else if (mod === "FM") FM++;
+//       else Others++;
+
+//     });
+
+//     return [
+//       { name: "AM", value: AM },
+//       { name: "FM", value: FM },
+//       { name: "Others", value: Others }
+//     ];
+
+//   }, [signals]);
+
+//   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+//   /* ---------------------------
+//      WAV → SPECTROGRAM
+//   ---------------------------- */
+
+//   const handleWavUpload = async (e: any) => {
+
+//     const file = e.target.files?.[0];
+//     if (!file) return;
+
+//     const arrayBuffer = await file.arrayBuffer();
+
+//     const audioCtx = new AudioContext();
+//     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+//     const samples = audioBuffer.getChannelData(0);
+
+//     const fftSize = 2048;
+//     const hopSize = 512;
+
+//     const frames = Math.floor((samples.length - fftSize) / hopSize);
+
+//     const spec: number[][] = [];
+
+//     let lastSpectrum: number[] = [];
+
+//     for (let i = 0; i < frames; i++) {
+
+//       const frame = Array.from(
+//         samples.slice(i * hopSize, i * hopSize + fftSize)
+//       );
+
+//       const phasors = fft(frame);
+
+//       const mags = phasors
+//         .slice(0, fftSize / 2)
+//         .map((p: any) => {
+
+//           const re = p[0];
+//           const im = p[1];
+
+//           const mag = Math.sqrt(re * re + im * im);
+
+//           return 20 * Math.log10(mag + 1e-12);
+
+//         });
+
+//       lastSpectrum = mags;
+//       spec.push(mags);
+
+//     }
+
+//     const freq = Array.from({ length: fftSize / 2 }, (_, i) =>
+//       (i * audioBuffer.sampleRate) / fftSize
+//     );
+
+//     const time = Array.from({ length: frames }, (_, i) =>
+//       (i * hopSize) / audioBuffer.sampleRate
+//     );
+
+//     setSpectrogram(spec);
+//     setSpectrum(lastSpectrum);
+//     setFreqAxis(freq);
+//     setTimeAxis(time);
+
+//   };
+
+//   /* ---------------------------
+//      FFT SPECTRUM
+//   ---------------------------- */
+
+//   const spectrumPlot = {
+
+//     x: freqAxis,
+//     y: spectrum,
+//     type: "scatter",
+//     mode: "lines",
+//     line: { color: "cyan" }
+
+//   };
+
+//   /* ---------------------------
+//      WATERFALL
+//   ---------------------------- */
+
+//   const spectrogramPlot = {
+
+//     z: spectrogram,
+//     x: freqAxis,
+//     y: timeAxis,
+//     type: "heatmap",
+//     colorscale: "Turbo"
+
+//   };
+
+//   return (
+
+//     <AppLayout>
+//       <PageContainer title="Operations Center">
+
+//         {loading && <div>Loading...</div>}
+
+//         {/* TOP DASHBOARD */}
+
+//         <div
+//           style={{
+//             display: "grid",
+//             gridTemplateColumns: "1fr 1fr",
+//             gap: theme.spacing.lg,
+//             marginBottom: theme.spacing.xl
+//           }}
+//         >
+
+//           <div>
+//             <h3>Modulation Distribution</h3>
+
+//             <div style={{
+//               height: 320,
+//               background: theme.colors.surfaceAlt
+//             }}>
+
+//               <ResponsiveContainer width="100%" height="100%">
+//                 <PieChart>
+
+//                   <Pie
+//                     data={modulationData}
+//                     dataKey="value"
+//                     nameKey="name"
+//                     outerRadius={110}
+//                     label
+//                   >
+//                     {modulationData.map((entry, index) => (
+//                       <Cell key={index} fill={COLORS[index]} />
+//                     ))}
+//                   </Pie>
+
+//                   <Tooltip />
+//                   <Legend />
+
+//                 </PieChart>
+//               </ResponsiveContainer>
+
+//             </div>
+//           </div>
+
+//           {/* RF TABLE */}
+
+//           <div>
+
+//             <h3>RF Signals</h3>
+
+//             <table style={{ width: "100%" }}>
+
+//               <tbody>
+
+//                 {signals.slice(0, 10).map(signal => (
+
+//                   <tr key={signal.id}>
+//                     <td>{signal.frequency}</td>
+//                     <td>{signal.modulation}</td>
+//                     <td>{signal.power_level}</td>
+//                   </tr>
+
+//                 ))}
+
+//               </tbody>
+
+//             </table>
+
+//           </div>
+
+//         </div>
+
+//         {/* SPECTRUM ANALYZER */}
+
+//         <h3>RF Spectrum Analyzer</h3>
+
+//         <input type="file" accept=".wav" onChange={handleWavUpload} />
+
+//         {spectrogram.length > 0 && (
+
+//           <>
+//             <Plot
+//               data={[spectrumPlot]}
+//               layout={{
+//                 height: 250,
+//                 xaxis: { title: "Frequency (Hz)" },
+//                 yaxis: { title: "Power (dB)" }
+//               }}
+//             />
+
+//             <Plot
+//               data={[spectrogramPlot]}
+//               layout={{
+//                 height: 400,
+//                 xaxis: { title: "Frequency (Hz)" },
+//                 yaxis: { title: "Time (s)" }
+//               }}
+//             />
+
+//           </>
+
+//         )}
+
+//         {/* MAP */}
+
+//         <div style={{ marginTop: 40 }}>
+
+//           <h3>RF Triangulation Map</h3>
+
+//           <MapContainer
+//             center={[12.97, 77.59]}
+//             zoom={12}
+//             style={{ height: 500 }}
+//           >
+
+//             <TileLayer
+//               attribution="© OpenStreetMap"
+//               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+//             />
+
+//             {triangulation?.rays.map((ray, i) => (
+
+//               <Polyline
+//                 key={i}
+//                 positions={[
+//                   [ray.source_latitude, ray.source_longitude],
+//                   [ray.end_latitude, ray.end_longitude]
+//                 ]}
+//                 color="red"
+//               />
+
+//             ))}
+
+//             {heatCells.map((cell, i) => (
+
+//               <CircleMarker
+//                 key={i}
+//                 center={[cell.latitude_bucket, cell.longitude_bucket]}
+//                 radius={5 + cell.density * 2}
+//                 color="orange"
+//               />
+
+//             ))}
+
+//           </MapContainer>
+
+//         </div>
+
+//         <AlertTable />
+
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
+
 import { useEffect, useState, useMemo } from "react";
 import AppLayout from "../components/layout/AppLayout";
 import PageContainer from "../components/layout/PageContainer";
 import AlertTable from "../components/AlertTable";
 
-import { getAssets, type AssetRecord } from "../api/assets";
-import { getHeatMap, getRFSignals, getTriangulation, type HeatCell, type RFSignal, type TriangulationResult } from "../api/rf";
+import {
+  getHeatMap,
+  getRFSignals,
+  getTriangulation,
+  type HeatCell,
+  type RFSignal,
+  type TriangulationResult
+} from "../api/rf";
 
 import { useTheme } from "../context/ThemeContext";
 
@@ -497,8 +3572,18 @@ import {
   Cell
 } from "recharts";
 
-import { MapContainer, TileLayer, Marker, Polyline, CircleMarker } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Polyline,
+  CircleMarker
+} from "react-leaflet";
+
 import "leaflet/dist/leaflet.css";
+
+import Plot from "react-plotly.js";
+import { fft } from "fft-js";
 
 export default function OperatorDashboard() {
 
@@ -506,41 +3591,42 @@ export default function OperatorDashboard() {
 
   const [signals, setSignals] = useState<RFSignal[]>([]);
   const [heatCells, setHeatCells] = useState<HeatCell[]>([]);
-  const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
+  const [triangulation, setTriangulation] =
+    useState<TriangulationResult | null>(null);
+
+  const [spectrogram, setSpectrogram] = useState<number[][]>([]);
+  const [freqAxis, setFreqAxis] = useState<number[]>([]);
+  const [timeAxis, setTimeAxis] = useState<number[]>([]);
+  const [spectrum, setSpectrum] = useState<number[]>([]);
+  const [peaks, setPeaks] = useState<number[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
 
     const load = async () => {
 
-      try {
+      const [signalsRes, heatRes, triangulationRes] = await Promise.all([
+        getRFSignals(),
+        getHeatMap(),
+        getTriangulation()
+      ]);
 
-        setError(null);
-
-        const [signalsRes, heatRes, triangulationRes] = await Promise.all([
-          getRFSignals(),
-          getHeatMap(),
-          getTriangulation(),
-        ]);
-
-        setSignals(signalsRes.data);
-        setHeatCells(heatRes.data);
-        setTriangulation(triangulationRes.data);
-
-      } catch {
-        setError("Failed to load operator data.");
-      }
+      setSignals(signalsRes.data);
+      setHeatCells(heatRes.data);
+      setTriangulation(triangulationRes.data);
 
       setLoading(false);
+
     };
 
     load();
-    const interval = setInterval(load, 15000);
-    return () => clearInterval(interval);
 
   }, []);
+
+  /* ---------------------------
+     MODULATION PIE
+  ---------------------------- */
 
   const modulationData = useMemo(() => {
 
@@ -561,12 +3647,163 @@ export default function OperatorDashboard() {
     return [
       { name: "AM", value: AM },
       { name: "FM", value: FM },
-      { name: "Others", value: Others },
+      { name: "Others", value: Others }
     ];
 
   }, [signals]);
 
   const COLORS = ["#3b82f6", "#10b981", "#f59e0b"];
+
+  /* ---------------------------
+     HANN WINDOW
+  ---------------------------- */
+
+  const hannWindow = (N: number) => {
+
+    const w = [];
+
+    for (let i = 0; i < N; i++) {
+      w.push(0.5 * (1 - Math.cos((2 * Math.PI * i) / (N - 1))));
+    }
+
+    return w;
+
+  };
+
+  /* ---------------------------
+     PEAK DETECTION
+  ---------------------------- */
+
+  const detectPeaks = (data: number[]) => {
+
+    const peaks: number[] = [];
+
+    for (let i = 1; i < data.length - 1; i++) {
+
+      if (data[i] > data[i - 1] && data[i] > data[i + 1] && data[i] > -40) {
+        peaks.push(i);
+      }
+
+    }
+
+    return peaks;
+
+  };
+
+  /* ---------------------------
+     WAV → STFT
+  ---------------------------- */
+
+  const handleWavUpload = async (e: any) => {
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const arrayBuffer = await file.arrayBuffer();
+
+    const audioCtx = new AudioContext();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+
+    const samples = audioBuffer.getChannelData(0);
+
+    const fftSize = 2048;
+    const hopSize = 512;
+
+    const window = hannWindow(fftSize);
+
+    const frames = Math.floor((samples.length - fftSize) / hopSize);
+
+    const spec: number[][] = [];
+
+    let lastSpectrum: number[] = [];
+
+    for (let i = 0; i < frames; i++) {
+
+      const frame = [];
+
+      for (let j = 0; j < fftSize; j++) {
+
+        frame.push(
+          samples[i * hopSize + j] * window[j]
+        );
+
+      }
+
+      const phasors = fft(frame);
+
+      const mags = phasors
+        .slice(0, fftSize / 2)
+        .map((p: any) => {
+
+          const re = p[0];
+          const im = p[1];
+
+          const mag = Math.sqrt(re * re + im * im);
+
+          return 20 * Math.log10(mag + 1e-12);
+
+        });
+
+      lastSpectrum = mags;
+      spec.push(mags);
+
+    }
+
+    const freq = Array.from({ length: fftSize / 2 }, (_, i) =>
+      (i * audioBuffer.sampleRate) / fftSize
+    );
+
+    const time = Array.from({ length: frames }, (_, i) =>
+      (i * hopSize) / audioBuffer.sampleRate
+    );
+
+    setSpectrogram(spec);
+    setSpectrum(lastSpectrum);
+    setFreqAxis(freq);
+    setTimeAxis(time);
+
+    const detected = detectPeaks(lastSpectrum);
+    setPeaks(detected);
+
+  };
+
+  /* ---------------------------
+     FFT PLOT
+  ---------------------------- */
+
+  const spectrumPlot = {
+
+    x: freqAxis,
+    y: spectrum,
+    type: "scatter",
+    mode: "lines",
+    line: { color: "cyan" }
+
+  };
+
+  const peakMarkers = {
+
+    x: peaks.map((i) => freqAxis[i]),
+    y: peaks.map((i) => spectrum[i]),
+    type: "scatter",
+    mode: "markers",
+    marker: { color: "red", size: 8 }
+
+  };
+
+  /* ---------------------------
+     WATERFALL
+  ---------------------------- */
+
+  const spectrogramPlot = {
+
+    z: spectrogram,
+    x: freqAxis,
+    y: timeAxis,
+    type: "heatmap",
+    colorscale: "Turbo"
+
+  };
 
   return (
 
@@ -574,86 +3811,59 @@ export default function OperatorDashboard() {
       <PageContainer title="Operations Center">
 
         {loading && <div>Loading...</div>}
-        {error && <div style={{ color: "red" }}>{error}</div>}
 
-        {/* TOP DASHBOARD */}
+        {/* PIE + TABLE */}
+
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: theme.spacing.lg,
-            marginBottom: theme.spacing.xl,
+            marginBottom: theme.spacing.xl
           }}
         >
 
-          {/* PIE CHART */}
           <div>
+
             <h3>Modulation Distribution</h3>
 
-            <div style={{
-              height: 320,
-              background: theme.colors.surfaceAlt,
-              border: `1px solid ${theme.colors.border}`,
-              borderRadius: theme.radius.md,
-              padding: theme.spacing.sm
-            }}>
+            <div style={{ height: 320 }}>
 
               <ResponsiveContainer width="100%" height="100%">
-
                 <PieChart>
 
-                  <Pie
-                    data={modulationData}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={110}
-                    label
-                  >
-                    {modulationData.map((entry, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                  <Pie data={modulationData} dataKey="value">
+
+                    {modulationData.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i]} />
                     ))}
+
                   </Pie>
 
                   <Tooltip />
                   <Legend />
 
                 </PieChart>
-
               </ResponsiveContainer>
 
             </div>
+
           </div>
 
-          {/* RF SIGNAL TABLE */}
           <div>
 
             <h3>RF Signals</h3>
 
-            <table style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              background: theme.colors.surfaceAlt,
-              border: `1px solid ${theme.colors.border}`
-            }}>
-
-              <thead>
-                <tr>
-                  <th>Frequency</th>
-                  <th>Modulation</th>
-                  <th>Power</th>
-                  <th>Timestamp</th>
-                </tr>
-              </thead>
+            <table style={{ width: "100%" }}>
 
               <tbody>
 
-                {signals.slice(0, 20).map((signal) => (
+                {signals.slice(0, 10).map((s) => (
 
-                  <tr key={signal.id}>
-                    <td>{signal.frequency}</td>
-                    <td>{signal.modulation}</td>
-                    <td>{signal.power_level}</td>
-                    <td>{new Date(signal.detected_at).toLocaleString()}</td>
+                  <tr key={s.id}>
+                    <td>{s.frequency}</td>
+                    <td>{s.modulation}</td>
+                    <td>{s.power_level}</td>
                   </tr>
 
                 ))}
@@ -666,68 +3876,82 @@ export default function OperatorDashboard() {
 
         </div>
 
-        {/* RF TRIANGULATION MAP */}
+        {/* RF ANALYZER */}
 
-        <div style={{ marginBottom: theme.spacing.xl }}>
+        <h3>RF Spectrum Analyzer</h3>
+
+        <input type="file" accept=".wav" onChange={handleWavUpload} />
+
+        {spectrogram.length > 0 && (
+
+          <>
+
+            <Plot
+              data={[spectrumPlot, peakMarkers]}
+              layout={{
+                height: 250,
+                title: "FFT Spectrum",
+                xaxis: { title: "Frequency (Hz)" },
+                yaxis: { title: "Power (dB)" }
+              }}
+            />
+
+            <Plot
+              data={[spectrogramPlot]}
+              layout={{
+                height: 450,
+                title: "Waterfall Spectrogram",
+                xaxis: { title: "Frequency (Hz)" },
+                yaxis: { title: "Time (s)" }
+              }}
+            />
+
+          </>
+
+        )}
+
+        {/* MAP */}
+
+        <div style={{ marginTop: 40 }}>
 
           <h3>RF Triangulation Map</h3>
 
-          <div style={{
-            height: 500,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.md
-          }}>
+          <MapContainer
+            center={[12.97, 77.59]}
+            zoom={12}
+            style={{ height: 500 }}
+          >
 
-            <MapContainer
-              center={[12.97, 77.59]}
-              zoom={12}
-              style={{ height: "100%", width: "100%" }}
-            >
+            <TileLayer
+              attribution="© OpenStreetMap"
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
 
-              <TileLayer
-                attribution='&copy; OpenStreetMap'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            {triangulation?.rays.map((ray, i) => (
+
+              <Polyline
+                key={i}
+                positions={[
+                  [ray.source_latitude, ray.source_longitude],
+                  [ray.end_latitude, ray.end_longitude]
+                ]}
+                color="red"
               />
 
-              {/* ANTENNA RAYS */}
-              {triangulation?.rays.map((ray, i) => (
+            ))}
 
-                <Polyline
-                  key={i}
-                  positions={[
-                    [ray.source_latitude, ray.source_longitude],
-                    [ray.end_latitude, ray.end_longitude]
-                  ]}
-                  color="red"
-                />
+            {heatCells.map((cell, i) => (
 
-              ))}
+              <CircleMarker
+                key={i}
+                center={[cell.latitude_bucket, cell.longitude_bucket]}
+                radius={5 + cell.density * 2}
+                color="orange"
+              />
 
-              {/* ANTENNA LOCATIONS */}
-              {triangulation?.rays.map((ray, i) => (
+            ))}
 
-                <Marker
-                  key={"src" + i}
-                  position={[ray.source_latitude, ray.source_longitude]}
-                />
-
-              ))}
-
-              {/* HEAT DENSITY */}
-              {heatCells.map((cell, i) => (
-
-                <CircleMarker
-                  key={i}
-                  center={[cell.latitude_bucket, cell.longitude_bucket]}
-                  radius={5 + cell.density * 2}
-                  color="orange"
-                />
-
-              ))}
-
-            </MapContainer>
-
-          </div>
+          </MapContainer>
 
         </div>
 
