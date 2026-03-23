@@ -1,0 +1,397 @@
+{
+  "case_id": "CASE-2026-001",
+  "target_ref": "TARGET-ALPHA",
+  "legal_auth_ref": "AUTH-2026-88",
+  "collection_window": {
+    "start_utc": "2026-03-20T10:00:00Z",
+    "end_utc": "2026-03-20T12:30:00Z"
+  },
+  "restrictions": [
+    "synthetic_only",
+    "metadata_only_for_ott",
+    "no_real_audio_included"
+  ],
+  "call_records": [
+    {
+      "record_id": "CALL-0001",
+      "timestamp_utc": "2026-03-20T10:14:22Z",
+      "direction": "MO",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0022",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1021",
+      "lac_tac": "40121",
+      "duration_sec": 186,
+      "call_status": "completed",
+      "audio_evidence_ref": "AUD-CALL-0001.wav",
+      "hash_sha256": "a1f0d7-demo-001"
+    },
+    {
+      "record_id": "CALL-0002",
+      "timestamp_utc": "2026-03-20T10:47:05Z",
+      "direction": "MT",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0031",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1024",
+      "lac_tac": "40121",
+      "duration_sec": 42,
+      "call_status": "completed",
+      "audio_evidence_ref": "AUD-CALL-0002.wav",
+      "hash_sha256": "a1f0d7-demo-002"
+    },
+    {
+      "record_id": "CALL-0003",
+      "timestamp_utc": "2026-03-20T11:05:19Z",
+      "direction": "MO",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0044",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1031",
+      "lac_tac": "40121",
+      "duration_sec": 0,
+      "call_status": "no_answer",
+      "audio_evidence_ref": null,
+      "hash_sha256": "a1f0d7-demo-003"
+    },
+    {
+      "record_id": "CALL-0004",
+      "timestamp_utc": "2026-03-20T11:12:44Z",
+      "direction": "MT",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0055",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1031",
+      "lac_tac": "40121",
+      "duration_sec": 221,
+      "call_status": "completed",
+      "audio_evidence_ref": "AUD-CALL-0004.wav",
+      "hash_sha256": "a1f0d7-demo-004"
+    },
+    {
+      "record_id": "CALL-0005",
+      "timestamp_utc": "2026-03-20T11:33:18Z",
+      "direction": "MO",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0066",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1040",
+      "lac_tac": "40125",
+      "duration_sec": 87,
+      "call_status": "completed",
+      "audio_evidence_ref": "AUD-CALL-0005.wav",
+      "hash_sha256": "a1f0d7-demo-005"
+    },
+    {
+      "record_id": "CALL-0006",
+      "timestamp_utc": "2026-03-20T11:49:52Z",
+      "direction": "MT",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0078",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1042",
+      "lac_tac": "40125",
+      "duration_sec": 16,
+      "call_status": "missed",
+      "audio_evidence_ref": null,
+      "hash_sha256": "a1f0d7-demo-006"
+    },
+    {
+      "record_id": "CALL-0007",
+      "timestamp_utc": "2026-03-20T12:03:41Z",
+      "direction": "MO",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0088",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1045",
+      "lac_tac": "40125",
+      "duration_sec": 143,
+      "call_status": "completed",
+      "audio_evidence_ref": "AUD-CALL-0007.wav",
+      "hash_sha256": "a1f0d7-demo-007"
+    },
+    {
+      "record_id": "CALL-0008",
+      "timestamp_utc": "2026-03-20T12:24:11Z",
+      "direction": "MT",
+      "a_party": "9198-0000-0010",
+      "b_party": "9197-0000-0099",
+      "imsi": "404100-000-000001",
+      "imei": "35678910-0000001",
+      "cell_id": "CELL-DEL-1050",
+      "lac_tac": "40129",
+      "duration_sec": 308,
+      "call_status": "completed",
+      "audio_evidence_ref": "AUD-CALL-0008.wav",
+      "hash_sha256": "a1f0d7-demo-008"
+    }
+  ],
+  "sms_records": [
+    {
+      "record_id": "SMS-0001",
+      "timestamp_utc": "2026-03-20T10:42:11Z",
+      "direction": "MT",
+      "sender": "VM-SERVICE",
+      "receiver": "9198-0000-0010",
+      "message_class": "transactional",
+      "content_preview": "[REDACTED_SYNTHETIC]",
+      "smsc": "SMSC-DEL-01",
+      "delivery_status": "delivered"
+    },
+    {
+      "record_id": "SMS-0002",
+      "timestamp_utc": "2026-03-20T10:58:24Z",
+      "direction": "MO",
+      "sender": "9198-0000-0010",
+      "receiver": "9197-0000-0022",
+      "message_class": "person_to_person",
+      "content_preview": "[REDACTED_SYNTHETIC]",
+      "smsc": "SMSC-DEL-01",
+      "delivery_status": "submitted"
+    },
+    {
+      "record_id": "SMS-0003",
+      "timestamp_utc": "2026-03-20T11:09:33Z",
+      "direction": "MT",
+      "sender": "BANK-OTP",
+      "receiver": "9198-0000-0010",
+      "message_class": "otp",
+      "content_preview": "[REDACTED_SYNTHETIC]",
+      "smsc": "SMSC-DEL-02",
+      "delivery_status": "delivered"
+    },
+    {
+      "record_id": "SMS-0004",
+      "timestamp_utc": "2026-03-20T11:41:55Z",
+      "direction": "MO",
+      "sender": "9198-0000-0010",
+      "receiver": "9197-0000-0066",
+      "message_class": "person_to_person",
+      "content_preview": "[REDACTED_SYNTHETIC]",
+      "smsc": "SMSC-DEL-01",
+      "delivery_status": "submitted"
+    },
+    {
+      "record_id": "SMS-0005",
+      "timestamp_utc": "2026-03-20T12:15:07Z",
+      "direction": "MT",
+      "sender": "ECOMM-ALRT",
+      "receiver": "9198-0000-0010",
+      "message_class": "transactional",
+      "content_preview": "[REDACTED_SYNTHETIC]",
+      "smsc": "SMSC-DEL-03",
+      "delivery_status": "delivered"
+    }
+  ],
+  "ott_metadata": [
+    {
+      "record_id": "OTT-0001",
+      "platform": "WhatsApp",
+      "timestamp_utc": "2026-03-20T11:05:48Z",
+      "event_type": "session_metadata",
+      "account_ref": "WA-TARGET-01",
+      "peer_ref": "WA-PEER-07",
+      "ip_address": "10.10.10.10",
+      "port": 443,
+      "bytes_up": 12450,
+      "bytes_down": 88512,
+      "note": "Synthetic metadata only. No message content."
+    },
+    {
+      "record_id": "OTT-0002",
+      "platform": "WhatsApp",
+      "timestamp_utc": "2026-03-20T11:16:30Z",
+      "event_type": "call_setup_metadata",
+      "account_ref": "WA-TARGET-01",
+      "peer_ref": "WA-PEER-11",
+      "ip_address": "10.10.10.12",
+      "port": 443,
+      "bytes_up": 8221,
+      "bytes_down": 44012,
+      "note": "Synthetic metadata only. No message content."
+    },
+    {
+      "record_id": "OTT-0003",
+      "platform": "WhatsApp",
+      "timestamp_utc": "2026-03-20T11:44:02Z",
+      "event_type": "attachment_metadata",
+      "account_ref": "WA-TARGET-01",
+      "peer_ref": "WA-PEER-07",
+      "ip_address": "10.10.10.13",
+      "port": 443,
+      "bytes_up": 32113,
+      "bytes_down": 165004,
+      "note": "Synthetic metadata only. No message content."
+    },
+    {
+      "record_id": "OTT-0004",
+      "platform": "WhatsApp",
+      "timestamp_utc": "2026-03-20T12:02:17Z",
+      "event_type": "session_metadata",
+      "account_ref": "WA-TARGET-01",
+      "peer_ref": "WA-PEER-14",
+      "ip_address": "10.10.10.14",
+      "port": 443,
+      "bytes_up": 9110,
+      "bytes_down": 74218,
+      "note": "Synthetic metadata only. No message content."
+    }
+  ],
+  "cdr_export": [
+    {
+      "cdr_id": "CDR-9001",
+      "start_utc": "2026-03-20T10:14:22Z",
+      "end_utc": "2026-03-20T10:17:28Z",
+      "msisdn": "9198-0000-0010",
+      "other_party": "9197-0000-0022",
+      "service_type": "voice",
+      "switch_id": "MSC-01",
+      "cell_id_start": "CELL-DEL-1021",
+      "cell_id_end": "CELL-DEL-1024",
+      "roaming_status": "home",
+      "disposition": "normal_release"
+    },
+    {
+      "cdr_id": "CDR-9002",
+      "start_utc": "2026-03-20T10:47:05Z",
+      "end_utc": "2026-03-20T10:47:47Z",
+      "msisdn": "9198-0000-0010",
+      "other_party": "9197-0000-0031",
+      "service_type": "voice",
+      "switch_id": "MSC-01",
+      "cell_id_start": "CELL-DEL-1024",
+      "cell_id_end": "CELL-DEL-1024",
+      "roaming_status": "home",
+      "disposition": "normal_release"
+    },
+    {
+      "cdr_id": "CDR-9003",
+      "start_utc": "2026-03-20T11:12:44Z",
+      "end_utc": "2026-03-20T11:16:25Z",
+      "msisdn": "9198-0000-0010",
+      "other_party": "9197-0000-0055",
+      "service_type": "voice",
+      "switch_id": "MSC-01",
+      "cell_id_start": "CELL-DEL-1031",
+      "cell_id_end": "CELL-DEL-1034",
+      "roaming_status": "home",
+      "disposition": "normal_release"
+    },
+    {
+      "cdr_id": "CDR-9004",
+      "start_utc": "2026-03-20T11:33:18Z",
+      "end_utc": "2026-03-20T11:34:45Z",
+      "msisdn": "9198-0000-0010",
+      "other_party": "9197-0000-0066",
+      "service_type": "voice",
+      "switch_id": "MSC-01",
+      "cell_id_start": "CELL-DEL-1040",
+      "cell_id_end": "CELL-DEL-1041",
+      "roaming_status": "home",
+      "disposition": "normal_release"
+    },
+    {
+      "cdr_id": "CDR-9005",
+      "start_utc": "2026-03-20T12:03:41Z",
+      "end_utc": "2026-03-20T12:06:04Z",
+      "msisdn": "9198-0000-0010",
+      "other_party": "9197-0000-0088",
+      "service_type": "voice",
+      "switch_id": "MSC-01",
+      "cell_id_start": "CELL-DEL-1045",
+      "cell_id_end": "CELL-DEL-1048",
+      "roaming_status": "home",
+      "disposition": "normal_release"
+    },
+    {
+      "cdr_id": "CDR-9006",
+      "start_utc": "2026-03-20T12:24:11Z",
+      "end_utc": "2026-03-20T12:29:19Z",
+      "msisdn": "9198-0000-0010",
+      "other_party": "9197-0000-0099",
+      "service_type": "voice",
+      "switch_id": "MSC-01",
+      "cell_id_start": "CELL-DEL-1050",
+      "cell_id_end": "CELL-DEL-1053",
+      "roaming_status": "home",
+      "disposition": "normal_release"
+    }
+  ],
+  "evidence_index": [
+    {
+      "evidence_ref": "AUD-CALL-0001",
+      "file_name": "AUD-CALL-0001.wav",
+      "media_type": "audio/wav",
+      "duration_sec": 186,
+      "hash_sha256": "demo_hash_001",
+      "remarks": "Synthetic placeholder reference only; no real content file attached"
+    },
+    {
+      "evidence_ref": "AUD-CALL-0002",
+      "file_name": "AUD-CALL-0002.wav",
+      "media_type": "audio/wav",
+      "duration_sec": 42,
+      "hash_sha256": "demo_hash_002",
+      "remarks": "Synthetic placeholder reference only; no real content file attached"
+    },
+    {
+      "evidence_ref": "AUD-CALL-0004",
+      "file_name": "AUD-CALL-0004.wav",
+      "media_type": "audio/wav",
+      "duration_sec": 221,
+      "hash_sha256": "demo_hash_004",
+      "remarks": "Synthetic placeholder reference only; no real content file attached"
+    },
+    {
+      "evidence_ref": "AUD-CALL-0005",
+      "file_name": "AUD-CALL-0005.wav",
+      "media_type": "audio/wav",
+      "duration_sec": 87,
+      "hash_sha256": "demo_hash_005",
+      "remarks": "Synthetic placeholder reference only; no real content file attached"
+    },
+    {
+      "evidence_ref": "AUD-CALL-0007",
+      "file_name": "AUD-CALL-0007.wav",
+      "media_type": "audio/wav",
+      "duration_sec": 143,
+      "hash_sha256": "demo_hash_007",
+      "remarks": "Synthetic placeholder reference only; no real content file attached"
+    },
+    {
+      "evidence_ref": "AUD-CALL-0008",
+      "file_name": "AUD-CALL-0008.wav",
+      "media_type": "audio/wav",
+      "duration_sec": 308,
+      "hash_sha256": "demo_hash_008",
+      "remarks": "Synthetic placeholder reference only; no real content file attached"
+    }
+  ],
+  "audit_log": [
+    {
+      "event_time_utc": "2026-03-20T12:05:00Z",
+      "user": "analyst01",
+      "action": "export_metadata_report",
+      "reason_code": "case_review"
+    },
+    {
+      "event_time_utc": "2026-03-20T12:08:18Z",
+      "user": "supervisor02",
+      "action": "validate_chain_of_custody",
+      "reason_code": "qa_signoff"
+    },
+    {
+      "event_time_utc": "2026-03-20T12:11:43Z",
+      "user": "custodian01",
+      "action": "register_evidence_index",
+      "reason_code": "evidence_intake"
+    }
+  ]
+}

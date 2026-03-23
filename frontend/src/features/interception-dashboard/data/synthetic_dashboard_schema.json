@@ -1,0 +1,140 @@
+{
+  "dashboard_name": "Synthetic Monitoring Demo Dashboard",
+  "version": "1.0",
+  "purpose": "Safe compliance, QA, and UI testing only",
+  "safety_constraints": [
+    "Synthetic data only",
+    "No real personal communications",
+    "No OTT message bodies",
+    "Audio references are placeholders only"
+  ],
+  "global_filters": [
+    {
+      "id": "case_id",
+      "type": "single_select",
+      "source": "Controls!B4"
+    },
+    {
+      "id": "time_window",
+      "type": "time_range",
+      "source": "Controls!B6:B7"
+    },
+    {
+      "id": "service_type",
+      "type": "multi_select",
+      "allowed": [
+        "voice",
+        "sms",
+        "ott"
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "id": "kpi_voice_total",
+      "type": "kpi",
+      "label": "Total voice call records",
+      "source": "Dashboard!B3",
+      "format": "integer"
+    },
+    {
+      "id": "kpi_voice_completed",
+      "type": "kpi",
+      "label": "Completed voice calls",
+      "source": "Dashboard!B4",
+      "format": "integer"
+    },
+    {
+      "id": "kpi_voice_duration",
+      "type": "kpi",
+      "label": "Total voice duration (sec)",
+      "source": "Dashboard!B5",
+      "format": "integer"
+    },
+    {
+      "id": "kpi_sms_total",
+      "type": "kpi",
+      "label": "SMS records",
+      "source": "Dashboard!B7",
+      "format": "integer"
+    },
+    {
+      "id": "kpi_ott_total",
+      "type": "kpi",
+      "label": "OTT events",
+      "source": "Dashboard!B8",
+      "format": "integer"
+    },
+    {
+      "id": "chart_voice_duration",
+      "type": "bar_chart",
+      "source_sheet": "Calls",
+      "category_field": "Record ID",
+      "value_field": "Duration Sec"
+    },
+    {
+      "id": "recent_events",
+      "type": "table",
+      "source": "Dashboard!A14:E17",
+      "columns": [
+        "Source",
+        "Record ID",
+        "Timestamp UTC",
+        "Status / Event",
+        "Linked Ref"
+      ]
+    },
+    {
+      "id": "review_checks",
+      "type": "table",
+      "source": "Dashboard!F2:G5",
+      "columns": [
+        "Review checks",
+        "Result"
+      ]
+    }
+  ],
+  "data_sources": {
+    "calls": {
+      "sheet": "Calls",
+      "primary_key": "Record ID"
+    },
+    "sms": {
+      "sheet": "SMS",
+      "primary_key": "Record ID"
+    },
+    "ott": {
+      "sheet": "OTT",
+      "primary_key": "Record ID",
+      "restriction": "metadata_only"
+    },
+    "cdr": {
+      "sheet": "CDR",
+      "primary_key": "CDR ID"
+    },
+    "evidence": {
+      "sheet": "Evidence",
+      "primary_key": "Evidence Ref"
+    },
+    "audit": {
+      "sheet": "Audit",
+      "primary_key": "Event Time UTC"
+    }
+  },
+  "permissions": {
+    "viewer": [
+      "read_dashboard",
+      "read_source_tables"
+    ],
+    "reviewer": [
+      "viewer",
+      "export_report",
+      "validate_checks"
+    ],
+    "admin": [
+      "reviewer",
+      "edit_controls",
+      "update_schema"
+    ]
+  }
+}

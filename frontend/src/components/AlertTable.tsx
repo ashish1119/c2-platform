@@ -3,8 +3,6 @@ import { acknowledgeAlert, clearAlert, getAlerts, type AlertRecord } from "../ap
 import { getAssets } from "../api/assets";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 
 type Props = {
   showAcknowledge?: boolean;
@@ -65,6 +63,7 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
   const [ackInProgressId, setAckInProgressId] = useState<string | null>(null);
   const [clearInProgressId, setClearInProgressId] = useState<string | null>(null);
   const [bulkActionInProgress, setBulkActionInProgress] = useState<"ack" | "clear" | null>(null);
+  const [pdfExportInProgress, setPdfExportInProgress] = useState(false);
   const [assetNameById, setAssetNameById] = useState<Record<string, string>>({});
 
   const inferAlertType = (alert: AlertRecord) => {
@@ -530,21 +529,38 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const exportPdf = () => {
-    const doc = new jsPDF({ orientation: "landscape" });
-    doc.setFontSize(12);
-    doc.text("Alert List", 14, 12);
+  const exportPdf = async () => {
+    if (pdfExportInProgress) {
+      return;
+    }
 
-    autoTable(doc, {
-      startY: 16,
-      head: [exportHeaders],
-      body: exportRows,
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [30, 58, 95] },
-      theme: "grid",
-    });
+    setPdfExportInProgress(true);
 
-    doc.save(`alerts_${buildFileTimestamp()}.pdf`);
+    try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+
+      const doc = new jsPDF({ orientation: "landscape" });
+      doc.setFontSize(12);
+      doc.text("Alert List", 14, 12);
+
+      autoTable(doc, {
+        startY: 16,
+        head: [exportHeaders],
+        body: exportRows,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [30, 58, 95] },
+        theme: "grid",
+      });
+
+      doc.save(`alerts_${buildFileTimestamp()}.pdf`);
+    } catch (exportError) {
+      console.error("Failed to export alerts PDF", exportError);
+    } finally {
+      setPdfExportInProgress(false);
+    }
   };
 
   if (loading) {
@@ -689,16 +705,18 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
           <button
             type="button"
             onClick={exportPdf}
+            disabled={pdfExportInProgress}
             style={{
               border: "none",
               borderRadius: theme.radius.md,
               background: theme.colors.surface,
               color: theme.colors.textPrimary,
-              cursor: "pointer",
+              cursor: pdfExportInProgress ? "wait" : "pointer",
+              opacity: pdfExportInProgress ? 0.7 : 1,
               padding: `${theme.spacing.xs} ${theme.spacing.md}`,
             }}
           >
-            Export PDF
+            {pdfExportInProgress ? "Exporting PDF..." : "Export PDF"}
           </button>
         </div>
       </div>

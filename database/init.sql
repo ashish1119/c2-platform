@@ -10,6 +10,26 @@ CREATE TABLE roles (
     name VARCHAR(50) UNIQUE NOT NULL
 );
 
+CREATE TABLE permissions (
+    id SERIAL PRIMARY KEY,
+    resource VARCHAR(100) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    scope VARCHAR(50) DEFAULT 'GLOBAL',
+    CONSTRAINT uq_permissions_resource_action UNIQUE (resource, action)
+);
+
+CREATE TABLE role_permissions (
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+    PRIMARY KEY (role_id, permission_id)
+);
+
+CREATE TABLE role_inheritance (
+    parent_role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    child_role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    PRIMARY KEY (parent_role_id, child_role_id)
+);
+
 -- =========================
 -- USERS TABLE
 -- =========================
@@ -328,6 +348,24 @@ ON rf_signals_2026_01
 USING GIST (location);
 
 -- =========================
+-- GEOSPATIAL INGESTION SOURCES TABLE
+-- =========================
+CREATE TABLE geospatial_ingestion_sources (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source_name VARCHAR(255) NOT NULL UNIQUE,
+    source_type VARCHAR(50) NOT NULL,
+    transport VARCHAR(50) NOT NULL DEFAULT 'API',
+    classification VARCHAR(50) NOT NULL DEFAULT 'UNCLASSIFIED',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_geo_sources_source_name ON geospatial_ingestion_sources(source_name);
+CREATE INDEX idx_geo_sources_is_active ON geospatial_ingestion_sources(is_active);
+
+-- =========================
 -- AUDIT LOG TABLE
 -- =========================
 CREATE TABLE audit_logs (
@@ -336,5 +374,6 @@ CREATE TABLE audit_logs (
     action VARCHAR(255),
     entity VARCHAR(100),
     entity_id UUID,
+    details JSONB DEFAULT '{}'::jsonb,
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );

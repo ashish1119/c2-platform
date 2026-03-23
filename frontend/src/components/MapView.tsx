@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polyline, ScaleControl, ZoomControl, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polygon, Polyline, ScaleControl, ZoomControl, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw";
 import "leaflet-draw/dist/leaflet.draw.css";
@@ -10,6 +10,50 @@ import type { HeatCell, RFSignal, TriangulationResult } from "../api/rf";
 import type { TcpClientStatus } from "../api/tcpListener";
 import type { CoveragePoint } from "../api/planning";
 import { useTheme } from "../context/ThemeContext";
+import {
+  ASSET_TYPE_ORDER,
+  ASSET_TYPE_SETTINGS,
+  BASE_MAP_OPTIONS,
+  DEFAULT_DF_RANGE_COLOR,
+  DEFAULT_JAMMER_POPUP_ALPHA,
+  DEFAULT_JAMMER_POPUP_CONTROL_STATE,
+  DEFAULT_JAMMER_RANGE_COLOR,
+  DF_RANGE_COLOR_KEY,
+  DRAW_SHAPES_STORAGE_KEY,
+  GAIN_OPTIONS,
+  JAMMER_POPUP_ALPHA_KEY,
+  JAMMER_RANGE_COLOR_KEY,
+  JAMMER_RANGE_SPOKE_COUNT,
+  JAMMER_SIGNAL_RING_COUNT,
+  MAP_NODE_LABELS_VISIBLE_KEY,
+  MAP_SAVED_VIEW_KEY,
+  MAX_JAMMER_POPUP_ALPHA,
+  MIN_JAMMER_POPUP_ALPHA,
+  MODULE_ID_OPTIONS,
+  TCP_DF_LINE_DISTANCE_METERS,
+  type AssetTypeSettings,
+  type BaseMapOption,
+  type DrawShapeType,
+  type JammerPopupControlState,
+  type PersistedDrawShape,
+  type SavedMapView,
+  JAMMING_CODE_OPTIONS,
+  DELHI_CENTER,
+} from "./mapViewConfig";
+import {
+  buildAssetIcon,
+  buildPointDetails,
+  destinationPointFromBearing,
+  extractTcpBearing,
+  getAssetCircleRadiusMeters,
+  getAssetTypeSettings,
+  getBearingDegrees,
+  getHeatCellColor,
+  getTriangulationColor,
+  isJammerAssetType,
+  toQuadKey,
+} from "./mapViewUtils";
+import MapOverlaysPanel from "./MapOverlaysPanel";
 
 type Props = {
   assets?: AssetRecord[];
@@ -33,290 +77,6 @@ export type JammerControlConfig = {
   frequency?: number;
   gain: number;
 };
-
-const DELHI_CENTER: [number, number] = [28.7041, 77.1025];
-const MAP_SAVED_VIEW_KEY = "ui.operator.map.savedView";
-const DRAW_SHAPES_STORAGE_KEY = "ui.operator.map.drawShapes.v1";
-const MAP_NODE_LABELS_VISIBLE_KEY = "ui.operator.map.nodeLabelsVisible";
-const JAMMER_POPUP_ALPHA_KEY = "ui.operator.map.jammerPopupAlpha";
-const JAMMER_RANGE_COLOR_KEY = "ui.operator.map.jammerRangeColor";
-const DF_RANGE_COLOR_KEY = "ui.operator.map.dfRangeColor";
-const DEFAULT_JAMMER_POPUP_ALPHA = 0.5;
-const DEFAULT_JAMMER_RANGE_COLOR = "#ef4444";
-const DEFAULT_DF_RANGE_COLOR = "#2563eb";
-const MIN_JAMMER_POPUP_ALPHA = 0.2;
-const MAX_JAMMER_POPUP_ALPHA = 0.95;
-const JAMMER_RANGE_SPOKE_COUNT = 12;
-const JAMMER_SIGNAL_RING_COUNT = 6;
-const JAMMER_SIGNAL_PULSE_STEPS = 5;
-const TCP_DF_LINE_DISTANCE_METERS = 10_000;
-const OFFLINE_LOCAL_TILE_URL =
-  (((import.meta as any).env?.VITE_OFFLINE_TILE_URL as string | undefined)?.trim() || "/tiles/{z}/{x}/{y}.png");
-const OFFLINE_GRID_TILE_DATA_URI =
-  "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256' viewBox='0 0 256 256'%3E%3Crect width='256' height='256' fill='%23f8fafc'/%3E%3Cpath d='M0 0H256M0 64H256M0 128H256M0 192H256M0 255H256M0 0V256M64 0V256M128 0V256M192 0V256M255 0V256' stroke='%23d1d5db' stroke-width='1'/%3E%3Ctext x='128' y='132' text-anchor='middle' font-family='Arial,sans-serif' font-size='14' fill='%236b7280'%3EOFFLINE%3C/text%3E%3C/svg%3E";
-
-type SavedMapView = {
-  center: [number, number];
-  zoom: number;
-};
-
-type DrawShapeType = "polygon" | "polyline" | "circle";
-
-type PersistedDrawShape = {
-  type: DrawShapeType | "marker";
-  color?: string;
-  points?: Array<[number, number]>;
-  center?: [number, number];
-  radiusM?: number;
-  bookmarkText?: string;
-  createdAt?: string;
-};
-
-type AssetTypeSettings = {
-  label: string;
-  symbol: string;
-  shape: "circle" | "hex" | "diamond" | "square" | "shield" | "triangle";
-  markerColor: string;
-  markerSize: number;
-};
-
-type BaseMapOption = {
-  id: string;
-  label: string;
-  url: string;
-  darkUrl?: string;
-  attribution: string;
-  subdomains?: string | string[];
-  maxZoom?: number;
-  useDarkFilter?: boolean;
-  requiresQuadKey?: boolean;
-};
-
-const ASSET_TYPE_SETTINGS: Record<string, AssetTypeSettings> = {
-  C2_NODE: { label: "C2 Node", symbol: "C2", shape: "hex", markerColor: "#1d4ed8", markerSize: 34 },
-  RELAY: { label: "Relay", symbol: "R", shape: "square", markerColor: "#0d9488", markerSize: 32 },
-  EO_SENSOR: { label: "EO Sensor", symbol: "EO", shape: "diamond", markerColor: "#7c3aed", markerSize: 32 },
-  RADAR: { label: "Radar", symbol: "RD", shape: "triangle", markerColor: "#f97316", markerSize: 32 },
-  SENSOR: { label: "Sensor", symbol: "S", shape: "circle", markerColor: "#16a34a", markerSize: 30 },
-  DIRECTION_FINDER: { label: "Direction Finder", symbol: "DF", shape: "shield", markerColor: "#2563eb", markerSize: 34 },
-  JAMMER: { label: "Jammer", symbol: "J", shape: "circle", markerColor: "#ca8a04", markerSize: 32 },
-};
-
-const ASSET_TYPE_ORDER = [
-  "C2_NODE",
-  "RELAY",
-  "EO_SENSOR",
-  "RADAR",
-  "SENSOR",
-  "DIRECTION_FINDER",
-  "JAMMER",
-];
-
-const DEFAULT_ASSET_TYPE_SETTINGS: AssetTypeSettings = {
-  label: "Asset",
-  symbol: "A",
-  shape: "circle",
-  markerColor: "#334155",
-  markerSize: 28,
-};
-
-const MODULE_ID_OPTIONS = ["1", "2", "3", "4"];
-const GAIN_OPTIONS = Array.from({ length: 35 }, (_, index) => String(index + 1));
-const JAMMING_CODE_OPTIONS: Array<{ code: number; name: string }> = [
-  { code: 0, name: "CW" },
-  { code: 1, name: "TBS_868" },
-  { code: 2, name: "TBS_915" },
-  { code: 3, name: "TBS_868+915" },
-  { code: 4, name: "ELRS_868" },
-  { code: 5, name: "ELRS_915" },
-  { code: 6, name: "ELRS_2450_A" },
-  { code: 7, name: "ELRS_868+915" },
-  { code: 8, name: "TBS+ELRS_A" },
-  { code: 9, name: "GNSS_70M" },
-  { code: 10, name: "OFDM_5M" },
-  { code: 11, name: "OFDM_10M" },
-  { code: 12, name: "OFDM_20M" },
-  { code: 13, name: "OFDM_70M" },
-  { code: 14, name: "OFDM_100M" },
-  { code: 15, name: "OFDM_150M" },
-  { code: 16, name: "OFDM_140M" },
-  { code: 17, name: "OFDM_200M" },
-  { code: 18, name: "LFM_5M" },
-  { code: 19, name: "LFM_10M" },
-];
-
-type JammerPopupControlState = {
-  moduleId: string;
-  jammingCode: string;
-  frequency: string;
-  gain: string;
-};
-
-const DEFAULT_JAMMER_POPUP_CONTROL_STATE: JammerPopupControlState = {
-  moduleId: "1",
-  jammingCode: "0",
-  frequency: "",
-  gain: "35",
-};
-
-const BASE_MAP_OPTIONS: BaseMapOption[] = [
-  {
-    id: "osm",
-    label: "OpenStreetMap",
-    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: "&copy; OpenStreetMap contributors",
-    subdomains: ["a", "b", "c"],
-    maxZoom: 19,
-    useDarkFilter: true,
-  },
-  {
-    id: "opentopo",
-    label: "OpenTopoMap",
-    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    attribution: "Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap",
-    subdomains: ["a", "b", "c"],
-    maxZoom: 17,
-    useDarkFilter: true,
-  },
-  {
-    id: "google-road",
-    label: "Google Road",
-    url: "https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    attribution: "&copy; Google",
-    subdomains: ["mt0", "mt1", "mt2", "mt3"],
-    maxZoom: 20,
-    useDarkFilter: true,
-  },
-  {
-    id: "google-sat",
-    label: "Google Satellite",
-    url: "https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-    attribution: "&copy; Google",
-    subdomains: ["mt0", "mt1", "mt2", "mt3"],
-    maxZoom: 20,
-    useDarkFilter: true,
-  },
-  {
-    id: "bing-road",
-    label: "Bing Road",
-    url: "https://ecn.t{s}.tiles.virtualearth.net/tiles/r{quadkey}.jpeg?g=129&n=z",
-    attribution: "&copy; Microsoft Bing",
-    subdomains: ["0", "1", "2", "3"],
-    maxZoom: 19,
-    useDarkFilter: true,
-    requiresQuadKey: true,
-  },
-  {
-    id: "carto",
-    label: "Carto Positron",
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    darkUrl: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-    subdomains: ["a", "b", "c", "d"],
-    maxZoom: 20,
-  },
-  {
-    id: "offline-local",
-    label: "Offline Local Tiles",
-    url: OFFLINE_LOCAL_TILE_URL,
-    attribution: "Offline local tiles",
-    maxZoom: 20,
-  },
-  {
-    id: "offline-blank",
-    label: "Offline Grid",
-    url: OFFLINE_GRID_TILE_DATA_URI,
-    attribution: "Offline mode",
-    maxZoom: 22,
-  },
-];
-
-function getAssetTypeSettings(assetType?: string | null): AssetTypeSettings {
-  if (!assetType) {
-    return DEFAULT_ASSET_TYPE_SETTINGS;
-  }
-  const normalized = assetType.trim().toUpperCase();
-  return ASSET_TYPE_SETTINGS[normalized] ?? {
-    label: assetType,
-    symbol: normalized.slice(0, 2),
-    markerColor: DEFAULT_ASSET_TYPE_SETTINGS.markerColor,
-    markerSize: DEFAULT_ASSET_TYPE_SETTINGS.markerSize,
-  };
-}
-
-function isJammerAssetType(assetType?: string | null): boolean {
-  return (assetType ?? "").trim().toUpperCase().includes("JAMMER");
-}
-
-function getAssetCircleRadiusMeters(asset: AssetRecord): number | null {
-  const radiusMeters = typeof asset.range_m === "number" ? asset.range_m : null;
-  if (!Number.isFinite(radiusMeters) || (radiusMeters ?? 0) <= 0) {
-    return null;
-  }
-  return radiusMeters;
-}
-
-function getShapeSvg(shape: AssetTypeSettings["shape"], size: number, color: string): string {
-  const stroke = "#ffffff";
-  const strokeWidth = 2;
-  const mid = size / 2;
-  const pad = 2;
-  const max = size - pad;
-
-  if (shape === "hex") {
-    return `<polygon points="${mid},${pad} ${max - 6},${size * 0.28} ${max - 6},${size * 0.72} ${mid},${max} ${pad + 6},${size * 0.72} ${pad + 6},${size * 0.28}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
-  }
-
-  if (shape === "diamond") {
-    return `<polygon points="${mid},${pad} ${max},${mid} ${mid},${max} ${pad},${mid}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
-  }
-
-  if (shape === "square") {
-    return `<rect x="${pad}" y="${pad}" width="${size - pad * 2}" height="${size - pad * 2}" rx="7" ry="7" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
-  }
-
-  if (shape === "triangle") {
-    return `<polygon points="${mid},${pad} ${max},${max - 2} ${pad},${max - 2}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
-  }
-
-  if (shape === "shield") {
-    return `<path d="M ${mid} ${pad} L ${max - 3} ${size * 0.24} L ${max - 5} ${size * 0.65} L ${mid} ${max} L ${pad + 5} ${size * 0.65} L ${pad + 3} ${size * 0.24} Z" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
-  }
-
-  return `<circle cx="${mid}" cy="${mid}" r="${size * 0.44}" fill="${color}" stroke="${stroke}" stroke-width="${strokeWidth}" />`;
-}
-
-function getZoomScale(zoom: number): number {
-  const normalized = 0.75 + (zoom - 10) * 0.07;
-  return Math.max(0.7, Math.min(1.35, normalized));
-}
-
-function buildAssetIcon(settings: AssetTypeSettings, status: string, zoom: number): L.Icon {
-  const normalizedStatus = String(status).toUpperCase();
-  const isJamming = normalizedStatus === "JAMMING";
-  const isActive = normalizedStatus === "ACTIVE" || normalizedStatus === "JAMMING";
-  const opacity = isActive ? 1 : 0.45;
-  const size = Math.max(20, Math.round(settings.markerSize * getZoomScale(zoom)));
-  const markerColor = isJamming ? "#dc2626" : settings.markerColor;
-  const jammingRing = isJamming
-    ? `<circle cx="${size / 2}" cy="${size / 2}" r="${size * 0.47}" fill="none" stroke="#f59e0b" stroke-width="${Math.max(2, Math.round(size * 0.08))}" opacity="0.95" />`
-    : "";
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" opacity="${opacity}">
-      ${jammingRing}
-      ${getShapeSvg(settings.shape, size, markerColor)}
-      <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Inter, sans-serif" font-size="${Math.max(10, Math.floor(size / 3.1))}" font-weight="700">${settings.symbol}</text>
-    </svg>
-  `.trim();
-  const iconUrl = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-
-  return L.icon({
-    iconUrl,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -(size / 2)],
-  });
-}
 
 function MapCenterController({
   center,
@@ -402,115 +162,6 @@ function AttributionPrefixController() {
   return null;
 }
 
-function toQuadKey(x: number, y: number, z: number): string {
-  let quadKey = "";
-  for (let i = z; i > 0; i -= 1) {
-    let digit = 0;
-    const mask = 1 << (i - 1);
-    if ((x & mask) !== 0) {
-      digit += 1;
-    }
-    if ((y & mask) !== 0) {
-      digit += 2;
-    }
-    quadKey += digit.toString();
-  }
-  return quadKey;
-}
-
-function getBearingDegrees(from: L.LatLng, to: L.LatLng): number {
-  const fromLat = (from.lat * Math.PI) / 180;
-  const toLat = (to.lat * Math.PI) / 180;
-  const deltaLon = ((to.lng - from.lng) * Math.PI) / 180;
-
-  const y = Math.sin(deltaLon) * Math.cos(toLat);
-  const x = Math.cos(fromLat) * Math.sin(toLat) - Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLon);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
-
-function destinationPointFromBearing(
-  center: [number, number],
-  bearingDegrees: number,
-  distanceMeters: number,
-): [number, number] {
-  const earthRadiusMeters = 6371000;
-  const bearingRadians = (bearingDegrees * Math.PI) / 180;
-  const angularDistance = distanceMeters / earthRadiusMeters;
-  const lat1 = (center[0] * Math.PI) / 180;
-  const lon1 = (center[1] * Math.PI) / 180;
-
-  const lat2 = Math.asin(
-    Math.sin(lat1) * Math.cos(angularDistance) +
-      Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearingRadians),
-  );
-  const lon2 =
-    lon1 +
-    Math.atan2(
-      Math.sin(bearingRadians) * Math.sin(angularDistance) * Math.cos(lat1),
-      Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2),
-    );
-
-  return [(lat2 * 180) / Math.PI, (((lon2 * 180) / Math.PI + 540) % 360) - 180];
-}
-
-function extractTcpBearing(parsedFields?: Record<string, string>): {
-  bearingDeg: number;
-  sourceKey: string;
-  sourceValue: string;
-} | null {
-  if (!parsedFields) {
-    return null;
-  }
-
-  const keyPattern = /(bearing|aoa|doa|azimuth|direction|angle|value)/i;
-
-  for (const [key, value] of Object.entries(parsedFields)) {
-    if (!keyPattern.test(key)) {
-      continue;
-    }
-
-    const match = value.match(/-?\d+(?:\.\d+)?/);
-    if (!match) {
-      continue;
-    }
-
-    const parsed = Number(match[0]);
-    if (!Number.isFinite(parsed)) {
-      continue;
-    }
-
-    const normalized = ((parsed % 360) + 360) % 360;
-    return {
-      bearingDeg: normalized,
-      sourceKey: key,
-      sourceValue: value,
-    };
-  }
-
-  return null;
-}
-
-function buildPointDetails(latLngs: L.LatLng[], closedShape: boolean, includeDistance: boolean = false): string {
-  let cumulativeMeters = 0;
-
-  return latLngs
-    .map((point, index) => {
-      const previousPoint = index > 0 ? latLngs[index - 1] : null;
-      if (previousPoint) {
-        cumulativeMeters += previousPoint.distanceTo(point);
-      }
-
-      const nextPoint =
-        index < latLngs.length - 1 ? latLngs[index + 1] : closedShape && latLngs.length > 2 ? latLngs[0] : null;
-      const angleText = nextPoint ? `${getBearingDegrees(point, nextPoint).toFixed(1)} deg` : "-";
-      const segmentMeters = previousPoint ? previousPoint.distanceTo(point) : 0;
-      const distanceText = includeDistance
-        ? ` | Dist(prev): ${(segmentMeters / 1000).toFixed(3)} km | Cum: ${(cumulativeMeters / 1000).toFixed(3)} km`
-        : "";
-      return `P${index + 1}: ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)} | Angle: ${angleText}${distanceText}`;
-    })
-    .join("<br/>");
-}
 
 function BingTileLayer({
   option,
@@ -1131,6 +782,8 @@ export default function MapView({
   const [showAssets, setShowAssets] = useState(true);
   const [showAlerts, setShowAlerts] = useState(true);
   const [showSignals, setShowSignals] = useState(true);
+  const [showHeatOverlay, setShowHeatOverlay] = useState(true);
+  const [showTriangulationOverlay, setShowTriangulationOverlay] = useState(true);
   const [showNodeLabels, setShowNodeLabels] = useState<boolean>(() => {
     const raw = localStorage.getItem(MAP_NODE_LABELS_VISIBLE_KEY);
     if (raw === "true") return true;
@@ -1378,19 +1031,63 @@ export default function MapView({
   const hasAlertMarkers = alertMarkers.length > 0;
   const hasAssets = visibleAssets.length > 0;
   const hasSignals = signals.length > 0;
+  const hasHeatCells = heatCells.length > 0;
   const hasCoverage = coveragePoints.length > 0;
+  const triangulationCentroid: [number, number] | null =
+    typeof triangulation?.centroid_latitude === "number" && typeof triangulation?.centroid_longitude === "number"
+      ? [triangulation.centroid_latitude, triangulation.centroid_longitude]
+      : null;
+  const triangulationPolygon = triangulation?.roi_polygon?.map((point) => [point.latitude, point.longitude] as [number, number]) ?? [];
+  const triangulationIntersections = triangulation?.intersections ?? [];
+  const triangulationRayColorBySource = useMemo(() => {
+    const bySource = new Map<string, string>();
+    for (const ray of triangulation?.rays ?? []) {
+      bySource.set(ray.source_id, getTriangulationColor(ray.source_id));
+    }
+    return bySource;
+  }, [triangulation]);
+  const triangulationLegendEntries = useMemo(
+    () =>
+      Array.from(triangulationRayColorBySource.entries())
+        .map(([sourceId, color]) => ({ sourceId, color }))
+        .sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
+    [triangulationRayColorBySource]
+  );
+  const lowZoomStyleScale = useMemo(() => {
+    if (mapZoom <= 9) return 1.5;
+    if (mapZoom <= 11) return 1.3;
+    if (mapZoom <= 13) return 1.15;
+    return 1;
+  }, [mapZoom]);
   const mapCenter: [number, number] = useMemo(
     () =>
-      hasAlertMarkers
+      triangulationCentroid
+        ? triangulationCentroid
+        : hasAlertMarkers
         ? [alertMarkers[0].latitude as number, alertMarkers[0].longitude as number]
         : hasAssets
         ? [visibleAssets[0].latitude, visibleAssets[0].longitude]
         : hasSignals
           ? [signals[0].latitude, signals[0].longitude]
+        : hasHeatCells
+          ? [heatCells[0].latitude_bucket, heatCells[0].longitude_bucket]
         : hasCoverage
             ? [coveragePoints[0].latitude, coveragePoints[0].longitude]
             : defaultCenter,
-    [hasAlertMarkers, hasAssets, hasSignals, hasCoverage, alertMarkers, visibleAssets, signals, coveragePoints, defaultCenter],
+    [
+      triangulationCentroid,
+      hasAlertMarkers,
+      hasAssets,
+      hasSignals,
+      hasHeatCells,
+      hasCoverage,
+      alertMarkers,
+      visibleAssets,
+      signals,
+      heatCells,
+      coveragePoints,
+      defaultCenter,
+    ],
   );
   const hasSavedView = savedView !== null;
   const initialMapCenter: [number, number] = hasSavedView ? (savedView as SavedMapView).center : mapCenter;
@@ -1415,6 +1112,9 @@ export default function MapView({
   const handleBaseMapSelectionChange = useCallback((nextBaseMapId: string) => {
     setAutoOfflineFallbackActive(false);
     setBaseMapId(nextBaseMapId);
+  }, []);
+  const handleResetView = useCallback(() => {
+    setResetCounter((current) => current + 1);
   }, []);
   const handleActiveShapeColorChange = useCallback(
     (color: string) => {
@@ -1511,6 +1211,26 @@ export default function MapView({
       for (const signal of signals) {
         points.push([signal.latitude, signal.longitude]);
       }
+
+      if (showHeatOverlay) {
+        for (const cell of heatCells) {
+          points.push([cell.latitude_bucket, cell.longitude_bucket]);
+        }
+      }
+
+      if (showTriangulationOverlay) {
+        if (triangulationCentroid) {
+          points.push(triangulationCentroid);
+        }
+
+        for (const point of triangulationPolygon) {
+          points.push(point);
+        }
+
+        for (const point of triangulationIntersections) {
+          points.push([point.latitude, point.longitude]);
+        }
+      }
     }
 
     for (const point of coveragePoints) {
@@ -1518,7 +1238,21 @@ export default function MapView({
     }
 
     return points;
-  }, [alertMarkers, visibleAssets, signals, coveragePoints, showAlerts, showAssets, showSignals]);
+  }, [
+    alertMarkers,
+    visibleAssets,
+    signals,
+    heatCells,
+    triangulationCentroid,
+    triangulationPolygon,
+    triangulationIntersections,
+    coveragePoints,
+    showAlerts,
+    showAssets,
+    showSignals,
+    showHeatOverlay,
+    showTriangulationOverlay,
+  ]);
 
   return (
     <div
@@ -1780,11 +1514,126 @@ export default function MapView({
         </CircleMarker>
       ))}
 
+      {showSignals && showHeatOverlay && heatCells.map((cell, index) => (
+        <CircleMarker
+          key={`heat-${cell.latitude_bucket}-${cell.longitude_bucket}-${index}`}
+          center={[cell.latitude_bucket, cell.longitude_bucket]}
+          radius={Math.max(4, 10 * cell.density) * lowZoomStyleScale}
+          pathOptions={{
+            color: getHeatCellColor(cell.density),
+            fillColor: getHeatCellColor(cell.density),
+            fillOpacity: Math.min(0.55, 0.1 + cell.density * 0.4),
+            weight: 1.2,
+            opacity: 0.7,
+          }}
+        >
+          <Popup>
+            <div>
+              <strong>Probability Cell</strong>
+              <div>Density: {cell.density.toFixed(2)}</div>
+              <div>{cell.latitude_bucket.toFixed(5)}, {cell.longitude_bucket.toFixed(5)}</div>
+            </div>
+          </Popup>
+        </CircleMarker>
+      ))}
+
+      {showSignals && showTriangulationOverlay && triangulation?.rays.map((ray) => (
+        <Fragment key={`tri-ray-group-${ray.source_id}`}>
+          <Polyline
+            key={`tri-ray-halo-${ray.source_id}`}
+            positions={[
+              [ray.source_latitude, ray.source_longitude],
+              [ray.end_latitude, ray.end_longitude],
+            ]}
+            pathOptions={{
+              color: "#f8fafc",
+              weight: Math.min(6.8, 4.2 * lowZoomStyleScale),
+              opacity: 0.5,
+            }}
+          />
+          <Polyline
+            key={`tri-ray-${ray.source_id}`}
+            positions={[
+              [ray.source_latitude, ray.source_longitude],
+              [ray.end_latitude, ray.end_longitude],
+            ]}
+            pathOptions={{
+              color: triangulationRayColorBySource.get(ray.source_id) ?? "#ef4444",
+              weight: Math.min(5.4, 3.2 * lowZoomStyleScale),
+              dashArray: "8 6",
+              opacity: 0.9,
+            }}
+          >
+            <Popup>
+              <div>
+                <strong>{ray.source_id}</strong>
+                <div>Bearing: {ray.bearing_deg.toFixed(1)} deg</div>
+                <div>Confidence: {(ray.confidence * 100).toFixed(1)}%</div>
+              </div>
+            </Popup>
+          </Polyline>
+        </Fragment>
+      ))}
+
+      {showSignals && showTriangulationOverlay && triangulationIntersections.map((point, index) => (
+        <CircleMarker
+          key={`tri-x-${index}`}
+          center={[point.latitude, point.longitude]}
+          radius={4.2 * lowZoomStyleScale}
+          pathOptions={{ color: "#f8fafc", fillColor: "#f59e0b", fillOpacity: 0.92, weight: 1.5 }}
+        >
+          <Popup>
+            <div>
+              <strong>Triangulation Intersection</strong>
+              <div>{point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}</div>
+            </div>
+          </Popup>
+        </CircleMarker>
+      ))}
+
+      {showSignals && showTriangulationOverlay && triangulationCentroid && (
+        <>
+          <CircleMarker
+            center={triangulationCentroid}
+            radius={12 * lowZoomStyleScale}
+            pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 0.12, weight: 1 }}
+          />
+          <CircleMarker
+            center={triangulationCentroid}
+            radius={7 * lowZoomStyleScale}
+            pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 0.88, weight: 2 }}
+          >
+            <Popup>
+              <div>
+                <strong>Estimated Emitter</strong>
+                <div>{triangulationCentroid[0].toFixed(5)}, {triangulationCentroid[1].toFixed(5)}</div>
+                {typeof triangulation?.confidence_level === "number" && (
+                  <div>Confidence: {(triangulation.confidence_level * 100).toFixed(1)}%</div>
+                )}
+                {triangulation?.warning && <div>{triangulation.warning}</div>}
+              </div>
+            </Popup>
+          </CircleMarker>
+        </>
+      )}
+
+      {showSignals && showTriangulationOverlay && triangulationPolygon.length > 2 && (
+        <Polygon
+          positions={triangulationPolygon}
+          pathOptions={{
+            color: "#22c55e",
+            weight: Math.min(3.8, 2.4 * lowZoomStyleScale),
+            dashArray: "11 7",
+            fillOpacity: 0.16,
+          }}
+        />
+      )}
+
       {showSignals && signals.map((signal) => (
         <CircleMarker
           key={`sig-${signal.id}`}
           center={[signal.latitude, signal.longitude]}
-          radius={5}
+          radius={5 * lowZoomStyleScale}
           pathOptions={{ color: "#1d4ed8" }}
         >
           <Popup>
@@ -1825,627 +1674,59 @@ export default function MapView({
       )}
     </MapContainer>
 
-      <div
-        style={{
-          position: "absolute",
-          left: 16,
-          top: 16,
-          zIndex: 1000,
-          display: "grid",
-          gap: 6,
-        }}
-      >
-        <button
-          type="button"
-          title="Controls: SV Save view | R Reset to saved/default view | A Assets toggle | ! Alerts toggle | S Signals toggle | N Node labels toggle | Draw tools on top-right (press Enter to finish)"
-          aria-label="Map controls legend"
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: "#ffffff",
-            color: dfRangeColor,
-            cursor: "help",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          ⌖
-        </button>
-
-        <button
-          type="button"
-          title="Popup transparency"
-          aria-label="Toggle popup transparency slider"
-          onClick={() => setShowTransparencySlider((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showTransparencySlider ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {"\u25D0"}
-        </button>
-
-        {showTransparencySlider && (
-          <div
-            title="Jammer popup transparency"
-            style={{
-              width: 120,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.96)",
-              color: "#0f172a",
-              padding: "6px 8px",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1 }}>Popup Transparency</div>
-            <input
-              type="range"
-              min={MIN_JAMMER_POPUP_ALPHA}
-              max={MAX_JAMMER_POPUP_ALPHA}
-              step={0.05}
-              value={jammerPopupAlpha}
-              onChange={(event) => {
-                const nextValue = Number(event.target.value);
-                if (!Number.isFinite(nextValue)) {
-                  return;
-                }
-                setJammerPopupAlpha(Math.max(MIN_JAMMER_POPUP_ALPHA, Math.min(MAX_JAMMER_POPUP_ALPHA, nextValue)));
-              }}
-              style={{ width: "100%", margin: 0 }}
-            />
-            <div style={{ fontSize: 11, color: "#334155" }}>{Math.round((1 - jammerPopupAlpha) * 100)}%</div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="Jammer ring color"
-          aria-label="Toggle jammer ring color picker"
-          onClick={() => setShowJammerColorPicker((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showJammerColorPicker ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F3A8)}
-        </button>
-
-        {showJammerColorPicker && (
-          <div
-            title="Jammer range color"
-            style={{
-              width: 120,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.96)",
-              color: "#0f172a",
-              padding: "6px 8px",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1 }}>Jammer Ring Color</div>
-            <input
-              type="color"
-              value={jammerRangeColor}
-              onChange={(event) => setJammerRangeColor(event.target.value)}
-              style={{ width: "100%", height: 24, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-            />
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="DF ring color"
-          aria-label="Toggle DF ring color picker"
-          onClick={() => setShowDfColorPicker((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showDfColorPicker ? "#e2e8f0" : "#ffffff",
-            color: dfRangeColor,
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4E1)}
-        </button>
-
-        {showDfColorPicker && (
-          <div
-            title="Direction finder range color"
-            style={{
-              width: 120,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.96)",
-              color: "#0f172a",
-              padding: "6px 8px",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1 }}>DF Ring Color</div>
-            <input
-              type="color"
-              value={dfRangeColor}
-              onChange={(event) => setDfRangeColor(event.target.value)}
-              style={{ width: "100%", height: 24, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-            />
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="Base map selection"
-          aria-label="Toggle base map selector"
-          onClick={() => setShowBaseMapSelector((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showBaseMapSelector ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F5FA)}
-        </button>
-
-        {showBaseMapSelector && (
-          <select
-            title="Base map"
-            value={baseMapId}
-            onChange={(event) => {
-              handleBaseMapSelectionChange(event.target.value);
-              setShowBaseMapSelector(false);
-            }}
-            style={{
-              height: 30,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "#ffffff",
-              color: "#0f172a",
-              padding: "0 6px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {BASE_MAP_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>{option.label}</option>
-            ))}
-          </select>
-        )}
-
-        {!isOfflineBaseMap && baseMapTileErrors >= 1 && (
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.96)",
-              border: "1px solid #f59e0b",
-              borderRadius: 6,
-              color: "#92400e",
-              fontSize: 11,
-              fontWeight: 600,
-              maxWidth: 180,
-              padding: "4px 6px",
-            }}
-          >
-            Base map failed to load. Switching to offline tiles.
-          </div>
-        )}
-
-        {baseMapId === "offline-local" && baseMapTileErrors >= 1 && (
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.96)",
-              border: "1px solid #f59e0b",
-              borderRadius: 6,
-              color: "#92400e",
-              fontSize: 11,
-              fontWeight: 600,
-              maxWidth: 180,
-              padding: "4px 6px",
-            }}
-          >
-            Offline local tiles unavailable. Switching to offline grid.
-          </div>
-        )}
-
-        {isOfflineBaseMap && (
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.96)",
-              border: "1px solid #16a34a",
-              borderRadius: 6,
-              color: "#166534",
-              fontSize: 11,
-              fontWeight: 600,
-              maxWidth: 180,
-              padding: "4px 6px",
-            }}
-          >
-            Offline map mode active. Add XYZ tiles in /public/tiles for full map detail.
-            {autoOfflineFallbackActive && navigator.onLine ? " Retrying online map automatically..." : ""}
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="Save current view"
-          onClick={() => {
-            if (currentView) {
-              setSavedView(currentView);
-            }
-          }}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: savedView ? "#ffffff" : "#f8fafc",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4BE)}
-        </button>
-
-        <button
-          type="button"
-          title="Reset view"
-          onClick={() => {
-            setResetCounter((current) => current + 1);
-          }}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {"\u21BA"}
-        </button>
-
-        <button
-          type="button"
-          title={showAssets ? "Hide assets" : "Show assets"}
-          onClick={() => setShowAssets((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showAssets ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4CD)}
-        </button>
-
-        <button
-          type="button"
-          title={showSignals ? "Hide signals" : "Show signals"}
-          onClick={() => setShowSignals((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showSignals ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4F6)}
-        </button>
-
-        <button
-          type="button"
-          title={showNodeLabels ? "Hide node labels" : "Show node labels"}
-          onClick={() => setShowNodeLabels((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showNodeLabels ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F3F7)}
-        </button>
-
-        <button
-          type="button"
-          title={showAlerts ? "Hide alerts" : "Show alerts"}
-          onClick={() => setShowAlerts((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showAlerts ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F6A8)}
-        </button>
-
-
-      </div>
-
-      {activeDrawShape && (
-        <div
-          style={{
-            position: "absolute",
-            right: 58,
-            top: activeShapeMenuTop,
-            zIndex: 1100,
-            display: "flex",
-            alignItems: "center",
-            background: "rgba(255, 255, 255, 0.94)",
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            padding: "3px",
-          }}
-        >
-          <input
-            title={`${activeShapeLabel} color`}
-            type="color"
-            value={activeShapeColor}
-            onChange={(event) => handleActiveShapeColorChange(event.target.value)}
-            style={{ width: 14, height: 14, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-          />
-        </div>
-      )}
-
-      <div
-        title="Compass (North Up)"
-        style={{
-          position: "absolute",
-          right: 58,
-          top: 16,
-          zIndex: 1000,
-          width: 56,
-          height: 56,
-          borderRadius: 999,
-          border: "1px solid #d1d5db",
-          background: "rgba(255, 255, 255, 0.94)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 2px 8px rgba(15, 23, 42, 0.25)",
-          backdropFilter: "blur(2px)",
-        }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 64 64" aria-hidden>
-          <circle cx="32" cy="32" r="30" fill="#0f172a" opacity="0.9" />
-          <circle cx="32" cy="32" r="26" fill="#f8fafc" />
-          <circle cx="32" cy="32" r="24" fill="none" stroke="#475569" strokeWidth="1" />
-
-          <g stroke="#64748b" strokeWidth="1">
-            <line x1="32" y1="8" x2="32" y2="12" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(30 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(60 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(90 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(120 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(150 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(180 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(210 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(240 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(270 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(300 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(330 32 32)" />
-          </g>
-
-          <g stroke="#334155" strokeWidth="1.6">
-            <line x1="32" y1="6" x2="32" y2="13" />
-            <line x1="32" y1="6" x2="32" y2="13" transform="rotate(90 32 32)" />
-            <line x1="32" y1="6" x2="32" y2="13" transform="rotate(180 32 32)" />
-            <line x1="32" y1="6" x2="32" y2="13" transform="rotate(270 32 32)" />
-          </g>
-
-          <line x1="32" y1="15" x2="32" y2="49" stroke="#94a3b8" strokeWidth="0.8" opacity="0.75" />
-          <line x1="15" y1="32" x2="49" y2="32" stroke="#94a3b8" strokeWidth="0.8" opacity="0.75" />
-
-          <polygon points="32,10 38,31 32,27 26,31" fill="#dc2626" />
-          <polygon points="32,54 38,33 32,37 26,33" fill="#64748b" />
-          <circle cx="32" cy="32" r="2.8" fill="#0f172a" />
-
-          <text x="32" y="9" textAnchor="middle" fontSize="7" fontWeight="700" fill="#b91c1c">N</text>
-          <text x="55" y="34" textAnchor="middle" fontSize="6" fontWeight="700" fill="#334155">E</text>
-          <text x="32" y="60" textAnchor="middle" fontSize="6" fontWeight="700" fill="#334155">S</text>
-          <text x="9" y="34" textAnchor="middle" fontSize="6" fontWeight="700" fill="#334155">W</text>
-          <text x="32" y="42" textAnchor="middle" fontSize="5" fontWeight="700" fill="#475569">6400</text>
-        </svg>
-      </div>
-
-      {mousePosition && (
-        <div
-          style={{
-            position: "absolute",
-            left: 16,
-            bottom: 46,
-            zIndex: 1000,
-            background: "rgba(255, 255, 255, 0.92)",
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            padding: "3px 8px",
-            fontSize: 12,
-            color: "#0f172a",
-          }}
-        >
-          {`Lat ${mousePosition[0].toFixed(6)}, Lon ${mousePosition[1].toFixed(6)}`}
-        </div>
-      )}
-
-      {assetTypeLegend.length > 0 && (
-        <button
-          type="button"
-          title="Asset type legend"
-          aria-label="Toggle asset type legend"
-          onClick={() => setShowAssetLegend((current) => !current)}
-          style={{
-            position: "absolute",
-            right: 10,
-            bottom: 118,
-            zIndex: 901,
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showAssetLegend ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4DA)}
-        </button>
-      )}
-
-      {assetTypeLegend.length > 0 && showAssetLegend && (
-        <div
-          style={{
-            position: "absolute",
-            right: 10,
-            bottom: 154,
-            zIndex: 900,
-            background: "rgba(255, 255, 255, 0.92)",
-            border: "1px solid #d1d5db",
-            borderRadius: 16,
-            padding: "14px 14px",
-            minWidth: 210,
-            maxHeight: "calc(100% - 180px)",
-            overflowY: "auto",
-            fontSize: 14,
-            lineHeight: 1.4,
-            backdropFilter: "blur(2px)",
-          }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: 10, color: "#0f172a" }}>Asset Type Legend</div>
-          {assetTypeLegend.map(([typeKey, settings]) => (
-            <div key={typeKey} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, color: "#1e293b" }}>
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  display: "inline-flex",
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">${getShapeSvg(settings.shape, 22, settings.markerColor)}<text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Inter, sans-serif" font-size="8" font-weight="700">${settings.symbol}</text></svg>`,
-                }}
-              >
-              </span>
-              <span>{settings.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
+    <MapOverlaysPanel
+      dfRangeColor={dfRangeColor}
+      showTransparencySlider={showTransparencySlider}
+      onToggleTransparencySlider={() => setShowTransparencySlider((current) => !current)}
+      jammerPopupAlpha={jammerPopupAlpha}
+      onJammerPopupAlphaChange={setJammerPopupAlpha}
+      showJammerColorPicker={showJammerColorPicker}
+      onToggleJammerColorPicker={() => setShowJammerColorPicker((current) => !current)}
+      jammerRangeColor={jammerRangeColor}
+      onJammerRangeColorChange={setJammerRangeColor}
+      showDfColorPicker={showDfColorPicker}
+      onToggleDfColorPicker={() => setShowDfColorPicker((current) => !current)}
+      onDfRangeColorChange={setDfRangeColor}
+      showBaseMapSelector={showBaseMapSelector}
+      onToggleBaseMapSelector={() => setShowBaseMapSelector((current) => !current)}
+      baseMapId={baseMapId}
+      onBaseMapSelectionChange={handleBaseMapSelectionChange}
+      isOfflineBaseMap={isOfflineBaseMap}
+      baseMapTileErrors={baseMapTileErrors}
+      autoOfflineFallbackActive={autoOfflineFallbackActive}
+      navigatorOnline={typeof navigator !== "undefined" ? navigator.onLine : false}
+      currentViewAvailable={Boolean(currentView)}
+      onSaveCurrentView={() => {
+        if (!currentView) {
+          return;
+        }
+        setSavedView(currentView);
+      }}
+      hasSavedView={Boolean(savedView)}
+      onResetView={handleResetView}
+      showAssets={showAssets}
+      onToggleAssets={() => setShowAssets((current) => !current)}
+      showSignals={showSignals}
+      onToggleSignals={() => setShowSignals((current) => !current)}
+      showHeatOverlay={showHeatOverlay}
+      onToggleHeatOverlay={() => setShowHeatOverlay((current) => !current)}
+      showTriangulationOverlay={showTriangulationOverlay}
+      onToggleTriangulationOverlay={() => setShowTriangulationOverlay((current) => !current)}
+      showNodeLabels={showNodeLabels}
+      onToggleNodeLabels={() => setShowNodeLabels((current) => !current)}
+      showAlerts={showAlerts}
+      onToggleAlerts={() => setShowAlerts((current) => !current)}
+      activeDrawShape={activeDrawShape}
+      activeShapeMenuTop={activeShapeMenuTop}
+      activeShapeColor={activeShapeColor}
+      activeShapeLabel={activeShapeLabel}
+      onActiveShapeColorChange={handleActiveShapeColorChange}
+      mousePosition={mousePosition}
+      assetTypeLegend={assetTypeLegend}
+      triangulationLegendEntries={triangulationLegendEntries}
+      showAssetLegend={showAssetLegend}
+      onToggleAssetLegend={() => setShowAssetLegend((current) => !current)}
+    />
     </div>
   );
 }
-

@@ -111,6 +111,38 @@ export default function AdminDashboard() {
           >
             <div>
               <div style={{ fontSize: theme.typography.h3.fontSize, fontWeight: theme.typography.h3.fontWeight }}>
+                Geospatial Ingestion Sources
+              </div>
+              <div style={{ color: theme.colors.textSecondary }}>Register and manage multi-source geospatial feeds with ISO 19115 metadata.</div>
+            </div>
+            <Link
+              to="/admin/geospatial"
+              style={{
+                textDecoration: "none",
+                borderRadius: theme.radius.md,
+                background: theme.colors.primary,
+                color: theme.colors.surface,
+                padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Manage Sources
+            </Link>
+          </div>
+        </Card>
+
+        <Card>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: theme.spacing.md,
+            }}
+          >
+            <div>
+              <div style={{ fontSize: theme.typography.h3.fontSize, fontWeight: theme.typography.h3.fontWeight }}>
                 CRFS Live
               </div>
               <div style={{ color: theme.colors.textSecondary }}>Open live CRFS ingest health and recent activity.</div>

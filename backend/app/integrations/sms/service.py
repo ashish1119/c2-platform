@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.integrations.sms.codec import normalize_detection, utc_now
+from app.integrations.sms.realtime import sms_realtime_hub
 from app.integrations.sms.state_cache import SmsAdapterStateCache
 from app.integrations.sms.transport import SmsAdapterTransport
 from app.models import SmsDetection, SmsNodeHealth
@@ -66,6 +67,18 @@ async def ingest_sms_adapter_batch(request: SmsAdapterIngestRequest, db: AsyncSe
 
     await db.commit()
     await db.refresh(node)
+
+    await sms_realtime_hub.publish(
+        {
+            "type": "sms_ingest",
+            "source_node": request.source_node,
+            "accepted": accepted,
+            "rejected": rejected,
+            "errors": errors,
+            "node_online": node.online,
+            "node_last_heartbeat": node.last_heartbeat,
+        }
+    )
 
     return SmsAdapterIngestResponse(
         accepted=accepted,

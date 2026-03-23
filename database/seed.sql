@@ -2,6 +2,64 @@ INSERT INTO roles (name) VALUES
 ('ADMIN'),
 ('OPERATOR');
 
+INSERT INTO permissions (resource, action, scope) VALUES
+('decodio', 'read', 'GLOBAL'),
+('decodio', 'write', 'GLOBAL'),
+('audit', 'read', 'GLOBAL'),
+('jammer', 'read', 'GLOBAL'),
+('jammer', 'write', 'GLOBAL'),
+('direction_finder', 'read', 'GLOBAL'),
+('direction_finder', 'write', 'GLOBAL'),
+('sms', 'read', 'GLOBAL'),
+('sms', 'write', 'GLOBAL'),
+('sms_threat', 'read', 'GLOBAL'),
+('sms_threat', 'write', 'GLOBAL'),
+('geospatial', 'read', 'GLOBAL'),
+('geospatial', 'write', 'GLOBAL'),
+('crfs', 'read', 'GLOBAL'),
+('crfs', 'write', 'GLOBAL'),
+('crfs', 'replay', 'GLOBAL'),
+('tcp_listener', 'read', 'GLOBAL'),
+('tcp_listener', 'write', 'GLOBAL')
+ON CONFLICT (resource, action) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p
+    ON (
+        (r.name = 'ADMIN' AND (p.resource, p.action) IN (
+            ('decodio', 'read'),
+            ('decodio', 'write'),
+            ('audit', 'read'),
+            ('jammer', 'read'),
+            ('jammer', 'write'),
+            ('direction_finder', 'read'),
+            ('direction_finder', 'write'),
+            ('sms', 'read'),
+            ('sms', 'write'),
+            ('sms_threat', 'read'),
+            ('sms_threat', 'write'),
+            ('geospatial', 'read'),
+            ('geospatial', 'write'),
+            ('crfs', 'read'),
+            ('crfs', 'write'),
+            ('crfs', 'replay'),
+            ('tcp_listener', 'read'),
+            ('tcp_listener', 'write')
+        ))
+        OR
+        (r.name = 'OPERATOR' AND (p.resource, p.action) IN (
+            ('crfs', 'read'),
+            ('tcp_listener', 'read'),
+            ('tcp_listener', 'write'),
+            ('sms', 'read'),
+            ('sms', 'write'),
+            ('direction_finder', 'read')
+        ))
+    )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
 INSERT INTO users (username, email, hashed_password, role_id)
 VALUES (
     'admin',
@@ -308,6 +366,68 @@ SELECT
     'O_I_LEVEL'
 FROM assets a
 WHERE a.name = 'DF North Node 1';
+
+INSERT INTO geospatial_ingestion_sources (
+        id,
+        source_name,
+        source_type,
+        transport,
+        classification,
+        is_active,
+        metadata
+)
+VALUES
+        (
+                'a1f6f4b8-f8a0-4f5b-9ef2-42d58a54aa01'::uuid,
+                'UAV-Imagery-Alpha',
+                'UAV_IMAGERY',
+                'API',
+                'SECRET',
+                TRUE,
+                '{
+                    "fileIdentifier": "geo-src-uav-imagery-alpha-2026-03",
+                    "language": "eng",
+                    "dateStamp": "2026-03-22",
+                    "identificationInfo": {
+                        "title": "UAV Imagery Alpha Feed",
+                        "abstract": "Near-real-time UAV EO/IR imagery stream for sector alpha surveillance."
+                    }
+                }'::jsonb
+        ),
+        (
+                'a1f6f4b8-f8a0-4f5b-9ef2-42d58a54aa02'::uuid,
+                'AIS-Coastal-Track-West',
+                'AIS',
+                'TCP',
+                'UNCLASSIFIED',
+                TRUE,
+                '{
+                    "fileIdentifier": "geo-src-ais-coastal-track-west-2026-03",
+                    "language": "eng",
+                    "dateStamp": "2026-03-22",
+                    "identificationInfo": {
+                        "title": "AIS Coastal Track West",
+                        "abstract": "Marine vessel positional feed covering western coastal approaches."
+                    }
+                }'::jsonb
+        ),
+        (
+                'a1f6f4b8-f8a0-4f5b-9ef2-42d58a54aa03'::uuid,
+                'SAR-Archive-Bravo',
+                'SAR',
+                'S3',
+                'CONFIDENTIAL',
+                FALSE,
+                '{
+                    "fileIdentifier": "geo-src-sar-archive-bravo-2026-03",
+                    "language": "eng",
+                    "dateStamp": "2026-03-22",
+                    "identificationInfo": {
+                        "title": "SAR Archive Bravo",
+                        "abstract": "Batch synthetic aperture radar archive for retrospective analysis and change detection."
+                    }
+                }'::jsonb
+        );
 
 INSERT INTO rf_signals (frequency, power_level, modulation, bandwidth_hz, confidence, doa_deg, location, detected_at)
 VALUES
