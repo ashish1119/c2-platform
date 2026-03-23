@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import LoginPage from "./pages/LoginPage";
 import AdminDashboard from "./pages/AdminDashboard";
 import { OperatorMapPage, OperatorAlertsPage, OperatorTcpClientPage } from "./pages/operator";
 import ReportsPage from "./pages/ReportsPage";
 import PlanningPage from "./pages/PlanningPage";
 import CrfsLivePage from "./pages/CrfsLivePage";
+import DFLive from "./pages/DFLive";
 import JammerControlPage from "./pages/JammerControlPage";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -21,10 +23,62 @@ function FallbackRedirect() {
   return <Navigate to={user.role === "ADMIN" ? "/admin" : "/operator/map"} replace />;
 }
 
-export default function App() {
+function AppRoutes() {
+  const [backendError, setBackendError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkBackendError = () => {
+      const error = sessionStorage.getItem("backendError");
+      if (error) {
+        setBackendError(error);
+      }
+    };
+
+    checkBackendError();
+    const interval = setInterval(checkBackendError, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <div>
+      {backendError && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            background: "#dc2626",
+            color: "white",
+            padding: "12px 16px",
+            fontSize: "14px",
+            zIndex: 9999,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>⚠️ {backendError}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setBackendError(null);
+              sessionStorage.removeItem("backendError");
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "white",
+              cursor: "pointer",
+              fontSize: "18px",
+              padding: "0 8px",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      <div style={{ marginTop: backendError ? "44px" : "0" }}>
         <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
@@ -37,14 +91,14 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-<Route
-  path="/admin/users"
-  element={
-    <ProtectedRoute requiredRole="ADMIN">
-      <UserManagement />
-    </ProtectedRoute>
-  }
-/>
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <UserManagement />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/admin/assets"
@@ -127,6 +181,15 @@ export default function App() {
           />
 
           <Route
+            path="/operator/df-live"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <DFLive />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/jammer/control"
             element={
               <ProtectedRoute requiredPermission="jammer:write">
@@ -137,6 +200,16 @@ export default function App() {
 
           <Route path="*" element={<FallbackRedirect />} />
         </Routes>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
       </BrowserRouter>
     </AuthProvider>
   );

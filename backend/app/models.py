@@ -1,5 +1,19 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, TIMESTAMP, func, Integer, BigInteger, Float, Table, UniqueConstraint, Index
+from sqlalchemy import (
+    Column,
+    String,
+    Boolean,
+    ForeignKey,
+    Text,
+    TIMESTAMP,
+    func,
+    Integer,
+    BigInteger,
+    Float,
+    Table,
+    UniqueConstraint,
+    Index,
+)
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from geoalchemy2 import Geography
@@ -28,18 +42,24 @@ class Role(Base):
     name = Column(String, unique=True)
     level = Column(Integer, default=1)
     users = relationship("User", back_populates="role")
-    permissions = relationship("Permission", secondary=role_permissions, back_populates="roles")
+    permissions = relationship(
+        "Permission", secondary=role_permissions, back_populates="roles"
+    )
 
 
 class Permission(Base):
     __tablename__ = "permissions"
-    __table_args__ = (UniqueConstraint("resource", "action", name="uq_permissions_resource_action"),)
+    __table_args__ = (
+        UniqueConstraint("resource", "action", name="uq_permissions_resource_action"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     resource = Column(String, nullable=False)
     action = Column(String, nullable=False)
     scope = Column(String, default="GLOBAL")
-    roles = relationship("Role", secondary=role_permissions, back_populates="permissions")
+    roles = relationship(
+        "Role", secondary=role_permissions, back_populates="permissions"
+    )
 
 
 class User(Base):
@@ -70,8 +90,12 @@ class Asset(Base):
     fov_deg = Column(Float)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     alerts = relationship("Alert", back_populates="asset")
-    jammer_profile = relationship("JammerProfile", back_populates="asset", uselist=False)
-    direction_finder_profile = relationship("DirectionFinderProfile", back_populates="asset", uselist=False)
+    jammer_profile = relationship(
+        "JammerProfile", back_populates="asset", uselist=False
+    )
+    direction_finder_profile = relationship(
+        "DirectionFinderProfile", back_populates="asset", uselist=False
+    )
 
 
 class Alert(Base):
@@ -106,14 +130,18 @@ class DecodioApiConfig(Base):
     reconnect_max_seconds = Column(Integer, nullable=False, default=60)
     json_format = Column(String, nullable=False, default="auto")
     event_aliases = Column(JSONB, default=dict)
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class JammerProfile(Base):
     __tablename__ = "jammer_profiles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    asset_id = Column(UUID(as_uuid=True), ForeignKey("assets.id"), nullable=False, unique=True)
+    asset_id = Column(
+        UUID(as_uuid=True), ForeignKey("assets.id"), nullable=False, unique=True
+    )
 
     manufacturer = Column(String, nullable=False)
     model_number = Column(String, nullable=False)
@@ -188,7 +216,9 @@ class JammerProfile(Base):
     patch_baseline_version = Column(String)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     asset = relationship("Asset", back_populates="jammer_profile")
 
@@ -197,7 +227,9 @@ class DirectionFinderProfile(Base):
     __tablename__ = "direction_finder_profiles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    asset_id = Column(UUID(as_uuid=True), ForeignKey("assets.id"), nullable=False, unique=True)
+    asset_id = Column(
+        UUID(as_uuid=True), ForeignKey("assets.id"), nullable=False, unique=True
+    )
 
     manufacturer = Column(String, nullable=False)
     model_number = Column(String, nullable=False)
@@ -262,7 +294,9 @@ class DirectionFinderProfile(Base):
     maintenance_echelon = Column(String)
 
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     asset = relationship("Asset", back_populates="direction_finder_profile")
 
@@ -309,7 +343,9 @@ class SmsTrack(Base):
     centroid_longitude = Column(Float)
     metadata_json = Column("metadata", JSONB, default=dict)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     threats = relationship("SmsThreat", back_populates="track")
 
@@ -318,7 +354,9 @@ class SmsThreat(Base):
     __tablename__ = "sms_threats"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    track_id = Column(UUID(as_uuid=True), ForeignKey("sms_tracks.id"), nullable=False, index=True)
+    track_id = Column(
+        UUID(as_uuid=True), ForeignKey("sms_tracks.id"), nullable=False, index=True
+    )
     threat_type = Column(String, nullable=False)
     risk_score = Column(Float, nullable=False, default=0.0)
     priority = Column(String, nullable=False, default="LOW")
@@ -326,7 +364,9 @@ class SmsThreat(Base):
     status = Column(String, nullable=False, default="OPEN")
     details = Column(JSONB, default=dict)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     track = relationship("SmsTrack", back_populates="threats")
 
@@ -336,10 +376,14 @@ class SmsNodeHealth(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     source_node = Column(String, nullable=False, unique=True, index=True)
-    last_heartbeat = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    last_heartbeat = Column(
+        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+    )
     online = Column(Boolean, nullable=False, default=False)
     metrics = Column(JSONB, default=dict)
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class GeospatialIngestionSource(Base):
@@ -353,7 +397,9 @@ class GeospatialIngestionSource(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     metadata_json = Column("metadata", JSONB, default=dict)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class RFSignal(Base):
@@ -376,7 +422,9 @@ class CrfsStream(Base):
     stream_name = Column(String, nullable=True)
     color = Column(Integer, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class CrfsSignal(Base):
@@ -453,7 +501,9 @@ class CrfsIngestNode(Base):
     description = Column(String)
     last_seen = Column(TIMESTAMP(timezone=True))
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class CoverageRun(Base):

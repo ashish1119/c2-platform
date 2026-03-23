@@ -38,9 +38,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           borderRadius: theme.radius.md,
           marginBottom: theme.spacing.sm,
           background: active ? theme.colors.primary : "transparent",
-          color: active
-            ? "#ffffff"
-            : theme.colors.textPrimary,
+          color: active ? "#ffffff" : theme.colors.textPrimary,
           textDecoration: "none",
           fontWeight: 500,
         }}
@@ -59,7 +57,14 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         borderRight: `1px solid ${theme.colors.border}`,
       }}
     >
-      <div style={{ marginBottom: theme.spacing.xl, display: "flex", justifyContent: "center" }}>
+      {/* Logo */}
+      <div
+        style={{
+          marginBottom: theme.spacing.xl,
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
         <img
           src={branding.sidebarLogoSrc}
           alt={branding.logoAlt}
@@ -67,15 +72,28 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         />
       </div>
 
+      {/* ADMIN MENU */}
       {user?.role === "ADMIN" && navItem("/admin", "Dashboard")}
       {user?.role === "ADMIN" && navItem("/admin/users", "User Management")}
       {user?.role === "ADMIN" && navItem("/admin/assets", "Assets")}
+
+      {/* OPERATOR MENU */}
       {user?.role === "OPERATOR" && navItem("/operator/map", "Map")}
       {user?.role === "OPERATOR" && navItem("/operator/alerts", "Alert List")}
       {user?.role === "OPERATOR" && navItem("/operator/tcp-client", "TCP Client")}
       {user?.role === "OPERATOR" && navItem("/reports", "Reports")}
-      {hasPermission("crfs:read") && navItem("/crfs/live", "CRFS Live")}
-      {hasPermission("jammer:write") && navItem("/jammer/control", "Jammer Control")}
+
+      {/* CRFS + DF LIVE (IMPORTANT FIX 🔥) */}
+      {user?.role === "OPERATOR" && hasPermission("crfs:read") &&
+        navItem("/crfs/live", "CRFS Live")}
+
+      {/* 👉 DF Live same permission pe (FAST FIX) */}
+      {user?.role === "OPERATOR" && hasPermission("crfs:read") &&
+        navItem("/operator/df-live", "DF Live")}
+
+      {/* JAMMER */}
+      {hasPermission("jammer:write") &&
+        navItem("/jammer/control", "Jammer Control")}
     </div>
   );
 }
