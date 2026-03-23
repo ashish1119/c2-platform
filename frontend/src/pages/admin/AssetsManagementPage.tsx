@@ -640,10 +640,77 @@ export default function AssetsManagementPage() {
     }
   };
 
+
+const thStyle = (theme: any): React.CSSProperties => ({
+  padding: theme.spacing.sm,
+  textAlign: "left" as const,
+  fontWeight: 600,
+  fontSize: 13,
+  borderBottom: `1px solid ${theme.colors.border}`,
+});
+
+const tdStyle = (theme: any): React.CSSProperties => ({
+  padding: theme.spacing.sm,
+  fontSize: 13,
+});
+
+const formGrid: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))",
+  gap: 12,
+};
+
+const card = (theme: any): React.CSSProperties => ({
+  border: `1px solid ${theme.colors.border}`,
+  borderRadius: theme.radius.lg,
+  padding: theme.spacing.md,
+  background: theme.colors.surfaceAlt,
+  display: "grid",
+  gap: theme.spacing.md,
+});
+
+const inputStyle = (theme: any): React.CSSProperties => ({
+  padding: theme.spacing.sm,
+  border: `1px solid ${theme.colors.border}`,
+  borderRadius: theme.radius.sm,
+  background: theme.colors.surface,
+});
+
+const iconBtn = (theme: any, color: string): React.CSSProperties => ({
+  border: "none",
+  borderRadius: 6,
+  background: color,
+  color: "#fff",
+  cursor: "pointer",
+  padding: "6px 10px",
+});
+
+const primaryBtn = (theme: any): React.CSSProperties => ({
+  border: "none",
+  borderRadius: theme.radius.md,
+  background: theme.colors.primary,
+  color: "#fff",
+  padding: "10px 16px",
+  cursor: "pointer",
+});
+
+const secondaryBtn = (theme: any): React.CSSProperties => ({
+  border: `1px solid ${theme.colors.border}`,
+  borderRadius: theme.radius.md,
+  background: theme.colors.surface,
+  padding: "10px 16px",
+  cursor: "pointer",
+});
+  
+
+
   return (
-    <AppLayout>
-      <PageContainer title="Asset Management">
-        <div style={{ display: "grid", gap: theme.spacing.md }}>
+  <AppLayout>
+    <PageContainer title="Asset Management">
+      <div style={{ display: "grid", gap: theme.spacing.lg }}>
+
+        {/* HEADER */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
           <select
             value={assetType}
             onChange={(e) => {
@@ -653,824 +720,506 @@ export default function AssetsManagementPage() {
             style={{
               padding: theme.spacing.sm,
               border: `1px solid ${theme.colors.border}`,
-              borderRadius: theme.radius.sm,
-              background: theme.colors.surfaceAlt,
-              color: theme.colors.textPrimary,
-              minWidth: 240,
-              width: "fit-content",
+              borderRadius: theme.radius.md,
+              background: theme.colors.surface,
+              minWidth: 240
             }}
           >
             {ASSET_TYPE_OPTIONS.map((typeOption) => (
-              <option key={typeOption.value} value={typeOption.value}>{typeOption.label}</option>
+              <option key={typeOption.value} value={typeOption.value}>
+                {typeOption.label}
+              </option>
             ))}
           </select>
+        </div>
 
-          {loading && <div>Loading assets...</div>}
-          {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
-          {success && <div style={{ color: theme.colors.success }}>{success}</div>}
+        {/* STATUS */}
+        {loading && <div>Loading assets...</div>}
+        {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
+        {success && <div style={{ color: theme.colors.success }}>{success}</div>}
 
+
+
+   {/* ================= ADD FORM ================= */}
+      {/* ================= ADD FORM ================= */}
+<div
+  style={{
+    border: `1px solid ${theme.colors.border}`,
+    borderRadius: theme.radius.md,
+    background: theme.colors.surfaceAlt,
+    padding: theme.spacing.lg,
+    display: "grid",
+    gap: theme.spacing.md,
+  }}
+>
+  <div style={{ fontSize: 18, fontWeight: 600 }}>Add New Asset</div>
+
+  {/* 2 COLUMN GRID */}
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+      gap: theme.spacing.md,
+    }}
+  >
+    {/* COMMON FIELDS */}
+    <input placeholder="Name*" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle(theme)} />
+    <input type="number" placeholder="Latitude*" value={latitude} onChange={(e) => setLatitude(e.target.value)} style={inputStyle(theme)} />
+    <input type="number" placeholder="Longitude*" value={longitude} onChange={(e) => setLongitude(e.target.value)} style={inputStyle(theme)} />
+    <input type="number" placeholder="Circle Range (km)*" value={rangeM} onChange={(e) => setRangeM(e.target.value)} style={inputStyle(theme)} />
+
+    {/* ===================== DIRECTION FINDER ===================== */}
+    {isDirectionFinderSelected && (
+      <>
+        <input placeholder="Manufacturer*" value={dfManufacturer} onChange={(e) => setDfManufacturer(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Model Number*" value={dfModelNumber} onChange={(e) => setDfModelNumber(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Serial Number*" value={dfSerialNumber} onChange={(e) => setDfSerialNumber(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Platform Class*" value={dfPlatformClass} onChange={(e) => setDfPlatformClass(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Mobility Class*" value={dfMobilityClass} onChange={(e) => setDfMobilityClass(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Mission Domain*" value={dfMissionDomain} onChange={(e) => setDfMissionDomain(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Antenna Array Type*" value={dfAntennaArrayType} onChange={(e) => setDfAntennaArrayType(e.target.value)} style={inputStyle(theme)} />
+        <input type="number" placeholder="RF Min MHz*" value={dfRfMinMhz} onChange={(e) => setDfRfMinMhz(e.target.value)} style={inputStyle(theme)} />
+        <input type="number" placeholder="RF Max MHz*" value={dfRfMaxMhz} onChange={(e) => setDfRfMaxMhz(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Security Classification*" value={dfSecurityClassification} onChange={(e) => setDfSecurityClassification(e.target.value)} style={inputStyle(theme)} />
+      </>
+    )}
+
+    {/* ===================== JAMMER ===================== */}
+    {isJammerSelected && (
+      <>
+        <input placeholder="Manufacturer*" value={jammerManufacturer} onChange={(e) => setJammerManufacturer(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Model Number*" value={jammerModelNumber} onChange={(e) => setJammerModelNumber(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Serial Number*" value={jammerSerialNumber} onChange={(e) => setJammerSerialNumber(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Jammer Subtype*" value={jammerSubtype} onChange={(e) => setJammerSubtype(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Mission Domain*" value={jammerMissionDomain} onChange={(e) => setJammerMissionDomain(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Platform Type*" value={jammerPlatformType} onChange={(e) => setJammerPlatformType(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="IP Address*" value={jammerIpAddress} onChange={(e) => setJammerIpAddress(e.target.value)} style={inputStyle(theme)} />
+        <input type="number" placeholder="Port*" value={jammerPort} onChange={(e) => setJammerPort(e.target.value)} style={inputStyle(theme)} />
+        <input type="number" placeholder="RF Min MHz*" value={jammerRfMinMhz} onChange={(e) => setJammerRfMinMhz(e.target.value)} style={inputStyle(theme)} />
+        <input type="number" placeholder="RF Max MHz*" value={jammerRfMaxMhz} onChange={(e) => setJammerRfMaxMhz(e.target.value)} style={inputStyle(theme)} />
+        <input placeholder="Security Classification*" value={jammerSecurityClassification} onChange={(e) => setJammerSecurityClassification(e.target.value)} style={inputStyle(theme)} />
+      </>
+    )}
+
+    {/* ===================== C2 NODE ===================== */}
+    {!isDirectionFinderSelected && !isJammerSelected && (
+      <>
+        <select value={c2Status} onChange={(e) => setC2Status(e.target.value)} style={inputStyle(theme)}>
+          <option value="ACTIVE">ACTIVE</option>
+          <option value="INACTIVE">INACTIVE</option>
+        </select>
+        <input type="number" placeholder="Height*" value={heightM} onChange={(e) => setHeightM(e.target.value)} style={inputStyle(theme)} />
+        <input type="number" placeholder="Bearing*" value={bearingDeg} onChange={(e) => setBearingDeg(e.target.value)} style={inputStyle(theme)} />
+        <input type="number" placeholder="FOV*" value={fovDeg} onChange={(e) => setFovDeg(e.target.value)} style={inputStyle(theme)} />
+      </>
+    )}
+  </div>
+
+  <button
+    onClick={handleCreateAsset}
+    disabled={creating}
+    style={{
+      width: "fit-content",
+      border: "none",
+      borderRadius: theme.radius.md,
+      background: theme.colors.primary,
+      color: "#fff",
+      cursor: "pointer",
+      padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+    }}
+  >
+    {creating ? "Adding..." : "Add Asset"}
+  </button>
+</div>
+
+
+
+        {/* ================= TABLE ================= */}
+        <div style={{
+          border: `1px solid ${theme.colors.border}`,
+          borderRadius: theme.radius.lg,
+          overflow: "hidden",
+          background: theme.colors.surfaceAlt
+        }}>
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", background: theme.colors.surfaceAlt, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.md, overflow: "hidden" }}>
-              <thead>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+
+              <thead style={{ background: theme.colors.surface }}>
                 <tr>
-                  <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Name</th>
-                  <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Lat</th>
-                  <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Long</th>
-                  <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Circle Range (km)</th>
+                  <th style={thStyle(theme)}>Name</th>
+                  <th style={thStyle(theme)}>Lat</th>
+                  <th style={thStyle(theme)}>Long</th>
+                  <th style={thStyle(theme)}>Circle Range (km)</th>
+
                   {isDirectionFinderSelected ? (
                     <>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Manufacturer</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Model</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Serial</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>RF Min MHz</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>RF Max MHz</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Security</th>
+                      <th style={thStyle(theme)}>Manufacturer</th>
+                      <th style={thStyle(theme)}>Model</th>
+                      <th style={thStyle(theme)}>Serial</th>
+                      <th style={thStyle(theme)}>RF Min MHz</th>
+                      <th style={thStyle(theme)}>RF Max MHz</th>
+                      <th style={thStyle(theme)}>Security</th>
                     </>
                   ) : isJammerSelected ? (
                     <>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Manufacturer</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Model</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Serial</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Subtype</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>IP Address</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Port</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>RF Min MHz</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>RF Max MHz</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Security</th>
+                      <th style={thStyle(theme)}>Manufacturer</th>
+                      <th style={thStyle(theme)}>Model</th>
+                      <th style={thStyle(theme)}>Serial</th>
+                      <th style={thStyle(theme)}>Subtype</th>
+                      <th style={thStyle(theme)}>IP Address</th>
+                      <th style={thStyle(theme)}>Port</th>
+                      <th style={thStyle(theme)}>RF Min MHz</th>
+                      <th style={thStyle(theme)}>RF Max MHz</th>
+                      <th style={thStyle(theme)}>Security</th>
                     </>
                   ) : (
                     <>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Status</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Height</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Bearing</th>
-                      <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>FOV</th>
+                      <th style={thStyle(theme)}>Status</th>
+                      <th style={thStyle(theme)}>Height</th>
+                      <th style={thStyle(theme)}>Bearing</th>
+                      <th style={thStyle(theme)}>FOV</th>
                     </>
                   )}
-                  <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Actions</th>
+
+                  <th style={thStyle(theme)}>Actions</th>
                 </tr>
               </thead>
+
               <tbody>
                 {filteredAssets.map((asset) => (
-                  <tr key={asset.id}>
-                    <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                      {false ? (
-                        <input
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          style={{ width: "100%", padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                        />
-                      ) : (
-                        asset.name
-                      )}
-                    </td>
-                    <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                      {false ? (
-                        <input
-                          type="number"
-                          value={editingLatitude}
-                          onChange={(e) => setEditingLatitude(e.target.value)}
-                          style={{ width: 120, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                        />
-                      ) : (
-                        asset.latitude
-                      )}
-                    </td>
-                    <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                      {false ? (
-                        <input
-                          type="number"
-                          value={editingLongitude}
-                          onChange={(e) => setEditingLongitude(e.target.value)}
-                          style={{ width: 120, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                        />
-                      ) : (
-                        asset.longitude
-                      )}
-                    </td>
-                    <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
+                  <tr key={asset.id} style={{ borderTop: `1px solid ${theme.colors.border}` }}>
+
+                    <td style={tdStyle(theme)}>{asset.name}</td>
+                    <td style={tdStyle(theme)}>{asset.latitude}</td>
+                    <td style={tdStyle(theme)}>{asset.longitude}</td>
+                    <td style={tdStyle(theme)}>
                       {asset.range_m && asset.range_m > 0 ? (asset.range_m / 1000).toFixed(2) : "-"}
                     </td>
-                    {isDirectionFinderSelected ? (
+
+                    {/* TYPE DATA */}
+                    {isDirectionFinderSelected && (
                       <>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingDfManufacturer}
-                              onChange={(e) => setEditingDfManufacturer(e.target.value)}
-                              style={{ width: 150, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            directionFinderProfileByAssetId[asset.id]?.manufacturer ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingDfModelNumber}
-                              onChange={(e) => setEditingDfModelNumber(e.target.value)}
-                              style={{ width: 140, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            directionFinderProfileByAssetId[asset.id]?.model_number ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingDfSerialNumber}
-                              onChange={(e) => setEditingDfSerialNumber(e.target.value)}
-                              style={{ width: 140, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            directionFinderProfileByAssetId[asset.id]?.serial_number ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingDfRfMinMhz}
-                              onChange={(e) => setEditingDfRfMinMhz(e.target.value)}
-                              style={{ width: 110, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            directionFinderProfileByAssetId[asset.id]?.rf_min_mhz ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingDfRfMaxMhz}
-                              onChange={(e) => setEditingDfRfMaxMhz(e.target.value)}
-                              style={{ width: 110, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            directionFinderProfileByAssetId[asset.id]?.rf_max_mhz ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingDfSecurityClassification}
-                              onChange={(e) => setEditingDfSecurityClassification(e.target.value)}
-                              style={{ width: 130, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            directionFinderProfileByAssetId[asset.id]?.security_classification ?? "-"
-                          )}
-                        </td>
-                      </>
-                    ) : isJammerSelected ? (
-                      <>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingJammerManufacturer}
-                              onChange={(e) => setEditingJammerManufacturer(e.target.value)}
-                              style={{ width: 150, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.manufacturer ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingJammerModelNumber}
-                              onChange={(e) => setEditingJammerModelNumber(e.target.value)}
-                              style={{ width: 140, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.model_number ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingJammerSerialNumber}
-                              onChange={(e) => setEditingJammerSerialNumber(e.target.value)}
-                              style={{ width: 140, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.serial_number ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingJammerSubtype}
-                              onChange={(e) => setEditingJammerSubtype(e.target.value)}
-                              style={{ width: 130, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.jammer_subtype ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingJammerIpAddress}
-                              onChange={(e) => setEditingJammerIpAddress(e.target.value)}
-                              style={{ width: 150, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.ip_address ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingJammerPort}
-                              onChange={(e) => setEditingJammerPort(e.target.value)}
-                              style={{ width: 90, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.port ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingJammerRfMinMhz}
-                              onChange={(e) => setEditingJammerRfMinMhz(e.target.value)}
-                              style={{ width: 110, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.rf_coverage_min_mhz ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingJammerRfMaxMhz}
-                              onChange={(e) => setEditingJammerRfMaxMhz(e.target.value)}
-                              style={{ width: 110, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.rf_coverage_max_mhz ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              value={editingJammerSecurityClassification}
-                              onChange={(e) => setEditingJammerSecurityClassification(e.target.value)}
-                              style={{ width: 130, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            jammerProfileByAssetId[asset.id]?.security_classification ?? "-"
-                          )}
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <select
-                              value={editingC2Status}
-                              onChange={(e) => setEditingC2Status(e.target.value)}
-                              style={{ width: 110, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            >
-                              <option value="ACTIVE">ACTIVE</option>
-                              <option value="INACTIVE">INACTIVE</option>
-                            </select>
-                          ) : (
-                            asset.status
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingHeightM}
-                              onChange={(e) => setEditingHeightM(e.target.value)}
-                              style={{ width: 100, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            asset.height_m ?? "-"
-                          )}
-                        </td>
-<td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingBearingDeg}
-                              onChange={(e) => setEditingBearingDeg(e.target.value)}
-                              style={{ width: 100, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            asset.bearing_deg ?? "-"
-                          )}
-                        </td>
-                        <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                          {false ? (
-                            <input
-                              type="number"
-                              value={editingFovDeg}
-                              onChange={(e) => setEditingFovDeg(e.target.value)}
-                              style={{ width: 100, padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                            />
-                          ) : (
-                            asset.fov_deg ?? "-"
-                          )}
-                        </td>
+                        <td style={tdStyle(theme)}>{directionFinderProfileByAssetId[asset.id]?.manufacturer ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{directionFinderProfileByAssetId[asset.id]?.model_number ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{directionFinderProfileByAssetId[asset.id]?.serial_number ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{directionFinderProfileByAssetId[asset.id]?.rf_min_mhz ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{directionFinderProfileByAssetId[asset.id]?.rf_max_mhz ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{directionFinderProfileByAssetId[asset.id]?.security_classification ?? "-"}</td>
                       </>
                     )}
-                    <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                      <div style={{ display: "flex", gap: theme.spacing.sm }}>
-                        {false ? (
-                          <>
-                            <button
-                              style={{ border: "none", borderRadius: theme.radius.md, background: theme.colors.primary, color: "#fff", cursor: "pointer", padding: `${theme.spacing.xs} ${theme.spacing.sm}` }}
-                              onClick={() => handleSaveAsset(asset.id)}
-                              disabled={savingAssetId === asset.id}
-                            >
-                              {savingAssetId === asset.id ? "Saving..." : "Save"}
-                            </button>
-                            <button
-                              style={{ border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.md, background: theme.colors.surface, color: theme.colors.textPrimary, cursor: "pointer", padding: `${theme.spacing.xs} ${theme.spacing.sm}` }}
-                              onClick={cancelEdit}
-                              disabled={savingAssetId === asset.id}
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              style={{ border: "none", borderRadius: theme.radius.md, background: theme.colors.primary, color: "#fff", cursor: "pointer", padding: `${theme.spacing.xs} ${theme.spacing.sm}` }}
-                              onClick={() => startEdit(asset)}
-                              disabled={deletingAssetId === asset.id}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              style={{ border: "none", borderRadius: theme.radius.md, background: theme.colors.danger, color: "#fff", cursor: "pointer", padding: `${theme.spacing.xs} ${theme.spacing.sm}` }}
-                              onClick={() => handleDeleteAsset(asset.id, asset.name)}
-                              disabled={deletingAssetId === asset.id}
-                            >
-                              {deletingAssetId === asset.id ? "Deleting..." : "Delete"}
-                            </button>
-                          </>
-                        )}
+
+                    {isJammerSelected && (
+                      <>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.manufacturer ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.model_number ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.serial_number ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.jammer_subtype ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.ip_address ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.port ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.rf_coverage_min_mhz ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.rf_coverage_max_mhz ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{jammerProfileByAssetId[asset.id]?.security_classification ?? "-"}</td>
+                      </>
+                    )}
+
+                    {isC2Selected && (
+                      <>
+                        <td style={tdStyle(theme)}>{asset.status}</td>
+                        <td style={tdStyle(theme)}>{asset.height_m ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{asset.bearing_deg ?? "-"}</td>
+                        <td style={tdStyle(theme)}>{asset.fov_deg ?? "-"}</td>
+                      </>
+                    )}
+
+                    {/* ACTIONS */}
+                    <td style={tdStyle(theme)}>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                          onClick={() => startEdit(asset)}
+                          style={iconBtn(theme, theme.colors.primary)}
+                        >
+                          ✏️
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteAsset(asset.id, asset.name)}
+                          style={iconBtn(theme, theme.colors.danger)}
+                        >
+                          {deletingAssetId === asset.id ? "..." : "🗑️"}
+                        </button>
                       </div>
                     </td>
+
                   </tr>
                 ))}
+
                 {filteredAssets.length === 0 && !loading && (
                   <tr>
-                    <td style={{ padding: theme.spacing.sm }} colSpan={isDirectionFinderSelected ? 11 : isJammerSelected ? 14 : 10}>No assets found for selected type.</td>
+                    <td colSpan={20} style={{ padding: 20, textAlign: "center" }}>
+                      No assets found
+                    </td>
                   </tr>
                 )}
               </tbody>
+
             </table>
           </div>
-
-          {editingAssetId && editingAsset && (
-            <div style={{ display: "grid", gap: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.md, padding: theme.spacing.md, background: theme.colors.surfaceAlt }}>
-              <div style={{ fontWeight: 600 }}>Edit Asset</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: theme.spacing.sm }}>
-                <input
-                  placeholder="Name*"
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                />
-                <input
-                  type="number"
-                  placeholder="Lat*"
-                  value={editingLatitude}
-                  onChange={(e) => setEditingLatitude(e.target.value)}
-                  style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                />
-                <input
-                  type="number"
-                  placeholder="Long*"
-                  value={editingLongitude}
-                  onChange={(e) => setEditingLongitude(e.target.value)}
-                  style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                />
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="Circle Range (km)*"
-                  value={editingRangeM}
-                  onChange={(e) => setEditingRangeM(e.target.value)}
-                  style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                />
-                {isDirectionFinderSelected ? (
-                  <>
-                    <input
-                      placeholder="Manufacturer*"
-                      value={editingDfManufacturer}
-                      onChange={(e) => setEditingDfManufacturer(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Model Number*"
-                      value={editingDfModelNumber}
-                      onChange={(e) => setEditingDfModelNumber(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Serial Number*"
-                      value={editingDfSerialNumber}
-                      onChange={(e) => setEditingDfSerialNumber(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Platform Class*"
-                      value={editingDfPlatformClass}
-                      onChange={(e) => setEditingDfPlatformClass(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Mobility Class*"
-                      value={editingDfMobilityClass}
-                      onChange={(e) => setEditingDfMobilityClass(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Mission Domain*"
-                      value={editingDfMissionDomain}
-                      onChange={(e) => setEditingDfMissionDomain(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Antenna Array Type*"
-                      value={editingDfAntennaArrayType}
-                      onChange={(e) => setEditingDfAntennaArrayType(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="RF Min MHz*"
-                      value={editingDfRfMinMhz}
-                      onChange={(e) => setEditingDfRfMinMhz(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="RF Max MHz*"
-                      value={editingDfRfMaxMhz}
-                      onChange={(e) => setEditingDfRfMaxMhz(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Security Classification*"
-                      value={editingDfSecurityClassification}
-                      onChange={(e) => setEditingDfSecurityClassification(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                  </>
-                ) : isJammerSelected ? (
-                  <>
-                    <input
-                      placeholder="Manufacturer*"
-                      value={editingJammerManufacturer}
-                      onChange={(e) => setEditingJammerManufacturer(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Model Number*"
-                      value={editingJammerModelNumber}
-                      onChange={(e) => setEditingJammerModelNumber(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Serial Number*"
-                      value={editingJammerSerialNumber}
-                      onChange={(e) => setEditingJammerSerialNumber(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Jammer Subtype*"
-                      value={editingJammerSubtype}
-                      onChange={(e) => setEditingJammerSubtype(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Mission Domain*"
-                      value={editingJammerMissionDomain}
-                      onChange={(e) => setEditingJammerMissionDomain(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Platform Type*"
-                      value={editingJammerPlatformType}
-                      onChange={(e) => setEditingJammerPlatformType(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="IP Address*"
-                      value={editingJammerIpAddress}
-                      onChange={(e) => setEditingJammerIpAddress(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="Port*"
-                      value={editingJammerPort}
-                      onChange={(e) => setEditingJammerPort(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="RF Min MHz*"
-                      value={editingJammerRfMinMhz}
-                      onChange={(e) => setEditingJammerRfMinMhz(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="RF Max MHz*"
-                      value={editingJammerRfMaxMhz}
-                      onChange={(e) => setEditingJammerRfMaxMhz(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      placeholder="Security Classification*"
-                      value={editingJammerSecurityClassification}
-                      onChange={(e) => setEditingJammerSecurityClassification(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <select
-                      value={editingC2Status}
-                      onChange={(e) => setEditingC2Status(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    >
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="INACTIVE">INACTIVE</option>
-                    </select>
-                    <input
-                      type="number"
-                      placeholder="Height*"
-                      value={editingHeightM}
-                      onChange={(e) => setEditingHeightM(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-
-                    <input
-                      type="number"
-                      placeholder="Bearing*"
-                      value={editingBearingDeg}
-                      onChange={(e) => setEditingBearingDeg(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                    <input
-                      type="number"
-                      placeholder="FOV*"
-                      value={editingFovDeg}
-                      onChange={(e) => setEditingFovDeg(e.target.value)}
-                      style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                    />
-                  </>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: theme.spacing.sm }}>
-                <button
-                  onClick={() => handleSaveAsset(editingAsset.id)}
-                  disabled={savingAssetId === editingAsset.id}
-                  style={{ width: "fit-content", border: "none", borderRadius: theme.radius.md, background: theme.colors.primary, color: "#fff", cursor: "pointer", padding: `${theme.spacing.sm} ${theme.spacing.md}` }}
-                >
-                  {savingAssetId === editingAsset.id ? "Saving..." : "Save"}
-                </button>
-                <button
-                  onClick={cancelEdit}
-                  disabled={savingAssetId === editingAsset.id}
-                  style={{ width: "fit-content", border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.md, background: theme.colors.surface, color: theme.colors.textPrimary, cursor: "pointer", padding: `${theme.spacing.sm} ${theme.spacing.md}` }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
-          <div style={{ display: "grid", gap: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.md, padding: theme.spacing.md, background: theme.colors.surfaceAlt }}>
-            <div style={{ fontWeight: 600 }}>Add New Asset</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: theme.spacing.sm }}>
-              <input
-                placeholder="Name*"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-              />
-              <input
-                type="number"
-                placeholder="Lat*"
-                value={latitude}
-                onChange={(e) => setLatitude(e.target.value)}
-                style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-              />
-              <input
-                type="number"
-                placeholder="Long*"
-                value={longitude}
-                onChange={(e) => setLongitude(e.target.value)}
-                style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-              />
-              <input
-                type="number"
-                step="0.1"
-                placeholder="Circle Range (km)*"
-                value={rangeM}
-                onChange={(e) => setRangeM(e.target.value)}
-                style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-              />
-              {isDirectionFinderSelected ? (
-                <>
-                  <input
-                    placeholder="Manufacturer*"
-                    value={dfManufacturer}
-                    onChange={(e) => setDfManufacturer(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Model Number*"
-                    value={dfModelNumber}
-                    onChange={(e) => setDfModelNumber(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Serial Number*"
-                    value={dfSerialNumber}
-                    onChange={(e) => setDfSerialNumber(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Platform Class*"
-                    value={dfPlatformClass}
-                    onChange={(e) => setDfPlatformClass(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Mobility Class*"
-                    value={dfMobilityClass}
-                    onChange={(e) => setDfMobilityClass(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Mission Domain*"
-                    value={dfMissionDomain}
-                    onChange={(e) => setDfMissionDomain(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Antenna Array Type*"
-                    value={dfAntennaArrayType}
-                    onChange={(e) => setDfAntennaArrayType(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="RF Min MHz*"
-                    value={dfRfMinMhz}
-                    onChange={(e) => setDfRfMinMhz(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="RF Max MHz*"
-                    value={dfRfMaxMhz}
-                    onChange={(e) => setDfRfMaxMhz(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Security Classification*"
-                    value={dfSecurityClassification}
-                    onChange={(e) => setDfSecurityClassification(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                </>
-              ) : isJammerSelected ? (
-                <>
-                  <input
-                    placeholder="Manufacturer*"
-                    value={jammerManufacturer}
-                    onChange={(e) => setJammerManufacturer(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Model Number*"
-                    value={jammerModelNumber}
-                    onChange={(e) => setJammerModelNumber(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Serial Number*"
-                    value={jammerSerialNumber}
-                    onChange={(e) => setJammerSerialNumber(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Jammer Subtype*"
-                    value={jammerSubtype}
-                    onChange={(e) => setJammerSubtype(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Mission Domain*"
-                    value={jammerMissionDomain}
-                    onChange={(e) => setJammerMissionDomain(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Platform Type*"
-                    value={jammerPlatformType}
-                    onChange={(e) => setJammerPlatformType(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="IP Address*"
-                    value={jammerIpAddress}
-                    onChange={(e) => setJammerIpAddress(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Port*"
-                    value={jammerPort}
-                    onChange={(e) => setJammerPort(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="RF Min MHz*"
-                    value={jammerRfMinMhz}
-                    onChange={(e) => setJammerRfMinMhz(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="RF Max MHz*"
-                    value={jammerRfMaxMhz}
-                    onChange={(e) => setJammerRfMaxMhz(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    placeholder="Security Classification*"
-                    value={jammerSecurityClassification}
-                    onChange={(e) => setJammerSecurityClassification(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                </>
-              ) : (
-                <>
-                  <select
-                    value={c2Status}
-                    onChange={(e) => setC2Status(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                  </select>
-                  <input
-                    type="number"
-                    placeholder="Height*"
-                    value={heightM}
-                    onChange={(e) => setHeightM(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-<input
-                    type="number"
-                    placeholder="Bearing*"
-                    value={bearingDeg}
-                    onChange={(e) => setBearingDeg(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                  <input
-                    type="number"
-                    placeholder="FOV*"
-                    value={fovDeg}
-                    onChange={(e) => setFovDeg(e.target.value)}
-                    style={{ padding: theme.spacing.sm, border: `1px solid ${theme.colors.border}`, borderRadius: theme.radius.sm, background: theme.colors.surface, color: theme.colors.textPrimary }}
-                  />
-                </>
-              )}
-            </div>
-            <button
-              onClick={handleCreateAsset}
-              disabled={creating}
-              style={{ width: "fit-content", border: "none", borderRadius: theme.radius.md, background: theme.colors.primary, color: "#fff", cursor: "pointer", padding: `${theme.spacing.sm} ${theme.spacing.md}` }}
-            >
-              {creating ? "Adding..." : "Add Asset"}
-            </button>
-          </div>
         </div>
-      </PageContainer>
-    </AppLayout>
-  );
+
+        {/* ================= EDIT FORM ================= */}
+        {editingAssetId && (
+          <div style={card(theme)}>
+            <h3>Edit Asset</h3>
+
+            <div style={formGrid}>
+              <input value={editingName} onChange={(e)=>setEditingName(e.target.value)} placeholder="Name*" style={inputStyle(theme)} />
+              <input value={editingLatitude} onChange={(e)=>setEditingLatitude(e.target.value)} placeholder="Lat*" style={inputStyle(theme)} />
+              <input value={editingLongitude} onChange={(e)=>setEditingLongitude(e.target.value)} placeholder="Long*" style={inputStyle(theme)} />
+              <input value={editingRangeM} onChange={(e)=>setEditingRangeM(e.target.value)} placeholder="Range*" style={inputStyle(theme)} />
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={()=>handleSaveAsset(editingAssetId)} style={primaryBtn(theme)}>
+                {savingAssetId === editingAssetId ? "Saving..." : "Save"}
+              </button>
+              <button onClick={cancelEdit} style={secondaryBtn(theme)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+     
+
+      </div>
+    </PageContainer>
+  </AppLayout>
+);
 }
 
 
+// import { useEffect, useMemo, useState } from "react";
+// import AppLayout from "../../components/layout/AppLayout";
+// import PageContainer from "../../components/layout/PageContainer";
+// import { useTheme } from "../../context/ThemeContext";
+// import {
+//   createAsset,
+//   createJammerProfile,
+//   deleteAsset,
+//   getAssets,
+//   getJammerProfiles,
+//   updateAsset,
+//   updateJammerProfile,
+//   type AssetRecord,
+//   type JammerProfileRecord,
+// } from "../../api/assets";
+// import {
+//   createDirectionFinderProfile,
+//   getDirectionFinderProfiles,
+//   updateDirectionFinderProfile,
+//   type DirectionFinderProfileRecord,
+// } from "../../api/directionFinders";
 
+// import { FaEdit, FaTrash } from "react-icons/fa";
 
+// /* ---------------- CONFIG ---------------- */
+// const ASSET_TYPE_OPTIONS = [
+//   { label: "C2 Node", value: "C2_NODE" },
+//   { label: "Direction Finder", value: "DIRECTION_FINDER" },
+//   { label: "Jammer", value: "JAMMER" },
+// ] as const;
+
+// type AssetTypeOption = (typeof ASSET_TYPE_OPTIONS)[number]["value"];
+
+// /* ---------------- PAGE ---------------- */
+// export default function AssetsManagementPage() {
+//   const { theme } = useTheme();
+
+//   const [assetType, setAssetType] = useState<AssetTypeOption>("C2_NODE");
+//   const [assets, setAssets] = useState<AssetRecord[]>([]);
+//   const [directionFinderProfiles, setDirectionFinderProfiles] = useState<DirectionFinderProfileRecord[]>([]);
+//   const [jammerProfiles, setJammerProfiles] = useState<JammerProfileRecord[]>([]);
+
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState<string | null>(null);
+
+//   const isDirectionFinderSelected = assetType === "DIRECTION_FINDER";
+//   const isJammerSelected = assetType === "JAMMER";
+
+//   /* ---------------- LOAD ---------------- */
+//   const loadAssets = async () => {
+//     try {
+//       setLoading(true);
+//       const [a, df, j] = await Promise.all([
+//         getAssets(),
+//         getDirectionFinderProfiles(),
+//         getJammerProfiles(),
+//       ]);
+//       setAssets(a.data);
+//       setDirectionFinderProfiles(df.data);
+//       setJammerProfiles(j.data);
+//     } catch {
+//       setError("Failed to load assets.");
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   useEffect(() => {
+//     loadAssets();
+//   }, []);
+
+//   /* ---------------- MAPS ---------------- */
+//   const dfMap = useMemo(
+//     () =>
+//       directionFinderProfiles.reduce((acc, p) => {
+//         acc[p.asset_id] = p;
+//         return acc;
+//       }, {} as Record<string, DirectionFinderProfileRecord>),
+//     [directionFinderProfiles]
+//   );
+
+//   const jammerMap = useMemo(
+//     () =>
+//       jammerProfiles.reduce((acc, p) => {
+//         acc[p.asset_id] = p;
+//         return acc;
+//       }, {} as Record<string, JammerProfileRecord>),
+//     [jammerProfiles]
+//   );
+
+//   const filteredAssets = useMemo(
+//     () => assets.filter((a) => a.type === assetType),
+//     [assets, assetType]
+//   );
+
+//   /* ---------------- STYLES ---------------- */
+//   const card = {
+//     border: `1px solid ${theme.colors.border}`,
+//     borderRadius: 12,
+//     padding: 16,
+//     background: theme.colors.surfaceAlt,
+//   };
+
+//   const input = {
+//     padding: "10px",
+//     borderRadius: 8,
+//     border: `1px solid ${theme.colors.border}`,
+//     background: theme.colors.surface,
+//     color: theme.colors.textPrimary,
+//     fontSize: 13,
+//     width: "100%",
+//   };
+
+//   const iconBtn = {
+//     height: 34,
+//     width: 34,
+//     borderRadius: 8,
+//     border: "none",
+//     display: "flex",
+//     alignItems: "center",
+//     justifyContent: "center",
+//     cursor: "pointer",
+//   };
+
+//   /* ---------------- UI ---------------- */
+//   return (
+//     <AppLayout>
+//       <PageContainer title="Asset Management">
+
+//         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+//           {/* HEADER */}
+//           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+//             <select
+//               value={assetType}
+//               onChange={(e) => setAssetType(e.target.value as AssetTypeOption)}
+//               style={{ ...input, width: 220 }}
+//             >
+//               {ASSET_TYPE_OPTIONS.map((t) => (
+//                 <option key={t.value} value={t.value}>{t.label}</option>
+//               ))}
+//             </select>
+//           </div>
+
+//           {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
+//           {loading && <div>Loading...</div>}
+
+//           {/* TABLE */}
+//           <div style={card}>
+//             <table style={{ width: "100%", borderCollapse: "collapse" }}>
+//               <thead>
+//                 <tr>
+//                   {["Name", "Lat", "Long", "Range (km)", "Details", "Actions"].map((h) => (
+//                     <th
+//                       key={h}
+//                       style={{
+//                         textAlign: "left",
+//                         padding: 12,
+//                         fontSize: 13,
+//                         borderBottom: `1px solid ${theme.colors.border}`,
+//                         color: theme.colors.textSecondary,
+//                       }}
+//                     >
+//                       {h}
+//                     </th>
+//                   ))}
+//                 </tr>
+//               </thead>
+
+//               <tbody>
+//                 {filteredAssets.map((a) => (
+//                   <tr key={a.id}>
+//                     <td style={{ padding: 12 }}>{a.name}</td>
+//                     <td style={{ padding: 12 }}>{a.latitude}</td>
+//                     <td style={{ padding: 12 }}>{a.longitude}</td>
+//                     <td style={{ padding: 12 }}>
+//                       {a.range_m ? (a.range_m / 1000).toFixed(2) : "-"}
+//                     </td>
+
+//                     {/* DETAILS */}
+//                     <td style={{ padding: 12 }}>
+//                       {isDirectionFinderSelected
+//                         ? dfMap[a.id]?.manufacturer || "-"
+//                         : isJammerSelected
+//                         ? jammerMap[a.id]?.manufacturer || "-"
+//                         : a.status}
+//                     </td>
+
+//                     {/* ACTIONS */}
+//                     <td style={{ padding: 12 }}>
+//                       <div style={{ display: "flex", gap: 8 }}>
+//                         <button
+//                           style={{ ...iconBtn, background: theme.colors.primary, color: "#fff" }}
+//                         >
+//                           <FaEdit size={14} />
+//                         </button>
+
+//                         <button
+//                           style={{ ...iconBtn, background: theme.colors.danger, color: "#fff" }}
+//                           onClick={() => deleteAsset(a.id)}
+//                         >
+//                           <FaTrash size={14} />
+//                         </button>
+//                       </div>
+//                     </td>
+//                   </tr>
+//                 ))}
+
+//                 {filteredAssets.length === 0 && (
+//                   <tr>
+//                     <td colSpan={6} style={{ padding: 16, textAlign: "center" }}>
+//                       No assets found
+//                     </td>
+//                   </tr>
+//                 )}
+//               </tbody>
+//             </table>
+//           </div>
+
+//         </div>
+//       </PageContainer>
+//     </AppLayout>
+//   );
+// }
 
 
 
