@@ -74,6 +74,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       {user?.role === "OPERATOR" && navItem("/operator/alerts", "Alert List")}
       {user?.role === "OPERATOR" && navItem("/operator/tcp-client", "TCP Client")}
       {user?.role === "OPERATOR" && navItem("/reports", "Reports")}
+      {user?.role === "OPERATOR" && navItem("/operator/sms", "SMS")}
       {hasPermission("crfs:read") && navItem("/crfs/live", "CRFS Live")}
       {hasPermission("jammer:write") && navItem("/jammer/control", "Jammer Control")}
     </div>

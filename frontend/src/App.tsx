@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import AdminDashboard from "./pages/AdminDashboard";
-import { OperatorMapPage, OperatorAlertsPage, OperatorTcpClientPage } from "./pages/operator";
+import { OperatorMapPage, OperatorAlertsPage, OperatorTcpClientPage, OperatorSMSPage } from "./pages/operator";
 import ReportsPage from "./pages/ReportsPage";
 import PlanningPage from "./pages/PlanningPage";
 import CrfsLivePage from "./pages/CrfsLivePage";
@@ -95,6 +95,15 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole="OPERATOR">
                 <Navigate to="/operator/tcp-client" replace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/sms"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorSMSPage />
               </ProtectedRoute>
             }
           />
