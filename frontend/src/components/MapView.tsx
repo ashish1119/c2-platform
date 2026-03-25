@@ -1520,16 +1520,28 @@ export default function MapView({
     return points;
   }, [alertMarkers, visibleAssets, signals, coveragePoints, showAlerts, showAssets, showSignals]);
 
-  return (
-    <div
-      style={
-        {
-          position: "relative",
-          ["--jammer-popup-alpha" as string]: jammerPopupAlpha,
-        } as React.CSSProperties
-      }
+ return (
+  <div
+    style={
+      {
+        position: "relative",
+        height: mapHeight,
+        width: "100%",
+        borderRadius: "12px",
+        overflow: "hidden",
+        border: "1px solid rgba(56, 189, 248, 0.3)", // Sky blue border
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+        ["--jammer-popup-alpha" as string]: jammerPopupAlpha,
+      } as React.CSSProperties
+    }
+  >
+    <MapContainer 
+      className={mapDarkFilterClass} 
+      center={initialMapCenter} 
+      zoom={initialMapZoom} 
+      zoomControl={false} 
+      style={{ height: "100%", width: "100%" }}
     >
-    <MapContainer className={mapDarkFilterClass} center={initialMapCenter} zoom={initialMapZoom} zoomControl={false} style={{ height: mapHeight }}>
       <MapCenterController center={mapCenter} onZoomChange={setMapZoom} shouldFollowCenter={!hasSavedView} />
       <MapResetController center={mapCenter} fitPoints={resetFitPoints} savedView={savedView} resetCounter={resetCounter} />
       <MapResizeController />
@@ -1545,6 +1557,7 @@ export default function MapView({
       />
       <ScaleControl position="bottomleft" />
       <ZoomControl position="bottomright" />
+      
       {selectedBaseMap.requiresQuadKey ? (
         <BingTileLayer
           key={`${selectedBaseMap.id}-${mode}`}
@@ -1589,863 +1602,271 @@ export default function MapView({
             position={[asset.latitude, asset.longitude]}
             icon={buildAssetIcon(assetSettings, markerStatus, mapZoom)}
           >
-            <Popup className={isJammer ? "jammer-flash-popup" : undefined}>
-              <div style={isJammer ? { minWidth: 250 } : undefined}>
-                <strong>{asset.name}</strong>
-                <div>Type: {asset.type ?? "UNKNOWN"}</div>
-                <div>Status: {asset.status}</div>
-                <div>Profile: {assetSettings.label}</div>
-                {isJammer && <div>Jammer State: {jammerLifecycleState}</div>}
-                {isJammer && onJammerToggle && (
-                  <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
-                      Module
-                      <select
-                        value={jammerControl.moduleId}
-                        onChange={(event) => setJammerControlField(asset.id, "moduleId", event.target.value)}
-                        disabled={actionPending}
-                      >
-                        {MODULE_ID_OPTIONS.map((moduleId) => (
-                          <option key={moduleId} value={moduleId}>
-                            {moduleId}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+           <Popup className={isJammer ? "jammer-flash-popup" : undefined}>
+  <div style={{ 
+    minWidth: isJammer ? 280 : 200, 
+    color: "#f8fafc", 
+    fontFamily: "'Inter', 'Segoe UI', sans-serif",
+    background: "rgba(15, 23, 42, 0.95)", // Deep navy glass effect
+    padding: "12px",
+    borderRadius: "8px",
+    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
+    border: "1px solid rgba(56, 189, 248, 0.3)"
+  }}>
+    {/* Header Section */}
+    <div style={{ marginBottom: "10px", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", pb: "8px" }}>
+      <strong style={{ 
+        color: "#38bdf8", 
+        fontSize: "15px", 
+        letterSpacing: "0.5px", 
+        textTransform: "uppercase" 
+      }}>
+        {asset.name}
+      </strong>
+    </div>
 
-                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
-                      Code
-                      <select
-                        value={jammerControl.jammingCode}
-                        onChange={(event) => setJammerControlField(asset.id, "jammingCode", event.target.value)}
-                        disabled={actionPending}
-                      >
-                        {JAMMING_CODE_OPTIONS.map((option) => (
-                          <option key={option.code} value={String(option.code)}>
-                            {option.code} - {option.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+    {/* Metadata Grid */}
+    <div style={{ display: "grid", gap: "6px" }}>
+      <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between" }}>
+        <span style={{ color: "#94a3b8" }}>Type:</span>
+        <span style={{ fontWeight: 500 }}>{asset.type ?? "UNKNOWN"}</span>
+      </div>
+      
+      <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between" }}>
+        <span style={{ color: "#94a3b8" }}>Status:</span>
+        <span style={{ 
+          color: asset.status === 'ACTIVE' ? '#4ade80' : '#fb7185',
+          fontWeight: "bold",
+          fontSize: "11px",
+          background: asset.status === 'ACTIVE' ? "rgba(74, 222, 128, 0.1)" : "rgba(251, 113, 133, 0.1)",
+          padding: "1px 6px",
+          borderRadius: "10px"
+        }}>
+          {asset.status}
+        </span>
+      </div>
 
-                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
-                      Frequency (MHz)
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={jammerControl.frequency}
-                        onChange={(event) => setJammerControlField(asset.id, "frequency", event.target.value)}
-                        disabled={actionPending}
-                        placeholder="optional"
-                      />
-                    </label>
+      <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between" }}>
+        <span style={{ color: "#94a3b8" }}>Profile:</span>
+        <span style={{ color: "#e2e8f0" }}>{assetSettings.label}</span>
+      </div>
 
-                    <label style={{ display: "grid", gap: 2, fontSize: 12 }}>
-                      Gain
-                      <select
-                        value={jammerControl.gain}
-                        onChange={(event) => setJammerControlField(asset.id, "gain", event.target.value)}
-                        disabled={actionPending}
-                      >
-                        {GAIN_OPTIONS.map((gain) => (
-                          <option key={gain} value={gain}>
-                            {gain}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                )}
-                {isJammer && onJammerToggle && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isJamming) {
-                        onJammerToggle(asset.id, "stop");
-                        return;
-                      }
+      {isJammer && (
+        <div style={{ 
+          fontSize: "11px", 
+          fontWeight: "bold", 
+          marginTop: "4px",
+          color: isJamming ? "#f87171" : "#38bdf8",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px"
+        }}>
+          <span style={{ 
+            width: "6px", height: "6px", borderRadius: "50%", 
+            background: isJamming ? "#f87171" : "#38bdf8",
+            boxShadow: isJamming ? "0 0 8px #ef4444" : "none"
+          }} />
+          State: {jammerLifecycleState}
+        </div>
+      )}
+    </div>
 
-                      const parsedFrequency = jammerControl.frequency.trim()
-                        ? Number(jammerControl.frequency)
-                        : undefined;
+    {/* Controls Section */}
+    {isJammer && onJammerToggle && (
+      <div style={{ 
+        marginTop: 12, 
+        display: "grid", 
+        gap: 10, 
+        borderTop: "1px solid rgba(56, 189, 248, 0.2)", 
+        paddingTop: 12 
+      }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
+            Module
+            <select
+              style={{ 
+                background: "#1e293b", color: "#f8fafc", border: "1px solid #334155", 
+                borderRadius: "4px", padding: "4px", cursor: "pointer", fontSize: "11px"
+              }}
+              value={jammerControl.moduleId}
+              onChange={(event) => setJammerControlField(asset.id, "moduleId", event.target.value)}
+              disabled={actionPending}
+            >
+              {MODULE_ID_OPTIONS.map((moduleId) => (
+                <option key={moduleId} value={moduleId}>{moduleId}</option>
+              ))}
+            </select>
+          </label>
 
-                      onJammerToggle(asset.id, "start", {
-                        moduleId: Number(jammerControl.moduleId),
-                        jammingCode: Number(jammerControl.jammingCode),
-                        frequency: Number.isFinite(parsedFrequency as number) ? parsedFrequency : undefined,
-                        gain: Number(jammerControl.gain),
-                      });
-                    }}
-                    disabled={actionPending}
-                    style={{
-                      marginTop: 8,
-                      padding: "6px 10px",
-                      borderRadius: 8,
-                      border: "1px solid #cbd5e1",
-                      background: isJamming ? "#dc2626" : "#16a34a",
-                      color: "#ffffff",
-                      cursor: actionPending ? "not-allowed" : "pointer",
-                      opacity: actionPending ? 0.7 : 1,
-                    }}
-                  >
-                    {actionPending ? "Processing..." : isJamming ? "Stop Jamming" : "Start Jamming"}
-                  </button>
-                )}
-              </div>
-            </Popup>
+          <label style={{ display: "grid", gap: 4, fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
+            Freq (MHz)
+            <input
+              style={{ 
+                background: "#1e293b", color: "#f8fafc", border: "1px solid #334155", 
+                borderRadius: "4px", padding: "4px", fontSize: "11px"
+              }}
+              type="number" step="0.1"
+              value={jammerControl.frequency}
+              onChange={(event) => setJammerControlField(asset.id, "frequency", event.target.value)}
+              disabled={actionPending}
+            />
+          </label>
+        </div>
+
+        <label style={{ display: "grid", gap: 4, fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
+          Jamming Code
+          <select
+            style={{ 
+              background: "#1e293b", color: "#f8fafc", border: "1px solid #334155", 
+              borderRadius: "4px", padding: "4px", cursor: "pointer", fontSize: "11px"
+            }}
+            value={jammerControl.jammingCode}
+            onChange={(event) => setJammerControlField(asset.id, "jammingCode", event.target.value)}
+            disabled={actionPending}
+          >
+            {JAMMING_CODE_OPTIONS.map((option) => (
+              <option key={option.code} value={String(option.code)}>{option.code} - {option.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (isJamming) { onJammerToggle(asset.id, "stop"); return; }
+            const parsedFrequency = jammerControl.frequency.trim() ? Number(jammerControl.frequency) : undefined;
+            onJammerToggle(asset.id, "start", {
+              moduleId: Number(jammerControl.moduleId),
+              jammingCode: Number(jammerControl.jammingCode),
+              frequency: Number.isFinite(parsedFrequency as number) ? parsedFrequency : undefined,
+              gain: Number(jammerControl.gain),
+            });
+          }}
+          disabled={actionPending}
+          style={{
+            marginTop: 4, padding: "8px", borderRadius: 4, border: "none",
+            background: isJamming 
+              ? "linear-gradient(to right, #ef4444, #b91c1c)" 
+              : "linear-gradient(to right, #0ea5e9, #2563eb)",
+            color: "#ffffff", fontWeight: "bold", fontSize: "11px",
+            cursor: actionPending ? "not-allowed" : "pointer",
+            transition: "all 0.2s ease",
+            boxShadow: isJamming ? "0 4px 12px rgba(239, 68, 68, 0.3)" : "0 4px 12px rgba(14, 165, 233, 0.3)",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px"
+          }}
+        >
+          {actionPending ? "SYNCING..." : isJamming ? "STOP JAMMING" : "START JAMMING"}
+        </button>
+      </div>
+    )}
+  </div>
+</Popup>
           </Marker>
         );
       })}
 
+      {/* Shapes & Overlays */}
       {showAssets && directionFinderAssets.map((asset) => {
         const radiusM = getAssetCircleRadiusMeters(asset);
-        if (!radiusM) {
-          return null;
-        }
-
-        return (
-          <Circle
-            key={`df-circle-${asset.id}`}
-            center={[asset.latitude, asset.longitude]}
-            radius={radiusM}
-            pathOptions={{
-              color: dfRangeColor,
-              weight: 2,
-              fillColor: dfRangeColor,
-              fillOpacity: 0.08,
-            }}
-          />
-        );
+        return radiusM ? (
+          <Circle key={`df-circle-${asset.id}`} center={[asset.latitude, asset.longitude]} radius={radiusM}
+            pathOptions={{ color: dfRangeColor, weight: 2, fillColor: dfRangeColor, fillOpacity: 0.08 }} />
+        ) : null;
       })}
 
       {showAssets && activeJammerAssetsWithRange.map(({ asset, radiusM }) => (
-        <Circle
-          key={`jammer-range-${asset.id}`}
-          center={[asset.latitude, asset.longitude]}
-          radius={radiusM}
-          pathOptions={{
-            color: jammerRangeColor,
-            weight: 3,
-            dashArray: "8 5",
-            fillColor: jammerRangeColor,
-            fillOpacity: 0.05,
-            opacity: blinkOn ? 0.95 : 0.6,
-          }}
-        />
+        <Circle key={`jammer-range-${asset.id}`} center={[asset.latitude, asset.longitude]} radius={radiusM}
+          pathOptions={{ color: jammerRangeColor, weight: 3, dashArray: "8 5", fillColor: jammerRangeColor, fillOpacity: 0.05, opacity: blinkOn ? 0.95 : 0.6 }} />
       ))}
 
-      {showAssets && activeJammerAssetsWithRange.flatMap(({ asset, radiusM }) => Array.from({ length: JAMMER_SIGNAL_RING_COUNT }, (_, ringIndex) => (<Circle key={`jammer-inner-${asset.id}-${ringIndex}`} center={[asset.latitude, asset.longitude]} radius={((ringIndex + 1) / (JAMMER_SIGNAL_RING_COUNT + 1)) * radiusM} pathOptions={{ color: jammerRangeColor, weight: blinkOn ? (ringIndex % 2 === 0 ? 2.2 : 1.4) : (ringIndex % 2 === 0 ? 1.4 : 2.2), opacity: blinkOn ? (ringIndex % 2 === 0 ? 0.95 : 0.35) : (ringIndex % 2 === 0 ? 0.35 : 0.95), dashArray: "6 6", fillOpacity: 0 }} />)))}
+      {showAssets && activeJammerAssetsWithRange.flatMap(({ asset, radiusM }) => Array.from({ length: JAMMER_SIGNAL_RING_COUNT }, (_, ringIndex) => (
+        <Circle key={`jammer-inner-${asset.id}-${ringIndex}`} center={[asset.latitude, asset.longitude]} radius={((ringIndex + 1) / (JAMMER_SIGNAL_RING_COUNT + 1)) * radiusM} 
+          pathOptions={{ color: jammerRangeColor, weight: blinkOn ? (ringIndex % 2 === 0 ? 2.2 : 1.4) : (ringIndex % 2 === 0 ? 1.4 : 2.2), opacity: blinkOn ? 0.7 : 0.2, dashArray: "6 6", fillOpacity: 0 }} />
+      )))}
 
-      {showAssets && jammerRangeSpokes.map((spoke) => (
-        <Polyline
-          key={spoke.key}
-          positions={[spoke.center, spoke.perimeter]}
-          pathOptions={{
-            color: jammerRangeColor,
-            weight: 2,
-            opacity: blinkOn ? 0.9 : 0.45,
-          }}
-        />
-      ))}
       {showAlerts && alertMarkers.map((alert) => (
-        <CircleMarker
-          key={`alert-${alert.id}`}
-          center={[alert.latitude as number, alert.longitude as number]}
+        <CircleMarker key={`alert-${alert.id}`} center={[alert.latitude as number, alert.longitude as number]} 
           radius={String(alert.status).toUpperCase() === "NEW" ? (blinkOn ? 12 : 6) : 8}
-          pathOptions={{
-            color: String(alert.status).toUpperCase() === "NEW" ? "#ef4444" : "#f59e0b",
-            fillColor: String(alert.status).toUpperCase() === "NEW" ? "#ef4444" : "#f59e0b",
-            fillOpacity: String(alert.status).toUpperCase() === "NEW" ? (blinkOn ? 0.7 : 0.2) : 0.65,
-            weight: 2,
-          }}
-        >
-          <Popup>
-            <div>
-              <div><strong>Alert: {alert.severity}</strong></div>
-              <div>{alert.description ?? "Decodio Trigger"}</div>
-              <div>Status: {alert.status}</div>
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
-
-      {coveragePoints.map((point, idx) => (
-        <CircleMarker
-          key={`cov-${idx}`}
-          center={[point.latitude, point.longitude]}
-          radius={4}
-          pathOptions={{ color: "#16a34a" }}
-        >
-          <Popup>Coverage: {point.coverage_db} dB</Popup>
-        </CircleMarker>
+          pathOptions={{ color: String(alert.status).toUpperCase() === "NEW" ? "#ef4444" : "#f59e0b", fillOpacity: 0.6 }} />
       ))}
 
       {showSignals && signals.map((signal) => (
-        <CircleMarker
-          key={`sig-${signal.id}`}
-          center={[signal.latitude, signal.longitude]}
-          radius={5}
-          pathOptions={{ color: "#1d4ed8" }}
-        >
-          <Popup>
-            <div>
-              <div>Frequency: {signal.frequency}</div>
-              <div>Modulation: {signal.modulation}</div>
-              <div>Power: {signal.power_level}</div>
-              <div>Detected: {new Date(signal.detected_at).toLocaleString()}</div>
-            </div>
-          </Popup>
-        </CircleMarker>
+        <CircleMarker key={`sig-${signal.id}`} center={[signal.latitude, signal.longitude]} radius={5} pathOptions={{ color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 0.8 }} />
       ))}
 
-      {tcpPointerLine && pointerAnchorAsset && latestTcpFrameWithBearing && (
-        <>
-          <CircleMarker
-            center={tcpPointerLine.end}
-            radius={6}
-            pathOptions={{ color: "#ef4444", fillColor: "#ef4444", fillOpacity: 0.85, weight: 2 }}
-          >
-            <Popup>
-              <div>
-                <strong>TCP DF Bearing Line</strong>
-                <div>Anchor: {pointerAnchorAsset.name}</div>
-                <div>Bearing: {latestTcpFrameWithBearing.bearingDeg.toFixed(1)} deg</div>
-                <div>Field: {latestTcpFrameWithBearing.sourceKey} = {latestTcpFrameWithBearing.sourceValue}</div>
-                <div>Length: {(TCP_DF_LINE_DISTANCE_METERS / 1000).toFixed(1)} km</div>
-                <div>Frame Time: {latestTcpFrameWithBearing.frame.received_at ? new Date(latestTcpFrameWithBearing.frame.received_at).toLocaleString() : "-"}</div>
-                <div>Protocol: {latestTcpFrameWithBearing.frame.protocol ?? "-"}</div>
-              </div>
-            </Popup>
-          </CircleMarker>
-          <Polyline
-            positions={[tcpPointerLine.start, tcpPointerLine.end]}
-            pathOptions={{ color: '#ef4444', weight: 4, dashArray: '8 6', opacity: 0.85 }}
-          />
-        </>
+      {tcpPointerLine && (
+        <Polyline positions={[tcpPointerLine.start, tcpPointerLine.end]} pathOptions={{ color: '#f43f5e', weight: 3, dashArray: '10 5', opacity: 0.9 }} />
       )}
     </MapContainer>
 
-      <div
-        style={{
-          position: "absolute",
-          left: 16,
-          top: 16,
-          zIndex: 1000,
-          display: "grid",
-          gap: 6,
-        }}
-      >
+    {/* --- TACTICAL GLASS SIDEBAR --- */}
+    <div
+      style={{
+        position: "absolute", left: 16, top: 16, zIndex: 1000, display: "flex", flexDirection: "column", gap: 10,
+        padding: "12px", borderRadius: "16px", background: "rgba(15, 23, 42, 0.7)", backdropFilter: "blur(12px)",
+        border: "1px solid rgba(56, 189, 248, 0.3)", boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
+      }}
+    >
+      {[
+        { icon: "💾", title: "Save View", onClick: () => currentView && setSavedView(currentView), active: !!savedView },
+        { icon: "⟲", title: "Reset View", onClick: () => setResetCounter(c => c + 1) },
+        { icon: "⌖", title: "Assets", onClick: () => setShowAssets(!showAssets), active: showAssets, color: "#38bdf8" },
+        { icon: "📡", title: "Signals", onClick: () => setShowSignals(!showSignals), active: showSignals, color: "#38bdf8" },
+        { icon: "🚨", title: "Alerts", onClick: () => setShowAlerts(!showAlerts), active: showAlerts, color: "#fb7185" },
+        { icon: "🏷", title: "Labels", onClick: () => setShowNodeLabels(!showNodeLabels), active: showNodeLabels },
+        { icon: "🗺", title: "Map Layers", onClick: () => setShowBaseMapSelector(!showBaseMapSelector), active: showBaseMapSelector },
+      ].map((btn, idx) => (
         <button
-          type="button"
-          title="Controls: SV Save view | R Reset to saved/default view | A Assets toggle | ! Alerts toggle | S Signals toggle | N Node labels toggle | Draw tools on top-right (press Enter to finish)"
-          aria-label="Map controls legend"
+          key={idx} type="button" title={btn.title} onClick={btn.onClick}
           style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: "#ffffff",
-            color: dfRangeColor,
-            cursor: "help",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
+            width: 34, height: 34, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            background: btn.active ? "rgba(56, 189, 248, 0.2)" : "rgba(255,255,255,0.05)",
+            border: `1px solid ${btn.active ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
+            color: btn.color || "#f8fafc", fontSize: "16px", transition: "all 0.2s"
           }}
         >
-          ⌖
+          {btn.icon}
         </button>
+      ))}
+    </div>
 
-        <button
-          type="button"
-          title="Popup transparency"
-          aria-label="Toggle popup transparency slider"
-          onClick={() => setShowTransparencySlider((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showTransparencySlider ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {"\u25D0"}
-        </button>
-
-        {showTransparencySlider && (
-          <div
-            title="Jammer popup transparency"
-            style={{
-              width: 120,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.96)",
-              color: "#0f172a",
-              padding: "6px 8px",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1 }}>Popup Transparency</div>
-            <input
-              type="range"
-              min={MIN_JAMMER_POPUP_ALPHA}
-              max={MAX_JAMMER_POPUP_ALPHA}
-              step={0.05}
-              value={jammerPopupAlpha}
-              onChange={(event) => {
-                const nextValue = Number(event.target.value);
-                if (!Number.isFinite(nextValue)) {
-                  return;
-                }
-                setJammerPopupAlpha(Math.max(MIN_JAMMER_POPUP_ALPHA, Math.min(MAX_JAMMER_POPUP_ALPHA, nextValue)));
-              }}
-              style={{ width: "100%", margin: 0 }}
-            />
-            <div style={{ fontSize: 11, color: "#334155" }}>{Math.round((1 - jammerPopupAlpha) * 100)}%</div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="Jammer ring color"
-          aria-label="Toggle jammer ring color picker"
-          onClick={() => setShowJammerColorPicker((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showJammerColorPicker ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F3A8)}
-        </button>
-
-        {showJammerColorPicker && (
-          <div
-            title="Jammer range color"
-            style={{
-              width: 120,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.96)",
-              color: "#0f172a",
-              padding: "6px 8px",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1 }}>Jammer Ring Color</div>
-            <input
-              type="color"
-              value={jammerRangeColor}
-              onChange={(event) => setJammerRangeColor(event.target.value)}
-              style={{ width: "100%", height: 24, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-            />
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="DF ring color"
-          aria-label="Toggle DF ring color picker"
-          onClick={() => setShowDfColorPicker((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showDfColorPicker ? "#e2e8f0" : "#ffffff",
-            color: dfRangeColor,
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4E1)}
-        </button>
-
-        {showDfColorPicker && (
-          <div
-            title="Direction finder range color"
-            style={{
-              width: 120,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "rgba(255, 255, 255, 0.96)",
-              color: "#0f172a",
-              padding: "6px 8px",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.1 }}>DF Ring Color</div>
-            <input
-              type="color"
-              value={dfRangeColor}
-              onChange={(event) => setDfRangeColor(event.target.value)}
-              style={{ width: "100%", height: 24, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-            />
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="Base map selection"
-          aria-label="Toggle base map selector"
-          onClick={() => setShowBaseMapSelector((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showBaseMapSelector ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F5FA)}
-        </button>
-
-        {showBaseMapSelector && (
-          <select
-            title="Base map"
-            value={baseMapId}
-            onChange={(event) => {
-              handleBaseMapSelectionChange(event.target.value);
-              setShowBaseMapSelector(false);
-            }}
-            style={{
-              height: 30,
-              border: "1px solid #d1d5db",
-              borderRadius: 6,
-              background: "#ffffff",
-              color: "#0f172a",
-              padding: "0 6px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {BASE_MAP_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>{option.label}</option>
-            ))}
-          </select>
-        )}
-
-        {!isOfflineBaseMap && baseMapTileErrors >= 1 && (
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.96)",
-              border: "1px solid #f59e0b",
-              borderRadius: 6,
-              color: "#92400e",
-              fontSize: 11,
-              fontWeight: 600,
-              maxWidth: 180,
-              padding: "4px 6px",
-            }}
-          >
-            Base map failed to load. Switching to offline tiles.
-          </div>
-        )}
-
-        {baseMapId === "offline-local" && baseMapTileErrors >= 1 && (
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.96)",
-              border: "1px solid #f59e0b",
-              borderRadius: 6,
-              color: "#92400e",
-              fontSize: 11,
-              fontWeight: 600,
-              maxWidth: 180,
-              padding: "4px 6px",
-            }}
-          >
-            Offline local tiles unavailable. Switching to offline grid.
-          </div>
-        )}
-
-        {isOfflineBaseMap && (
-          <div
-            style={{
-              background: "rgba(255, 255, 255, 0.96)",
-              border: "1px solid #16a34a",
-              borderRadius: 6,
-              color: "#166534",
-              fontSize: 11,
-              fontWeight: 600,
-              maxWidth: 180,
-              padding: "4px 6px",
-            }}
-          >
-            Offline map mode active. Add XYZ tiles in /public/tiles for full map detail.
-            {autoOfflineFallbackActive && navigator.onLine ? " Retrying online map automatically..." : ""}
-          </div>
-        )}
-
-        <button
-          type="button"
-          title="Save current view"
-          onClick={() => {
-            if (currentView) {
-              setSavedView(currentView);
-            }
-          }}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: savedView ? "#ffffff" : "#f8fafc",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4BE)}
-        </button>
-
-        <button
-          type="button"
-          title="Reset view"
-          onClick={() => {
-            setResetCounter((current) => current + 1);
-          }}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {"\u21BA"}
-        </button>
-
-        <button
-          type="button"
-          title={showAssets ? "Hide assets" : "Show assets"}
-          onClick={() => setShowAssets((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showAssets ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4CD)}
-        </button>
-
-        <button
-          type="button"
-          title={showSignals ? "Hide signals" : "Show signals"}
-          onClick={() => setShowSignals((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showSignals ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4F6)}
-        </button>
-
-        <button
-          type="button"
-          title={showNodeLabels ? "Hide node labels" : "Show node labels"}
-          onClick={() => setShowNodeLabels((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showNodeLabels ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F3F7)}
-        </button>
-
-        <button
-          type="button"
-          title={showAlerts ? "Hide alerts" : "Show alerts"}
-          onClick={() => setShowAlerts((current) => !current)}
-          style={{
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showAlerts ? "#ffffff" : "#f1f5f9",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F6A8)}
-        </button>
-
-
-      </div>
-
-      {activeDrawShape && (
-        <div
-          style={{
-            position: "absolute",
-            right: 58,
-            top: activeShapeMenuTop,
-            zIndex: 1100,
-            display: "flex",
-            alignItems: "center",
-            background: "rgba(255, 255, 255, 0.94)",
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            padding: "3px",
-          }}
-        >
-          <input
-            title={`${activeShapeLabel} color`}
-            type="color"
-            value={activeShapeColor}
-            onChange={(event) => handleActiveShapeColorChange(event.target.value)}
-            style={{ width: 14, height: 14, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-          />
+    {/* --- FLOATING STATUS BAR (BOTTOM) --- */}
+    <div style={{ position: "absolute", left: 16, bottom: 20, zIndex: 1000, display: "flex", gap: "10px", alignItems: "flex-end" }}>
+       {/* Glass Coordinates */}
+      {mousePosition && (
+        <div style={{ 
+          background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(56, 189, 248, 0.4)",
+          padding: "6px 12px", borderRadius: "8px", color: "#38bdf8", fontSize: "11px", fontFamily: "monospace", letterSpacing: "0.5px"
+        }}>
+          LAT: {mousePosition[0].toFixed(6)} | LON: {mousePosition[1].toFixed(6)}
         </div>
       )}
 
-      <div
-        title="Compass (North Up)"
-        style={{
-          position: "absolute",
-          right: 58,
-          top: 16,
-          zIndex: 1000,
-          width: 56,
-          height: 56,
-          borderRadius: 999,
-          border: "1px solid #d1d5db",
-          background: "rgba(255, 255, 255, 0.94)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 2px 8px rgba(15, 23, 42, 0.25)",
-          backdropFilter: "blur(2px)",
-        }}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 64 64" aria-hidden>
-          <circle cx="32" cy="32" r="30" fill="#0f172a" opacity="0.9" />
-          <circle cx="32" cy="32" r="26" fill="#f8fafc" />
-          <circle cx="32" cy="32" r="24" fill="none" stroke="#475569" strokeWidth="1" />
-
-          <g stroke="#64748b" strokeWidth="1">
-            <line x1="32" y1="8" x2="32" y2="12" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(30 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(60 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(90 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(120 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(150 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(180 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(210 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(240 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(270 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(300 32 32)" />
-            <line x1="32" y1="8" x2="32" y2="12" transform="rotate(330 32 32)" />
-          </g>
-
-          <g stroke="#334155" strokeWidth="1.6">
-            <line x1="32" y1="6" x2="32" y2="13" />
-            <line x1="32" y1="6" x2="32" y2="13" transform="rotate(90 32 32)" />
-            <line x1="32" y1="6" x2="32" y2="13" transform="rotate(180 32 32)" />
-            <line x1="32" y1="6" x2="32" y2="13" transform="rotate(270 32 32)" />
-          </g>
-
-          <line x1="32" y1="15" x2="32" y2="49" stroke="#94a3b8" strokeWidth="0.8" opacity="0.75" />
-          <line x1="15" y1="32" x2="49" y2="32" stroke="#94a3b8" strokeWidth="0.8" opacity="0.75" />
-
-          <polygon points="32,10 38,31 32,27 26,31" fill="#dc2626" />
-          <polygon points="32,54 38,33 32,37 26,33" fill="#64748b" />
-          <circle cx="32" cy="32" r="2.8" fill="#0f172a" />
-
-          <text x="32" y="9" textAnchor="middle" fontSize="7" fontWeight="700" fill="#b91c1c">N</text>
-          <text x="55" y="34" textAnchor="middle" fontSize="6" fontWeight="700" fill="#334155">E</text>
-          <text x="32" y="60" textAnchor="middle" fontSize="6" fontWeight="700" fill="#334155">S</text>
-          <text x="9" y="34" textAnchor="middle" fontSize="6" fontWeight="700" fill="#334155">W</text>
-          <text x="32" y="42" textAnchor="middle" fontSize="5" fontWeight="700" fill="#475569">6400</text>
+      {/* Compact Tactical Compass */}
+      <div style={{
+        width: 60, height: 60, borderRadius: "50%", background: "rgba(15, 23, 42, 0.8)", border: "2px solid #38bdf8",
+        display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 15px rgba(56, 189, 248, 0.2)"
+      }}>
+        <svg width="45" height="45" viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(56, 189, 248, 0.2)" strokeWidth="1" />
+          <path d="M32 10 L36 32 L32 35 L28 32 Z" fill="#ef4444" />
+          <path d="M32 54 L28 32 L32 29 L36 32 Z" fill="#94a3b8" />
+          <text x="32" y="16" textAnchor="middle" fontSize="9" fill="#ef4444" fontWeight="bold">N</text>
         </svg>
       </div>
-
-      {mousePosition && (
-        <div
-          style={{
-            position: "absolute",
-            left: 16,
-            bottom: 46,
-            zIndex: 1000,
-            background: "rgba(255, 255, 255, 0.92)",
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            padding: "3px 8px",
-            fontSize: 12,
-            color: "#0f172a",
-          }}
-        >
-          {`Lat ${mousePosition[0].toFixed(6)}, Lon ${mousePosition[1].toFixed(6)}`}
-        </div>
-      )}
-
-      {assetTypeLegend.length > 0 && (
-        <button
-          type="button"
-          title="Asset type legend"
-          aria-label="Toggle asset type legend"
-          onClick={() => setShowAssetLegend((current) => !current)}
-          style={{
-            position: "absolute",
-            right: 10,
-            bottom: 118,
-            zIndex: 901,
-            width: 30,
-            height: 30,
-            border: "1px solid #d1d5db",
-            borderRadius: 6,
-            background: showAssetLegend ? "#e2e8f0" : "#ffffff",
-            color: "#0f172a",
-            cursor: "pointer",
-            fontWeight: 700,
-            lineHeight: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 0,
-            fontSize: 15,
-          }}
-        >
-          {String.fromCodePoint(0x1F4DA)}
-        </button>
-      )}
-
-      {assetTypeLegend.length > 0 && showAssetLegend && (
-        <div
-          style={{
-            position: "absolute",
-            right: 10,
-            bottom: 154,
-            zIndex: 900,
-            background: "rgba(255, 255, 255, 0.92)",
-            border: "1px solid #d1d5db",
-            borderRadius: 16,
-            padding: "14px 14px",
-            minWidth: 210,
-            maxHeight: "calc(100% - 180px)",
-            overflowY: "auto",
-            fontSize: 14,
-            lineHeight: 1.4,
-            backdropFilter: "blur(2px)",
-          }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: 10, color: "#0f172a" }}>Asset Type Legend</div>
-          {assetTypeLegend.map(([typeKey, settings]) => (
-            <div key={typeKey} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, color: "#1e293b" }}>
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  display: "inline-flex",
-                }}
-                dangerouslySetInnerHTML={{
-                  __html: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">${getShapeSvg(settings.shape, 22, settings.markerColor)}<text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Inter, sans-serif" font-size="8" font-weight="700">${settings.symbol}</text></svg>`,
-                }}
-              >
-              </span>
-              <span>{settings.label}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
-  );
+
+    {/* Floating Selectors */}
+    {showBaseMapSelector && (
+      <div style={{ position: "absolute", left: 70, top: 250, zIndex: 1100, background: "#1e293b", padding: "10px", borderRadius: "8px", border: "1px solid #38bdf8" }}>
+        <select value={baseMapId} onChange={(e) => { handleBaseMapSelectionChange(e.target.value); setShowBaseMapSelector(false); }}
+          style={{ background: "#0f172a", color: "white", border: "1px solid #334155", padding: "4px" }}>
+          {BASE_MAP_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+        </select>
+      </div>
+    )}
+  </div>
+);
 }
 

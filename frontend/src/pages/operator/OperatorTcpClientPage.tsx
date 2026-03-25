@@ -52,7 +52,9 @@ export default function OperatorTcpClientPage() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const [health, setHealth] = useState<TcpListenerHealth | null>(null);
-  const [clientStatus, setClientStatus] = useState<TcpClientStatus | null>(null);
+  const [clientStatus, setClientStatus] = useState<TcpClientStatus | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -81,37 +83,44 @@ export default function OperatorTcpClientPage() {
   const canEditEndpoint = hasPermission("tcp_listener:write");
   const isConnected = clientStatus?.connected ?? false;
 
-  const load = useCallback(async (isManualRefresh = false) => {
-    try {
-      if (isManualRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      setError(null);
+  const load = useCallback(
+    async (isManualRefresh = false) => {
+      try {
+        if (isManualRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+        setError(null);
 
-      const [healthResponse, clientResponse] = await Promise.all([
-        getTcpListenerHealth(),
-        getTcpClientStatus(),
-      ]);
-      setHealth(healthResponse.data);
-      setClientStatus(clientResponse.data);
+        const [healthResponse, clientResponse] = await Promise.all([
+          getTcpListenerHealth(),
+          getTcpClientStatus(),
+        ]);
+        setHealth(healthResponse.data);
+        setClientStatus(clientResponse.data);
 
-      if (!serverDirty) {
-        const resolvedHost = clientResponse.data.target_host ?? healthResponse.data.host;
-        const resolvedPort = clientResponse.data.target_port ?? healthResponse.data.port;
-        setServerHost(resolvedHost ?? "");
-        setServerPort(resolvedPort ? String(resolvedPort) : "");
-        setProtocol(clientResponse.data.protocol ?? "proto");
-        setLengthEndian(clientResponse.data.length_endian ?? "little");
+        if (!serverDirty) {
+          const resolvedHost =
+            clientResponse.data.target_host ?? healthResponse.data.host;
+          const resolvedPort =
+            clientResponse.data.target_port ?? healthResponse.data.port;
+          setServerHost(resolvedHost ?? "");
+          setServerPort(resolvedPort ? String(resolvedPort) : "");
+          setProtocol(clientResponse.data.protocol ?? "proto");
+          setLengthEndian(clientResponse.data.length_endian ?? "little");
+        }
+      } catch (loadError) {
+        setError(
+          parseApiErrorMessage(loadError, "Failed to load TCP client status."),
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-    } catch (loadError) {
-      setError(parseApiErrorMessage(loadError, "Failed to load TCP client status."));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [serverDirty]);
+    },
+    [serverDirty],
+  );
 
   useEffect(() => {
     if (!canReadEndpoint) {
@@ -133,7 +142,9 @@ export default function OperatorTcpClientPage() {
 
   const connectToServer = async () => {
     if (!canEditEndpoint) {
-      setConnectionStatus("You do not have permission to connect/disconnect TCP client.");
+      setConnectionStatus(
+        "You do not have permission to connect/disconnect TCP client.",
+      );
       return;
     }
 
@@ -168,7 +179,9 @@ export default function OperatorTcpClientPage() {
       setServerDirty(false);
       setConnectionStatus("Connected successfully.");
     } catch (error) {
-      setConnectionStatus(parseApiErrorMessage(error, "Failed to connect TCP client."));
+      setConnectionStatus(
+        parseApiErrorMessage(error, "Failed to connect TCP client."),
+      );
     } finally {
       setConnecting(false);
     }
@@ -176,7 +189,9 @@ export default function OperatorTcpClientPage() {
 
   const disconnectFromServer = async () => {
     if (!canEditEndpoint) {
-      setConnectionStatus("You do not have permission to connect/disconnect TCP client.");
+      setConnectionStatus(
+        "You do not have permission to connect/disconnect TCP client.",
+      );
       return;
     }
 
@@ -187,13 +202,17 @@ export default function OperatorTcpClientPage() {
       setClientStatus(response.data);
       setConnectionStatus("Disconnected.");
     } catch (error) {
-      setConnectionStatus(parseApiErrorMessage(error, "Failed to disconnect TCP client."));
+      setConnectionStatus(
+        parseApiErrorMessage(error, "Failed to disconnect TCP client."),
+      );
     } finally {
       setDisconnecting(false);
     }
   };
 
-  const recentMessages = (clientStatus?.recent_messages ?? []).slice().reverse();
+  const recentMessages = (clientStatus?.recent_messages ?? [])
+    .slice()
+    .reverse();
 
   return (
     <AppLayout>
@@ -216,7 +235,8 @@ export default function OperatorTcpClientPage() {
                 borderRadius: theme.radius.md,
                 background: theme.colors.primary,
                 color: theme.colors.surface,
-                cursor: refreshing || !canReadEndpoint ? "not-allowed" : "pointer",
+                cursor:
+                  refreshing || !canReadEndpoint ? "not-allowed" : "pointer",
                 opacity: refreshing || !canReadEndpoint ? 0.75 : 1,
                 padding: `${theme.spacing.sm} ${theme.spacing.md}`,
               }}
@@ -225,33 +245,79 @@ export default function OperatorTcpClientPage() {
             </button>
           </div>
 
-          <Card>
-            <h3 style={{ marginTop: 0, marginBottom: theme.spacing.sm }}>Access</h3>
-            <div style={{ display: "flex", gap: theme.spacing.sm, flexWrap: "wrap" }}>
-              <span
-                style={{
-                  padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-                  borderRadius: theme.radius.md,
-                  border: `1px solid ${canReadEndpoint ? theme.colors.success : theme.colors.danger}`,
-                  color: canReadEndpoint ? theme.colors.success : theme.colors.danger,
-                  background: theme.colors.surfaceAlt,
-                }}
-              >
-                Read: {canReadEndpoint ? "Allowed" : "Denied"}
-              </span>
-              <span
-                style={{
-                  padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-                  borderRadius: theme.radius.md,
-                  border: `1px solid ${canEditEndpoint ? theme.colors.success : theme.colors.danger}`,
-                  color: canEditEndpoint ? theme.colors.success : theme.colors.danger,
-                  background: theme.colors.surfaceAlt,
-                }}
-              >
-                Write: {canEditEndpoint ? "Allowed" : "Denied"}
-              </span>
-            </div>
-          </Card>
+        <Card>
+  <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+    Access
+  </h3>
+
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 16,
+    }}
+  >
+    {/* READ */}
+    <div
+      style={{
+        padding: 14,
+        borderRadius: 10,
+        backdropFilter: "blur(10px)",
+        background:
+          theme.mode === "dark"
+            ? "rgba(255,255,255,0.05)"
+            : "rgba(255,255,255,0.6)",
+        border: "1px solid rgba(255,255,255,0.2)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <span style={{ fontSize: 12, color: "#64748B" }}>Read Access</span>
+
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          color: canReadEndpoint ? "#22c55e" : "#ef4444",
+        }}
+      >
+        {canReadEndpoint ? "Allowed" : "Denied"}
+      </span>
+    </div>
+
+    {/* WRITE */}
+    <div
+      style={{
+        padding: 14,
+        borderRadius: 10,
+        backdropFilter: "blur(10px)",
+        background:
+          theme.mode === "dark"
+            ? "rgba(255,255,255,0.05)"
+            : "rgba(255,255,255,0.6)",
+        border: "1px solid rgba(255,255,255,0.2)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <span style={{ fontSize: 12, color: "#64748B" }}>
+        Write Access
+      </span>
+
+      <span
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          color: canEditEndpoint ? "#22c55e" : "#ef4444",
+        }}
+      >
+        {canEditEndpoint ? "Allowed" : "Denied"}
+      </span>
+    </div>
+  </div>
+</Card>
 
           <div
             style={{
@@ -261,26 +327,44 @@ export default function OperatorTcpClientPage() {
             }}
           >
             <MetricCard label="Listener" value={statusLabel} />
-            <MetricCard label="Active Connections" value={loading ? "..." : health?.active_connections ?? 0} />
-            <MetricCard label="Total Connections" value={loading ? "..." : health?.total_connections ?? 0} />
-            <MetricCard label="Messages Received" value={loading ? "..." : health?.messages_received ?? 0} />
-            <MetricCard label="Messages Rejected" value={loading ? "..." : health?.messages_rejected ?? 0} />
+            <MetricCard
+              label="Active Connections"
+              value={loading ? "..." : (health?.active_connections ?? 0)}
+            />
+            <MetricCard
+              label="Total Connections"
+              value={loading ? "..." : (health?.total_connections ?? 0)}
+            />
+            <MetricCard
+              label="Messages Received"
+              value={loading ? "..." : (health?.messages_received ?? 0)}
+            />
+            <MetricCard
+              label="Messages Rejected"
+              value={loading ? "..." : (health?.messages_rejected ?? 0)}
+            />
           </div>
 
           {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
 
           <Card>
-            <h3 style={{ marginTop: 0, marginBottom: theme.spacing.sm }}>TCP Client Connection</h3>
+            <h3 style={{ marginTop: 0, marginBottom: theme.spacing.md }}>
+              TCP Client Connection
+            </h3>
+
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: theme.spacing.sm,
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: 16,
                 alignItems: "end",
               }}
             >
-              <label style={{ display: "grid", gap: theme.spacing.xs }}>
-                <span>Server IP</span>
+              {/* Server IP */}
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, color: "#64748B" }}>
+                  Server IP
+                </span>
                 <input
                   value={serverHost}
                   disabled={!canEditEndpoint}
@@ -291,39 +375,47 @@ export default function OperatorTcpClientPage() {
                   placeholder="192.168.1.10"
                   style={{
                     width: "100%",
-                    padding: theme.spacing.sm,
-                    borderRadius: theme.radius.sm,
-                    border: `1px solid ${theme.colors.border}`,
-                    background: theme.colors.surfaceAlt,
-                    color: theme.colors.textPrimary,
+                    padding: "10px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontSize: 14,
                   }}
                 />
               </label>
 
-              <label style={{ display: "grid", gap: theme.spacing.xs }}>
-                <span>Server Port</span>
+              {/* Port */}
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, color: "#64748B" }}>
+                  Server Port
+                </span>
                 <input
                   value={serverPort}
                   disabled={!canEditEndpoint}
                   onChange={(event) => {
-                    setServerPort(event.target.value.replace(/\D/g, "").slice(0, 5));
+                    setServerPort(
+                      event.target.value.replace(/\D/g, "").slice(0, 5),
+                    );
                     setServerDirty(true);
                   }}
                   placeholder="9300"
                   inputMode="numeric"
                   style={{
                     width: "100%",
-                    padding: theme.spacing.sm,
-                    borderRadius: theme.radius.sm,
-                    border: `1px solid ${theme.colors.border}`,
-                    background: theme.colors.surfaceAlt,
-                    color: theme.colors.textPrimary,
+                    padding: "10px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontSize: 14,
                   }}
                 />
               </label>
 
-              <label style={{ display: "grid", gap: theme.spacing.xs }}>
-                <span>Protocol</span>
+              {/* Protocol */}
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, color: "#64748B" }}>Protocol</span>
                 <select
                   value={protocol}
                   disabled={!canEditEndpoint}
@@ -333,21 +425,24 @@ export default function OperatorTcpClientPage() {
                   }}
                   style={{
                     width: "100%",
-                    padding: theme.spacing.sm,
-                    borderRadius: theme.radius.sm,
-                    border: `1px solid ${theme.colors.border}`,
-                    background: theme.colors.surfaceAlt,
-                    color: theme.colors.textPrimary,
-                    height: 38,
+                    padding: "10px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontSize: 14,
                   }}
                 >
-                  <option value="proto">proto (length-prefixed protobuf)</option>
-                  <option value="line">line (newline text/json)</option>
+                  <option value="proto">proto (protobuf)</option>
+                  <option value="line">line (text/json)</option>
                 </select>
               </label>
 
-              <label style={{ display: "grid", gap: theme.spacing.xs }}>
-                <span>Length Endian</span>
+              {/* Endian */}
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, color: "#64748B" }}>
+                  Length Endian
+                </span>
                 <select
                   value={lengthEndian}
                   disabled={!canEditEndpoint || protocol !== "proto"}
@@ -357,12 +452,12 @@ export default function OperatorTcpClientPage() {
                   }}
                   style={{
                     width: "100%",
-                    padding: theme.spacing.sm,
-                    borderRadius: theme.radius.sm,
-                    border: `1px solid ${theme.colors.border}`,
-                    background: theme.colors.surfaceAlt,
-                    color: theme.colors.textPrimary,
-                    height: 38,
+                    padding: "10px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    color: "#0f172a",
+                    fontSize: 14,
                     opacity: protocol === "proto" ? 1 : 0.6,
                   }}
                 >
@@ -371,152 +466,221 @@ export default function OperatorTcpClientPage() {
                 </select>
               </label>
 
+              {/* 🔥 TOGGLE BUTTON */}
               <button
                 type="button"
-                onClick={connectToServer}
-                disabled={!canEditEndpoint || connecting || isConnected}
+                onClick={isConnected ? disconnectFromServer : connectToServer}
+                disabled={!canEditEndpoint || connecting || disconnecting}
                 style={{
+                  gridColumn: "span 2",
+                  height: 44,
+                  borderRadius: 6,
                   border: "none",
-                  borderRadius: theme.radius.md,
-                  background: theme.colors.primary,
-                  color: theme.colors.surface,
-                  cursor: !canEditEndpoint || connecting || isConnected ? "not-allowed" : "pointer",
-                  opacity: !canEditEndpoint || connecting || isConnected ? 0.75 : 1,
-                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                  height: 38,
+                  background: isConnected ? "#ef4444" : "#11c1ca",
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
                 }}
               >
-                {connecting ? "Connecting..." : "Connect"}
-              </button>
-
-              <button
-                type="button"
-                onClick={disconnectFromServer}
-                disabled={!canEditEndpoint || disconnecting || !isConnected}
-                style={{
-                  border: `1px solid ${theme.colors.border}`,
-                  borderRadius: theme.radius.md,
-                  background: theme.colors.surfaceAlt,
-                  color: theme.colors.textPrimary,
-                  cursor: !canEditEndpoint || disconnecting || !isConnected ? "not-allowed" : "pointer",
-                  opacity: !canEditEndpoint || disconnecting || !isConnected ? 0.75 : 1,
-                  padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                  height: 38,
-                }}
-              >
-                {disconnecting ? "Disconnecting..." : "Disconnect"}
+                {connecting || disconnecting
+                  ? "Processing..."
+                  : isConnected
+                    ? "Disconnect"
+                    : "Connect"}
               </button>
             </div>
 
-            <div style={{ marginTop: theme.spacing.sm, color: theme.colors.textSecondary }}>
+            {/* Connection Info */}
+            <div style={{ marginTop: 12, color: "#64748B", fontSize: 13 }}>
               Connection: {isConnected ? "Connected" : "Disconnected"}
               {clientStatus?.target_host && clientStatus?.target_port
                 ? ` (${clientStatus.target_host}:${clientStatus.target_port})`
                 : ""}
-              {clientStatus?.protocol ? ` | protocol=${clientStatus.protocol}` : ""}
-              {clientStatus?.protocol === "proto" && clientStatus.length_endian
-                ? ` (${clientStatus.length_endian})`
-                : ""}
             </div>
 
+            {/* Status Message */}
             {connectionStatus && (
               <div
                 style={{
-                  marginTop: theme.spacing.sm,
+                  marginTop: 10,
+                  fontSize: 13,
                   color:
                     connectionStatus.toLowerCase().includes("failed") ||
-                    connectionStatus.toLowerCase().includes("invalid") ||
-                    connectionStatus.toLowerCase().includes("unable") ||
-                    connectionStatus.toLowerCase().includes("required")
-                      ? theme.colors.danger
-                      : theme.colors.textSecondary,
+                    connectionStatus.toLowerCase().includes("invalid")
+                      ? "#ef4444"
+                      : "#64748B",
                 }}
               >
                 {connectionStatus}
               </div>
             )}
+          </Card>
 
-            {!canEditEndpoint && (
-              <div style={{ marginTop: theme.spacing.sm, color: theme.colors.textSecondary }}>
-                Read-only: contact admin for `tcp_listener:write` permission.
+         <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "1fr 2fr", // left smaller, right bigger
+    gap: 20,
+    alignItems: "start",
+  }}
+>
+  {/* LEFT CARD */}
+  <Card>
+    <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+      Client Receive Metrics
+    </h3>
+
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 16,
+      }}
+    >
+      {/* Item */}
+      <div>
+        <div style={{ fontSize: 12, color: "#64748B" }}>
+          Messages Received
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 600 }}>
+          {clientStatus?.messages_received ?? 0}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: "#64748B" }}>
+          Messages Rejected
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 600 }}>
+          {clientStatus?.messages_rejected ?? 0}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: "#64748B" }}>
+          Last Message At
+        </div>
+        <div style={{ fontSize: 14 }}>
+          {clientStatus?.last_message_at ?? "-"}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 12, color: "#64748B" }}>
+          Last Client Error
+        </div>
+        <div style={{ fontSize: 14, color: "#ef4444" }}>
+          {clientStatus?.last_error ?? "-"}
+        </div>
+      </div>
+    </div>
+  </Card>
+
+  {/* RIGHT CARD */}
+  <Card>
+    <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+      Received Data (Latest First)
+    </h3>
+
+    <div style={{ display: "grid", gap: 12 }}>
+      {recentMessages.length === 0 && (
+        <div style={{ color: "#64748B", fontSize: 14 }}>
+          No messages received yet.
+        </div>
+      )}
+
+      {recentMessages.slice(0, 20).map((message, index) => (
+        <div
+          key={`${message.received_at ?? "na"}-${index}`}
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 6,
+            padding: 14,
+            background: "#ffffff",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          {/* HEADER */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 12,
+              color: "#64748B",
+            }}
+          >
+            <span>{message.received_at ?? "Unknown time"}</span>
+
+            <span style={{ display: "flex", gap: 10 }}>
+              {typeof message.byte_length === "number" && (
+                <span>{message.byte_length} bytes</span>
+              )}
+              {message.protocol && <span>{message.protocol}</span>}
+            </span>
+          </div>
+
+          {/* ASCII */}
+          {message.ascii_preview && (
+            <div style={{ fontSize: 14, color: "#0f172a" }}>
+              {message.ascii_preview}
+            </div>
+          )}
+
+          {/* PARSED */}
+          {message.parsed_fields &&
+            Object.keys(message.parsed_fields).length > 0 && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: 8,
+                  fontSize: 13,
+                  background: "#f8fafc",
+                  padding: 10,
+                  borderRadius: 6,
+                }}
+              >
+                {Object.entries(message.parsed_fields).map(
+                  ([key, value]) => (
+                    <div key={key}>
+                      <strong>{key}:</strong> {value}
+                    </div>
+                  ),
+                )}
               </div>
             )}
-          </Card>
 
-          <Card>
-            <h3 style={{ marginTop: 0, marginBottom: theme.spacing.sm }}>Client Receive Metrics</h3>
-            <div style={{ display: "grid", gap: theme.spacing.xs }}>
-              <div>Messages Received: {clientStatus?.messages_received ?? 0}</div>
-              <div>Messages Rejected: {clientStatus?.messages_rejected ?? 0}</div>
-              <div>Last Message At: {clientStatus?.last_message_at ?? "-"}</div>
-              <div>Last Client Error: {clientStatus?.last_error ?? "-"}</div>
+          {/* RAW */}
+          <code
+            style={{
+              fontSize: 12,
+              background: "#f1f5f9",
+              padding: 10,
+              borderRadius: 6,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {message.hex_preview
+              ? `hex: ${message.hex_preview}`
+              : message.raw ?? ""}
+          </code>
+
+          {/* ERROR */}
+          {message.decode_error && (
+            <div style={{ color: "#ef4444", fontSize: 12 }}>
+              {message.decode_error}
             </div>
-          </Card>
-
-          <Card>
-            <h3 style={{ marginTop: 0, marginBottom: theme.spacing.sm }}>Received Data (Latest First)</h3>
-            <div style={{ display: "grid", gap: theme.spacing.sm }}>
-              {recentMessages.length === 0 && (
-                <div style={{ color: theme.colors.textSecondary }}>
-                  No messages received yet. Connect to a server and wait for incoming data.
-                </div>
-              )}
-
-              {recentMessages.slice(0, 20).map((message, index) => (
-                <div
-                  key={`${message.received_at ?? "na"}-${index}`}
-                  style={{
-                    border: `1px solid ${theme.colors.border}`,
-                    borderRadius: theme.radius.md,
-                    padding: theme.spacing.sm,
-                    background: theme.colors.surfaceAlt,
-                    display: "grid",
-                    gap: theme.spacing.xs,
-                  }}
-                >
-                  <div style={{ color: theme.colors.textSecondary, fontSize: 12 }}>
-                    {message.received_at ?? "Unknown time"}
-                    {typeof message.byte_length === "number" ? ` | ${message.byte_length} bytes` : ""}
-                    {message.protocol ? ` | ${message.protocol}` : ""}
-                  </div>
-
-                  {message.ascii_preview && (
-                    <div style={{ color: theme.colors.textPrimary }}>{message.ascii_preview}</div>
-                  )}
-
-                  {message.parsed_fields && Object.keys(message.parsed_fields).length > 0 && (
-                    <div
-                      style={{
-                        display: "grid",
-                        gap: theme.spacing.xs,
-                        color: theme.colors.textSecondary,
-                      }}
-                    >
-                      {Object.entries(message.parsed_fields).map(([key, value]) => (
-                        <div key={key}>
-                          <strong>{key}</strong>: {value}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <code
-                    style={{
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      color: theme.colors.textPrimary,
-                    }}
-                  >
-                    {message.hex_preview ? `hex: ${message.hex_preview}` : message.raw ?? ""}
-                  </code>
-
-                  {message.decode_error && (
-                    <div style={{ color: theme.colors.danger }}>{message.decode_error}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
+          )}
+        </div>
+      ))}
+    </div>
+  </Card>
+</div>
         </div>
       </PageContainer>
     </AppLayout>

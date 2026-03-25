@@ -219,7 +219,6 @@
 //   );
 // }
 
-
 import { useCallback, useEffect, useState } from "react";
 import AppLayout from "../components/layout/AppLayout";
 import PageContainer from "../components/layout/PageContainer";
@@ -237,6 +236,7 @@ import {
   type TcpClientStatus,
 } from "../api/tcpListener";
 import { useTheme } from "../context/ThemeContext";
+import { RefreshCw } from "lucide-react";
 
 const REFRESH_MS = 5000;
 const LIVE_TCP_HOST = "10.1.0.16";
@@ -254,7 +254,7 @@ function hexToAscii(hex: string): string {
     .join("");
 }
 
-/* ===================== IMPROVED TABLE ===================== */
+/* ================= TABLE ================= */
 function SimpleTable({
   headers,
   rows,
@@ -273,7 +273,7 @@ function SimpleTable({
           fontSize: 14,
         }}
       >
-        <thead style={{ background: theme.colors.surface }}>
+        <thead>
           <tr>
             {headers.map((header) => (
               <th
@@ -283,7 +283,7 @@ function SimpleTable({
                   padding: `${theme.spacing.sm} ${theme.spacing.md}`,
                   borderBottom: `1px solid ${theme.colors.border}`,
                   fontWeight: 600,
-                  whiteSpace: "nowrap",
+                  color: theme.colors.textPrimary,
                 }}
               >
                 {header}
@@ -294,17 +294,13 @@ function SimpleTable({
 
         <tbody>
           {rows.map((row, rowIndex) => (
-            <tr
-              key={`row-${rowIndex}`}
-              style={{
-                borderBottom: `1px solid ${theme.colors.border}`,
-              }}
-            >
+            <tr key={rowIndex}>
               {row.map((cell, cellIndex) => (
                 <td
-                  key={`cell-${rowIndex}-${cellIndex}`}
+                  key={cellIndex}
                   style={{
                     padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+                    borderBottom: `1px solid ${theme.colors.border}`,
                     color: theme.colors.textSecondary,
                   }}
                 >
@@ -391,14 +387,8 @@ export default function CrfsLivePage() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      await load();
-    })();
-
-    const timer = setInterval(() => {
-      load(true);
-    }, REFRESH_MS);
-
+    load();
+    const timer = setInterval(() => load(true), REFRESH_MS);
     return () => clearInterval(timer);
   }, [load]);
 
@@ -415,18 +405,14 @@ export default function CrfsLivePage() {
   return (
     <AppLayout>
       <PageContainer title="CRFS Live">
-        <div
-          style={{
-            display: "grid",
-            gap: theme.spacing.lg,
-          }}
-        >
-          {/* ================= HEADER ================= */}
+        <div style={{ display: "grid", gap: theme.spacing.lg }}>
+          
+          {/* HEADER */}
           <div
             style={{
               display: "flex",
-              alignItems: "center",
               justifyContent: "space-between",
+              alignItems: "center",
               flexWrap: "wrap",
               gap: theme.spacing.md,
             }}
@@ -434,86 +420,103 @@ export default function CrfsLivePage() {
             <h2
               style={{
                 margin: 0,
-                fontSize: 22,
+                fontSize: 24,
                 fontWeight: 600,
               }}
             >
               CRFS Live
             </h2>
 
-            <button
-              onClick={() => load(true)}
-              disabled={refreshing}
-              style={{
-                border: "none",
-                borderRadius: theme.radius.md,
-                background: theme.colors.primary,
-                color: "#fff",
-                cursor: refreshing ? "not-allowed" : "pointer",
-                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                fontWeight: 500,
-              }}
-            >
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
+           <button
+  onClick={() => load(true)}
+  disabled={refreshing}
+  style={{
+    border: "none",
+    borderRadius: 8,
+    background: "#11C1CA",
+    color: "#fff",
+    padding: 10,
+    cursor: refreshing ? "not-allowed" : "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow: "0 2px 10px rgba(17,193,202,0.3)",
+    transition: "all 0.2s ease",
+    opacity: refreshing ? 0.7 : 1,
+  }}
+>
+  <RefreshCw
+    size={18}
+    style={{
+      animation: refreshing ? "spin 1s linear infinite" : "none",
+    }}
+  />
+</button>
           </div>
 
-          {/* ================= METRIC CARDS ================= */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(160px, 1fr))",
-              gap: theme.spacing.md,
-            }}
-          >
-            <MetricCard
-              label="Ingest"
-              value={health?.running ? "Running" : "Stopped"}
-            />
-            <MetricCard
-              label="Streams"
-              value={loading ? "..." : streams.length}
-            />
-            <MetricCard
-              label="Signals"
-              value={loading ? "..." : signals.length}
-            />
-            <MetricCard
-              label="Locations"
-              value={loading ? "..." : locations.length}
-            />
-            <MetricCard
-              label="Events"
-              value={loading ? "..." : events.length}
-            />
-            <MetricCard
-              label="Alerts"
-              value={loading ? "..." : alerts.length}
-            />
-            <MetricCard
-              label="TCP Source"
-              value={tcpStatus?.connected ? "Connected" : "Disconnected"}
-            />
-            <MetricCard
-              label="TCP Frames"
-              value={tcpStatus?.messages_received ?? "-"}
-            />
-          </div>
+          {/* METRIC GRID */}
+       {/* ================= METRIC CARDS ================= */}
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)", // ✅ FIXED 3 COLUMNS
+    gap: theme.spacing.md,
+  }}
+>
+  <MetricCard
+    label="Ingest"
+    value={health?.running ? "Running" : "Stopped"}
+    accent="#22c55e"
+  />
 
-          {/* ================= STATUS ================= */}
-          {error && (
-            <div style={{ color: theme.colors.danger }}>
-              {error}
-            </div>
-          )}
-          {tcpError && (
-            <div style={{ color: theme.colors.danger }}>
-              {tcpError}
-            </div>
-          )}
+  <MetricCard
+    label="Streams"
+    value={loading ? "..." : streams.length}
+    accent="#3b82f6"
+  />
 
-          {/* ================= TABLE ================= */}
+  <MetricCard
+    label="Signals"
+    value={loading ? "..." : signals.length}
+    accent="#a855f7"
+  />
+
+  <MetricCard
+    label="Locations"
+    value={loading ? "..." : locations.length}
+    accent="#f59e0b"
+  />
+
+  <MetricCard
+    label="Events"
+    value={loading ? "..." : events.length}
+    accent="#ef4444"
+  />
+
+  <MetricCard
+    label="Alerts"
+    value={loading ? "..." : alerts.length}
+    accent="#ec4899"
+  />
+
+  <MetricCard
+    label="TCP Source"
+    value={tcpStatus?.connected ? "Connected" : "Disconnected"}
+    accent={tcpStatus?.connected ? "#22c55e" : "#ef4444"}
+  />
+
+  <MetricCard
+    label="TCP Frames"
+    value={tcpStatus?.messages_received ?? "-"}
+    accent="#11c1ca"
+  />
+</div>
+
+          {/* ERRORS */}
+          {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
+          {tcpError && <div style={{ color: theme.colors.danger }}>{tcpError}</div>}
+
+          {/* TABLE */}
           <Card>
             <h3
               style={{

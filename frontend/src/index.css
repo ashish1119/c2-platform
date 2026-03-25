@@ -32,11 +32,126 @@ img.map-tiles-dark-filter {
 .leaflet-draw-actions {
   z-index: 1100;
 }
-
+/* 
 .leaflet-popup.jammer-flash-popup .leaflet-popup-content-wrapper {
   background: rgba(255, 255, 255, var(--jammer-popup-alpha, 0.5));
 }
 
 .leaflet-popup.jammer-flash-popup .leaflet-popup-tip {
   background: rgba(255, 255, 255, var(--jammer-popup-alpha, 0.5));
+} */
+
+/* Obsidian Black Glassmorphism Popup */
+.leaflet-popup.jammer-flash-popup .leaflet-popup-content-wrapper {
+  /* Darker base with alpha control */
+  background: rgba(10, 15, 25, var(--jammer-popup-alpha, 0.8)) !important;
+  
+  /* The Glass Effect */
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  
+  /* Tactical Border & Glow */
+  border: 1px solid rgba(56, 189, 248, 0.2); /* Subtle sky-blue edge */
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8), 
+              inset 0 0 0 1px rgba(255, 255, 255, 0.05); /* Inner rim light */
+  
+  border-radius: 12px;
+  color: #f1f5f9; /* Slate-100 text */
+}
+
+/* Match the Tip (The little triangle at the bottom) */
+.leaflet-popup.jammer-flash-popup .leaflet-popup-tip {
+  background: rgba(10, 15, 25, var(--jammer-popup-alpha, 0.8)) !important;
+  backdrop-filter: blur(12px);
+  border-left: 1px solid rgba(56, 189, 248, 0.2);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+  box-shadow: none; /* Remove default leaflet shadow */
+}
+
+/* Fix text contrast for standard Leaflet elements inside */
+.leaflet-popup.jammer-flash-popup .leaflet-popup-content {
+  margin: 15px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Close Button Styling */
+.leaflet-popup.jammer-flash-popup .leaflet-popup-close-button {
+  color: #94a3b8 !important; /* slate-400 */
+  top: 10px !important;
+  right: 10px !important;
+}
+
+.leaflet-popup.jammer-flash-popup .leaflet-popup-close-button:hover {
+  color: #f8fafc !important;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+/* Obsidian Glassmorphism Popup */
+.leaflet-popup.jammer-flash-popup .leaflet-popup-content-wrapper {
+  background: rgba(10, 15, 25, var(--jammer-popup-alpha, 0.85)) !important;
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+  padding: 0;
+}
+
+.leaflet-popup.jammer-flash-popup .leaflet-popup-tip {
+  background: rgba(10, 15, 25, var(--jammer-popup-alpha, 0.85)) !important;
+  border-left: 1px solid rgba(56, 189, 248, 0.2);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.leaflet-popup-content {
+  margin: 15px !important;
+}
+
+.leaflet-popup-close-button {
+  color: #94a3b8 !important;
+  top: 10px !important;
+  right: 10px !important;
+}
+
+/* Dark Map Filter */
+.map-tiles-dark-filter {
+  filter: brightness(0.65) saturate(0.8) contrast(1.1);
+}
+/* Obsidian Glassmorphism Popup */
+.leaflet-popup.jammer-flash-popup .leaflet-popup-content-wrapper {
+  background: rgba(10, 15, 25, var(--jammer-popup-alpha, 0.85)) !important;
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+  padding: 0;
+}
+
+.leaflet-popup.jammer-flash-popup .leaflet-popup-tip {
+  background: rgba(10, 15, 25, var(--jammer-popup-alpha, 0.85)) !important;
+  border-left: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.leaflet-popup-content {
+  margin: 15px !important;
+}
+
+/* Dark Map Filter */
+.map-tiles-dark-filter {
+  filter: brightness(0.65) saturate(0.8) contrast(1.1);
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
