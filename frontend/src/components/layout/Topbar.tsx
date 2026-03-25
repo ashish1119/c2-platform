@@ -349,7 +349,6 @@ export default function Topbar({}: TopbarProps) {
   };
 
   const pageTitle = (() => {
-<<<<<<< HEAD
     const p = location.pathname;
     if (p === "/admin") return "Dashboard";
     if (p === "/admin/users") return "Users";
@@ -360,7 +359,6 @@ export default function Topbar({}: TopbarProps) {
     if (p === "/reports") return "Reports";
     if (p === "/crfs/live") return "CRFS Live";
     if (p === "/jammer/control") return "Jammer Control";
-=======
     const pathname = location.pathname;
     if (pathname === "/admin") return "Admin Command Center";
     if (pathname === "/admin/command-center") return "Admin Command Center";
@@ -378,7 +376,6 @@ export default function Topbar({}: TopbarProps) {
     if (pathname === "/reports") return "Reporting Center";
     if (pathname === "/crfs/live") return "CRFS Live";
     if (pathname === "/jammer/control") return "Jammer Control";
->>>>>>> origin/main
     return "";
   })();
 

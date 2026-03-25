@@ -358,7 +358,6 @@ export default function AdminDashboard() {
               </button>
             </div>
 
-<<<<<<< HEAD
             {/* ✅ MESSAGE */}
             {simulateMessage && (
               <div
@@ -371,7 +370,6 @@ export default function AdminDashboard() {
                 }}
               >
                 {simulateMessage}
-=======
         <Card>
           <div
             style={{
@@ -416,7 +414,6 @@ export default function AdminDashboard() {
             <div>
               <div style={{ fontSize: theme.typography.h3.fontSize, fontWeight: theme.typography.h3.fontWeight }}>
                 CRFS Live
->>>>>>> origin/main
               </div>
             )}
           </div>

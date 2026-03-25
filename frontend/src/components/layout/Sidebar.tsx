@@ -215,7 +215,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         </span>
       </div>
 
-<<<<<<< HEAD
       {/* NAV ITEMS */}
       <div
         style={{
@@ -249,7 +248,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {hasPermission("jammer:write") &&
           navItem("/jammer/control", "Jammer Control", Zap)}
       </div>
-=======
       {user?.role === "ADMIN" && navItem("/admin/command-center", "Admin Command Center")}
       {user?.role === "ADMIN" && navItem("/admin/users", "Identity and Access")}
       {user?.role === "ADMIN" && navItem("/admin/assets", "Assets and Systems")}
@@ -264,7 +262,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       {user?.role === "OPERATOR" && navItem("/reports", "Reporting Center")}
       {hasPermission("crfs:read") && navItem("/crfs/live", "CRFS Live")}
       {hasPermission("jammer:write") && navItem("/jammer/control", "Jammer Control")}
->>>>>>> origin/main
     </div>
   );
 }

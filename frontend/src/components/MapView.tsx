@@ -1641,9 +1641,7 @@ export default function MapView({
       )}
 
       {showSignals && signals.map((signal) => (
-<<<<<<< HEAD
         <CircleMarker key={`sig-${signal.id}`} center={[signal.latitude, signal.longitude]} radius={5} pathOptions={{ color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 0.8 }} />
-=======
         <CircleMarker
           key={`sig-${signal.id}`}
           center={[signal.latitude, signal.longitude]}
@@ -1659,7 +1657,6 @@ export default function MapView({
             </div>
           </Popup>
         </CircleMarker>
->>>>>>> origin/main
       ))}
 
       {tcpPointerLine && (
@@ -1667,7 +1664,6 @@ export default function MapView({
       )}
     </MapContainer>
 
-<<<<<<< HEAD
     {/* --- TACTICAL GLASS SIDEBAR --- */}
     <div
       style={{
@@ -1723,7 +1719,6 @@ export default function MapView({
           <text x="32" y="16" textAnchor="middle" fontSize="9" fill="#ef4444" fontWeight="bold">N</text>
         </svg>
       </div>
-=======
     <MapOverlaysPanel
       dfRangeColor={dfRangeColor}
       showTransparencySlider={showTransparencySlider}
@@ -1777,7 +1772,6 @@ export default function MapView({
       showAssetLegend={showAssetLegend}
       onToggleAssetLegend={() => setShowAssetLegend((current) => !current)}
     />
->>>>>>> origin/main
     </div>
 
     {/* Floating Selectors */}

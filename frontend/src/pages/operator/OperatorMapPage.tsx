@@ -694,9 +694,7 @@ export default function OperatorMapPage() {
               boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)"
             }}
           >
-<<<<<<< HEAD
             <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 'bold' }}>«</div>
-=======
             <MapView
               assets={mapAssets}
               alerts={mapAlerts}
@@ -709,7 +707,6 @@ export default function OperatorMapPage() {
               jammerActionInProgressId={jammerActionAssetId}
               mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
             />
->>>>>>> origin/main
           </div>
         )}
 
