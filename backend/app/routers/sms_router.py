@@ -1,18 +1,34 @@
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime, timezone
+from urllib import error as urllib_error
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
-from app.deps import get_current_user_claims, require_permission
+from app.deps import require_permission
+from app.integrations.sms.realtime import sms_realtime_hub
 from app.integrations.sms.service import get_sms_adapter_health_snapshot, ingest_sms_adapter_batch
+from app.integrations.sms.stream_utils import (
+    MAX_UPLOAD_TEXT_BYTES,
+    derive_source_node_from_filename,
+    derive_source_node_from_url,
+    fetch_stream_payload,
+    parse_uploaded_rf_file,
+)
 from app.schemas import (
+    SmsAdapterFileIngestResponse,
     SmsAdapterHealthRead,
     SmsAdapterIngestRequest,
     SmsAdapterIngestResponse,
+    SmsAdapterStreamPullRequest,
+    SmsAdapterStreamPullResponse,
     SmsDetectionCreate,
     SmsDetectionRead,
     SmsNodeConnectRequest,
     SmsNodeHealthRead,
     SmsSpectrumOccupancyBin,
+    SmsStreamSessionRead,
+    SmsStreamSessionStartRequest,
+    SmsStreamWorkerHealthRead,
     SmsThreatAckRequest,
     SmsThreatRead,
     SmsTrackClassifyRequest,
@@ -65,6 +81,178 @@ async def adapter_ingest(
     claims: dict = Depends(require_permission("sms", "write")),
 ):
     return await ingest_sms_adapter_batch(data, db)
+
+
+@router.post("/adapter/upload-rf-file", response_model=SmsAdapterFileIngestResponse)
+async def adapter_upload_rf_file(
+    file: UploadFile = File(...),
+    source_node: str | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    claims: dict = Depends(require_permission("sms", "write")),
+):
+    filename = (file.filename or "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    payload_bytes = await file.read()
+    if not payload_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    if len(payload_bytes) > MAX_UPLOAD_TEXT_BYTES:
+        raise HTTPException(status_code=413, detail="Uploaded file is too large")
+
+    text = payload_bytes.decode("utf-8", errors="replace")
+    try:
+        detections, payload_source_node, payload_metrics, file_format = parse_uploaded_rf_file(filename, text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not detections:
+        raise HTTPException(status_code=400, detail="No detection rows found in uploaded file")
+
+    resolved_source_node = (
+        source_node.strip()
+        if isinstance(source_node, str) and source_node.strip()
+        else payload_source_node or derive_source_node_from_filename(filename)
+    )
+
+    ingest_result = await ingest_sms_adapter_batch(
+        SmsAdapterIngestRequest(
+            source_node=resolved_source_node,
+            detections=detections,
+            metrics=payload_metrics,
+        ),
+        db,
+    )
+
+    return SmsAdapterFileIngestResponse(
+        filename=filename,
+        source_node=resolved_source_node,
+        file_format=file_format,
+        accepted=ingest_result.accepted,
+        rejected=ingest_result.rejected,
+        errors=ingest_result.errors,
+        node_health=ingest_result.node_health,
+    )
+
+
+@router.post("/adapter/stream/pull", response_model=SmsAdapterStreamPullResponse)
+async def adapter_stream_pull(
+    data: SmsAdapterStreamPullRequest,
+    db: AsyncSession = Depends(get_db),
+    claims: dict = Depends(require_permission("sms", "write")),
+):
+    try:
+        detections, payload_source_node, payload_metrics, payload_format = await fetch_stream_payload(
+            stream_url=data.stream_url,
+            timeout_seconds=data.timeout_seconds,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail="Timed out while fetching stream URL") from exc
+    except urllib_error.URLError as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to fetch stream URL: {exc.reason}") from exc
+
+    if not detections:
+        raise HTTPException(status_code=400, detail="No detections found in stream payload")
+
+    resolved_source_node = (
+        data.source_node.strip()
+        if isinstance(data.source_node, str) and data.source_node.strip()
+        else payload_source_node or derive_source_node_from_url(data.stream_url)
+    )
+
+    merged_metrics = dict(payload_metrics)
+    merged_metrics.update(data.metrics)
+
+    ingest_result = await ingest_sms_adapter_batch(
+        SmsAdapterIngestRequest(
+            source_node=resolved_source_node,
+            detections=detections,
+            metrics=merged_metrics,
+        ),
+        db,
+    )
+
+    return SmsAdapterStreamPullResponse(
+        stream_url=data.stream_url,
+        source_node=resolved_source_node,
+        fetched_at=datetime.now(timezone.utc),
+        payload_format=payload_format,
+        detections_fetched=len(detections),
+        accepted=ingest_result.accepted,
+        rejected=ingest_result.rejected,
+        errors=ingest_result.errors,
+        node_health=ingest_result.node_health,
+    )
+
+
+@router.post("/adapter/stream/session/start", response_model=SmsStreamSessionRead)
+async def adapter_stream_session_start(
+    request: Request,
+    data: SmsStreamSessionStartRequest,
+    claims: dict = Depends(require_permission("sms", "write")),
+):
+    worker = getattr(request.app.state, "sms_stream_worker_service", None)
+    if worker is None:
+        raise HTTPException(status_code=503, detail="SMS stream worker unavailable")
+
+    try:
+        snapshot = await worker.start_session(
+            stream_url=data.stream_url,
+            source_node=data.source_node,
+            metrics=data.metrics,
+            pull_interval_seconds=data.pull_interval_seconds,
+            timeout_seconds=data.timeout_seconds,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return SmsStreamSessionRead.model_validate(snapshot)
+
+
+@router.post("/adapter/stream/session/{session_id}/stop", response_model=SmsStreamSessionRead)
+async def adapter_stream_session_stop(
+    session_id: str,
+    request: Request,
+    claims: dict = Depends(require_permission("sms", "write")),
+):
+    worker = getattr(request.app.state, "sms_stream_worker_service", None)
+    if worker is None:
+        raise HTTPException(status_code=503, detail="SMS stream worker unavailable")
+
+    snapshot = await worker.stop_session(session_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="SMS stream session not found")
+
+    return SmsStreamSessionRead.model_validate(snapshot)
+
+
+@router.get("/adapter/stream/sessions", response_model=list[SmsStreamSessionRead])
+async def adapter_stream_sessions(
+    request: Request,
+    claims: dict = Depends(require_permission("sms", "read")),
+):
+    worker = getattr(request.app.state, "sms_stream_worker_service", None)
+    if worker is None:
+        raise HTTPException(status_code=503, detail="SMS stream worker unavailable")
+
+    snapshots = await worker.list_sessions()
+    return [SmsStreamSessionRead.model_validate(item) for item in snapshots]
+
+
+@router.get("/adapter/stream/worker/health", response_model=SmsStreamWorkerHealthRead)
+async def adapter_stream_worker_health(
+    request: Request,
+    claims: dict = Depends(require_permission("sms", "read")),
+):
+    worker = getattr(request.app.state, "sms_stream_worker_service", None)
+    if worker is None:
+        raise HTTPException(status_code=503, detail="SMS stream worker unavailable")
+
+    return SmsStreamWorkerHealthRead.model_validate(await worker.health_snapshot())
 
 
 @router.get("/adapter/health", response_model=SmsAdapterHealthRead)
@@ -121,6 +309,14 @@ async def create_detection(
 ):
     try:
         row = await create_sms_detection(data, db)
+        await sms_realtime_hub.publish(
+            {
+                "type": "sms_detection_created",
+                "source_node": row.source_node,
+                "frequency_hz": row.frequency_hz,
+                "timestamp_utc": row.timestamp_utc,
+            }
+        )
         return row
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -246,3 +442,18 @@ async def acknowledge_threat(
         },
     )
     return threat
+
+
+@router.websocket("/ws/live")
+async def websocket_live(websocket: WebSocket):
+    await sms_realtime_hub.connect(websocket)
+    try:
+        for event in sms_realtime_hub.recent_events(limit=30):
+            await websocket.send_json(event)
+
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        await sms_realtime_hub.disconnect(websocket)
+    except Exception:
+        await sms_realtime_hub.disconnect(websocket)

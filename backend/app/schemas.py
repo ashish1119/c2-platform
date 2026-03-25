@@ -831,6 +831,62 @@ class SmsAdapterIngestResponse(BaseModel):
     node_health: SmsNodeHealthRead
 
 
+class SmsAdapterFileIngestResponse(SmsAdapterIngestResponse):
+    filename: str
+    source_node: str
+    file_format: Literal["csv", "json", "ndjson"]
+
+
+class SmsAdapterStreamPullRequest(BaseModel):
+    stream_url: str = Field(min_length=1, max_length=2048)
+    source_node: str | None = None
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    timeout_seconds: float = Field(default=10.0, ge=1.0, le=30.0)
+
+
+class SmsAdapterStreamPullResponse(SmsAdapterIngestResponse):
+    stream_url: str
+    source_node: str
+    fetched_at: datetime
+    payload_format: Literal["json", "ndjson"]
+    detections_fetched: int
+
+
+class SmsStreamSessionStartRequest(BaseModel):
+    stream_url: str = Field(min_length=1, max_length=2048)
+    source_node: str | None = None
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    pull_interval_seconds: float = Field(default=3.0, ge=0.5, le=60.0)
+    timeout_seconds: float = Field(default=10.0, ge=1.0, le=30.0)
+
+
+class SmsStreamSessionRead(BaseModel):
+    session_id: str
+    stream_url: str
+    source_node: str
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    pull_interval_seconds: float
+    timeout_seconds: float
+    status: str
+
+    started_at: datetime
+    last_pull_at: datetime | None = None
+    last_success_at: datetime | None = None
+    last_error: str | None = None
+
+    consecutive_failures: int = 0
+    detections_fetched_total: int = 0
+    accepted_total: int = 0
+    rejected_total: int = 0
+    payload_format: Literal["json", "ndjson"] | None = None
+
+
+class SmsStreamWorkerHealthRead(BaseModel):
+    running: bool
+    active_sessions: int
+    sessions: list[SmsStreamSessionRead] = Field(default_factory=list)
+
+
 class SmsAdapterHealthRead(BaseModel):
     running: bool
     queue_depth: int

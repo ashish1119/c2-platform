@@ -40,6 +40,8 @@ export type TriangulationResult = {
   centroid_latitude?: number | null;
   centroid_longitude?: number | null;
   roi_polygon: TriangulationPoint[];
+  intersections?: TriangulationPoint[];
+  confidence_level?: number | null;
   rays: TriangulationRay[];
   warning?: string | null;
 };

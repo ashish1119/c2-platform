@@ -4,9 +4,61 @@
 		{
 			"label": "Run SMS Smoke Test",
 			"type": "shell",
-			"command": "C:/Users/ashish.jain/AppData/Local/Programs/Python/Python314/python.exe",
+			"command": "wsl",
 			"args": [
-				"scripts/sms_smoke_test.py"
+				"-e",
+				"bash",
+				"-lc",
+				"cd /mnt/d/c2-platform; docker compose exec -T backend python - < scripts/sms_smoke_test.py"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "Check Compose Health",
+			"type": "shell",
+			"command": "wsl",
+			"args": [
+				"-e",
+				"bash",
+				"-lc",
+				"cd /mnt/d/c2-platform; docker compose ps; echo '-----'; docker compose logs --no-color --tail=40 backend frontend"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "Install Frontend Deps (Windows)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location frontend; npm install"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "Build Frontend (Windows)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location frontend; npm run build"
+			],
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "Install + Build Frontend (Windows)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location frontend; npm install; npm run build"
 			],
 			"isBackground": false,
 			"group": "test"

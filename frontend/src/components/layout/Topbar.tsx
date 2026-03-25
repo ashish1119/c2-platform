@@ -349,6 +349,7 @@ export default function Topbar({}: TopbarProps) {
   };
 
   const pageTitle = (() => {
+<<<<<<< HEAD
     const p = location.pathname;
     if (p === "/admin") return "Dashboard";
     if (p === "/admin/users") return "Users";
@@ -359,6 +360,25 @@ export default function Topbar({}: TopbarProps) {
     if (p === "/reports") return "Reports";
     if (p === "/crfs/live") return "CRFS Live";
     if (p === "/jammer/control") return "Jammer Control";
+=======
+    const pathname = location.pathname;
+    if (pathname === "/admin") return "Admin Command Center";
+    if (pathname === "/admin/command-center") return "Admin Command Center";
+    if (pathname === "/admin/overview") return "Admin Dashboard";
+    if (pathname === "/admin/users") return "Identity and Access";
+    if (pathname === "/admin/assets") return "Assets and Systems";
+    if (pathname === "/admin/geospatial") return "Geospatial Sources";
+    if (pathname === "/operator") return "Operations Center";
+    if (pathname === "/operator/command-center") return "Operator Command Center";
+    if (pathname === "/operator/dashboard") return "RF Operations";
+    if (pathname === "/operator/map") return "Tactical Map";
+    if (pathname === "/operator/tcp-client") return "Sensor Network";
+    if (pathname === "/operator/simulation") return "Signal Lab";
+    if (pathname === "/planning") return "Reporting Center";
+    if (pathname === "/reports") return "Reporting Center";
+    if (pathname === "/crfs/live") return "CRFS Live";
+    if (pathname === "/jammer/control") return "Jammer Control";
+>>>>>>> origin/main
     return "";
   })();
 

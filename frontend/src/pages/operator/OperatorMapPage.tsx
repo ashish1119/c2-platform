@@ -20,6 +20,13 @@ import {
 import { getTcpClientStatus, type TcpClientStatus } from "../../api/tcpListener";
 import { useTheme } from "../../context/ThemeContext";
 import api from "../../api/axios";
+import {
+  getDashboardSimulationSnapshot,
+  isDashboardSimulationActive,
+  stopDashboardSimulation,
+  subscribeDashboardSimulation,
+  type DashboardSimulationSnapshot,
+} from "../../features/signal-simulation/state/dashboardSimulationBridge";
 
 const ASSET_TREE_VISIBLE_KEY = "ui.operator.assetTree.visible";
 const ASSET_TREE_PINNED_KEY = "ui.operator.assetTree.pinned";
@@ -147,6 +154,8 @@ export default function OperatorMapPage() {
   const [tcpRecentMessages, setTcpRecentMessages] = useState<TcpClientStatus["recent_messages"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [simulationMode, setSimulationMode] = useState(false);
+  const [simulationSnapshot, setSimulationSnapshot] = useState<DashboardSimulationSnapshot | null>(null);
 
   const refreshTcpStatus = useCallback(async () => {
     try {
@@ -217,6 +226,31 @@ export default function OperatorMapPage() {
       ws.close();
     };
   }, [load, refreshTcpStatus]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeDashboardSimulation((snapshot) => {
+      if (!snapshot) {
+        setSimulationMode(false);
+        setSimulationSnapshot(null);
+        return;
+      }
+
+      setSimulationMode(true);
+      setSimulationSnapshot(snapshot);
+    });
+
+    if (isDashboardSimulationActive()) {
+      const snapshot = getDashboardSimulationSnapshot();
+      if (snapshot) {
+        setSimulationMode(true);
+        setSimulationSnapshot(snapshot);
+      }
+    }
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const assetTypeGroups = useMemo(
     () => Array.from(new Set(assets.map((asset) => (asset.type ?? "UNKNOWN").toUpperCase()))).sort(),
@@ -295,6 +329,12 @@ export default function OperatorMapPage() {
       return allowedTypes.has(typeKey) && allowedIds.has(asset.id);
     });
   }, [assets, selectedAssetIds, selectedAssetTypes, showAllAssets]);
+
+  const mapAssets = simulationMode ? simulationSnapshot?.directionFinderAssets ?? [] : filteredAssets;
+  const mapAlerts = simulationMode ? simulationSnapshot?.alerts ?? [] : alerts;
+  const mapSignals = simulationMode ? simulationSnapshot?.signals ?? [] : signals;
+  const mapHeatCells = simulationMode ? simulationSnapshot?.heatCells ?? [] : heatCells;
+  const mapTriangulation = simulationMode ? simulationSnapshot?.triangulation ?? null : null;
 
   const jammerProfileByAssetId = useMemo(
     () =>
@@ -535,6 +575,42 @@ export default function OperatorMapPage() {
             SYSTEM: LOADING MAP FEEDS...
           </div>
         )}
+        {simulationMode && (
+          <div
+            style={{
+              marginBottom: theme.spacing.md,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: theme.spacing.md,
+              color: theme.colors.warning,
+              background: theme.colors.surfaceAlt,
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: theme.radius.md,
+              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
+            }}
+          >
+            <span>Simulation feed active on operator map. Rendering DF sensors, rays, centroid, and uncertainty layers.</span>
+            <button
+              type="button"
+              onClick={() => {
+                stopDashboardSimulation();
+                setSimulationMode(false);
+                setSimulationSnapshot(null);
+              }}
+              style={{
+                border: `1px solid ${theme.colors.border}`,
+                borderRadius: theme.radius.md,
+                background: theme.colors.surface,
+                color: theme.colors.textPrimary,
+                cursor: "pointer",
+                padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+              }}
+            >
+              Stop Simulation
+            </button>
+          </div>
+        )}
 
         {error && (
           <div style={{
@@ -618,7 +694,22 @@ export default function OperatorMapPage() {
               boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)"
             }}
           >
+<<<<<<< HEAD
             <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 'bold' }}>«</div>
+=======
+            <MapView
+              assets={mapAssets}
+              alerts={mapAlerts}
+              signals={mapSignals}
+              heatCells={mapHeatCells}
+              triangulation={mapTriangulation}
+              tcpRecentMessages={tcpRecentMessages}
+              jammerLifecycleByAssetId={jammerLifecycleByAssetId}
+              onJammerToggle={handleJammerToggle}
+              jammerActionInProgressId={jammerActionAssetId}
+              mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
+            />
+>>>>>>> origin/main
           </div>
         )}
 

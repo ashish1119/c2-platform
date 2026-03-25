@@ -215,6 +215,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         </span>
       </div>
 
+<<<<<<< HEAD
       {/* NAV ITEMS */}
       <div
         style={{
@@ -248,6 +249,22 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {hasPermission("jammer:write") &&
           navItem("/jammer/control", "Jammer Control", Zap)}
       </div>
+=======
+      {user?.role === "ADMIN" && navItem("/admin/command-center", "Admin Command Center")}
+      {user?.role === "ADMIN" && navItem("/admin/users", "Identity and Access")}
+      {user?.role === "ADMIN" && navItem("/admin/assets", "Assets and Systems")}
+      {user?.role === "ADMIN" && navItem("/admin/geospatial", "Geospatial Sources")}
+      {user?.role === "ADMIN" && navItem("/planning", "Reporting Center")}
+
+      {user?.role === "OPERATOR" && navItem("/operator/command-center", "Command Center")}
+      {user?.role === "OPERATOR" && navItem("/operator/dashboard", "RF Operations")}
+      {user?.role === "OPERATOR" && navItem("/operator/map", "Tactical Map")}
+      {user?.role === "OPERATOR" && navItem("/operator/tcp-client", "Sensor Network")}
+      {user?.role === "OPERATOR" && navItem("/operator/simulation", "Signal Lab")}
+      {user?.role === "OPERATOR" && navItem("/reports", "Reporting Center")}
+      {hasPermission("crfs:read") && navItem("/crfs/live", "CRFS Live")}
+      {hasPermission("jammer:write") && navItem("/jammer/control", "Jammer Control")}
+>>>>>>> origin/main
     </div>
   );
 }

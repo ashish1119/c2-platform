@@ -79,6 +79,19 @@ async def deactivate_ingestion_source(
     )
 
 
+@router.post("/ingestion/sources/{source_id}/activate", response_model=GeospatialSourceRead)
+async def activate_ingestion_source(
+    source_id: str = Path(...),
+    claims: dict = Depends(require_permission("geospatial", "write")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await geospatial_service.activate_source(
+        db,
+        source_id=source_id,
+        user_id=claims.get("sub"),
+    )
+
+
 @router.post("/coordinates/convert", response_model=CoordinateConvertResponse)
 async def convert_coordinates(
     payload: CoordinateConvertRequest,

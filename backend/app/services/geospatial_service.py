@@ -201,6 +201,28 @@ class GeospatialService:
         )
         return self._serialize_source(source)
 
+    async def activate_source(self, db: AsyncSession, *, source_id: str, user_id: uuid.UUID | None) -> dict:
+        source = await self._fetch_source_or_404(db, source_id)
+        if source.is_active:
+            return self._serialize_source(source)
+
+        source.is_active = True
+        await db.commit()
+        await db.refresh(source)
+
+        await write_audit_log(
+            db,
+            user_id=self._normalize_user_id(user_id),
+            action="GEOSPATIAL_SOURCE_ACTIVATED",
+            entity="GEOSPATIAL_INGESTION_SOURCE",
+            entity_id=source.id,
+            details={
+                "source_name": source.source_name,
+                "source_type": source.source_type,
+            },
+        )
+        return self._serialize_source(source)
+
     def convert_coordinates(
         self,
         *,

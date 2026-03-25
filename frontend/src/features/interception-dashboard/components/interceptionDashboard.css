@@ -1,0 +1,53 @@
+.interception-dashboard {
+  display: grid;
+  gap: 24px;
+}
+
+.interception-dashboard__hero {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr);
+}
+
+.interception-dashboard__metric-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.interception-dashboard__content {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+  align-items: start;
+}
+
+.interception-dashboard__stack {
+  display: grid;
+  gap: 24px;
+}
+
+.interception-dashboard__panel-grid {
+  display: grid;
+  gap: 12px;
+}
+
+@media (max-width: 1180px) {
+  .interception-dashboard__hero,
+  .interception-dashboard__content {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .interception-dashboard {
+    gap: 16px;
+  }
+
+  .interception-dashboard__content,
+  .interception-dashboard__stack,
+  .interception-dashboard__panel-grid,
+  .interception-dashboard__hero {
+    gap: 16px;
+  }
+}
