@@ -3,14 +3,13 @@ FROM node:20 AS build
 WORKDIR /app
 
 COPY package*.json ./
-<<<<<<< HEAD
-RUN npm ci
-=======
-RUN npm install --include=dev && npm install -g typescript vite
->>>>>>> origin/main
+
+# Install dependencies (including dev for build)
+RUN npm install
 
 COPY . .
 
+# Build frontend
 RUN npm run build
 
 FROM nginx:alpine
