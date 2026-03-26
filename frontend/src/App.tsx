@@ -1,5 +1,15 @@
 import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+<<<<<<< HEAD
+=======
+import LoginPage from "./pages/LoginPage";
+import AdminDashboard from "./pages/AdminDashboard";
+import { OperatorMapPage, OperatorAlertsPage, OperatorTcpClientPage, OperatorSMSPage } from "./pages/operator";
+import ReportsPage from "./pages/ReportsPage";
+import PlanningPage from "./pages/PlanningPage";
+import CrfsLivePage from "./pages/CrfsLivePage";
+import JammerControlPage from "./pages/JammerControlPage";
+>>>>>>> origin/Akash
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -112,6 +122,7 @@ export default function App() {
               }
             />
 
+<<<<<<< HEAD
             <Route
               path="/operator/dashboard"
               element={
@@ -120,6 +131,25 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+=======
+          <Route
+            path="/operator/sms"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorSMSPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <ReportsPage />
+              </ProtectedRoute>
+            }
+          />
+>>>>>>> origin/Akash
 
             <Route
               path="/operator/interception"

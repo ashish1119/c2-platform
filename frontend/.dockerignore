@@ -1,8 +1,16 @@
+<<<<<<< HEAD
+=======
+# c2-PLATFORM\frontend\.dockerignore
+>>>>>>> origin/Akash
 node_modules
 dist
 .git
 Dockerfile
+<<<<<<< HEAD
 .dockerignore
 node_modules
 dist
 .git
+=======
+docker-compose.yml
+>>>>>>> origin/Akash
