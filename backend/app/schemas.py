@@ -971,3 +971,12 @@ class CrfsOperatorDashboardRead(BaseModel):
     events: list[CrfsEventRead] = Field(default_factory=list)
     alerts: list[CrfsAlertRead] = Field(default_factory=list)
     realtime_events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RFData(BaseModel):
+    id: int
+    freq: float
+    power: float
+    snr: float
+    lat: float
+    lon: float 

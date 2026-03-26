@@ -41,11 +41,11 @@ const internalMenuItems = [
 ];
 
 
-{/* const TargetData = [
-  { id: 1, frequency: "450.5 MHz", bearing: "120°", rssi: "-80 dBm", snr: "15 dB", duration: "5s", actions: "Play | Details" },
-  { id: 2, frequency: "136.0 MHz", bearing: "90°", rssi: "-75 dBm", snr: "18 dB", duration: "10s", actions: "Play | Details" },
-  // Add more mock data as needed
-]; */}
+// { const TargetData = [
+// //   { id: 1, frequency: "450.5 MHz", bearing: "120°", rssi: "-80 dBm", snr: "15 dB", duration: "5s", actions: "Play | Details" },
+// //   { id: 2, frequency: "136.0 MHz", bearing: "90°", rssi: "-75 dBm", snr: "18 dB", duration: "10s", actions: "Play | Details" },
+// //   // Add more mock data as needed
+// // ]; }
 
 
 const sysEventsData = [
@@ -57,115 +57,115 @@ const sysEventsData = [
 ];
 
 
-{/*function InterceptListTable() {
-  return (
-    <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
-      <thead>
-        <tr style={{ background: "#192a3f" }}>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Id</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td colSpan={11} style={{ padding: 10, textAlign: "center" }}>
-            Dummy Intercept Data
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  );
-}*/}
+// {function InterceptListTable() {
+//   return (
+//     <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
+//       <thead>
+//         <tr style={{ background: "#192a3f" }}>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Id</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
+//         </tr>
+//       </thead>
+//       <tbody>
+//         <tr>
+//           <td colSpan={11} style={{ padding: 10, textAlign: "center" }}>
+//             Dummy Intercept Data
+//           </td>
+//         </tr>
+//       </tbody>
+//     </table>
+//   );
+// }}
 
 
-{/*function TargetListTable() {
-  return (
-    <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
-      <thead>
-        <tr style={{ background: "#192a3f" }}>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>ID</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Name</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>RF Type</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Dynamics</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Distance</th>
-        </tr>
-      </thead>
-      <tbody>*/}
-        {/* {TargetData.map((row, idx) => (
-          <tr key={row.id} style={{ background: idx % 2 === 0 ? "#122033" : "#0f1a2a" }}>
-            <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.frequency}</td>
-            <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.bearing}</td>
-            <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.rssi}</td>
-            <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.snr}</td>
-            <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.duration}</td>
-            <td style={{ padding: 8, border: "1px solid #32475a" }}>
-              <button style={{ marginRight: 4 }}>Play</button>
-              <button>Details</button> 
-            </td>
-          </tr>
-        ))} */}
-        {/*<tr>
-          <td colSpan={20} style={{ padding: 10, textAlign: "center" }}>
-            Dummy Target Data
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  );
-}*/}
+// {function TargetListTable() {
+//   return (
+//     <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
+//       <thead>
+//         <tr style={{ background: "#192a3f" }}>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>ID</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Name</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>RF Type</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Dynamics</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Distance</th>
+//         </tr>
+//       </thead>
+//       <tbody>}
+//         { {TargetData.map((row, idx) => (
+//           <tr key={row.id} style={{ background: idx % 2 === 0 ? "#122033" : "#0f1a2a" }}>
+//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.frequency}</td>
+//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.bearing}</td>
+//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.rssi}</td>
+//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.snr}</td>
+//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.duration}</td>
+//             <td style={{ padding: 8, border: "1px solid #32475a" }}>
+//               <button style={{ marginRight: 4 }}>Play</button>
+//               <button>Details</button> 
+//             </td>
+//           </tr>
+//         ))} }
+//         {<tr>
+//           <td colSpan={20} style={{ padding: 10, textAlign: "center" }}>
+//             Dummy Target Data
+//           </td>
+//         </tr>
+//       </tbody>
+//     </table>
+//   );
+// }}
 
 
 
-{/*function UnidentifiedListTable() {
-  return (
-    <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
-      <thead>
-        <tr style={{ background: "#192a3f" }}>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Id</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
-          <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td colSpan={11} style={{ padding: 10, textAlign: "center" }}>
-            Dummy Unidentified Data
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  );
-}*/}
+// {function UnidentifiedListTable() {
+//   return (
+//     <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
+//       <thead>
+//         <tr style={{ background: "#192a3f" }}>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Id</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
+//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
+//         </tr>
+//       </thead>
+//       <tbody>
+//         <tr>
+//           <td colSpan={11} style={{ padding: 10, textAlign: "center" }}>
+//             Dummy Unidentified Data
+//           </td>
+//         </tr>
+//       </tbody>
+//     </table>
+//   );
+// }}
 
 
 

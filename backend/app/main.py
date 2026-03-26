@@ -1,6 +1,10 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+import asyncio
+
+from app.database import engine, Base, AsyncSessionLocal
+import app.models
 from app.config import settings
 from app.routers import (
     auth_router,
@@ -25,10 +29,18 @@ from app.integrations.decodio.service import DecodioIntegrationService
 from app.integrations.crfs.service import CrfsIngestService
 from app.integrations.tcp_listener.service import TcpListenerService
 from app.core.websocket_manager import manager
+from app.core.websocket_manager import manager
 from app.logging_config import logger
 from app.database import engine, Base, AsyncSessionLocal
 from app.services.decodio_config_service import ensure_decodio_config
 from app.services.jammer_service import ensure_default_jammer
+from app.services.tcp_server import start_tcp_server
+from app.routers.websocket_router import router as websocket_router
+
+import threading
+
+# Start TCP server in background thread
+
 
 app = FastAPI(title="C2 Platform")
 
@@ -40,6 +52,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def start_tcp():
+    threading.Thread(target=start_tcp_server, daemon=True).start()
 
 app.include_router(auth_router.router)
 app.include_router(alerts_router.router)
@@ -58,6 +74,7 @@ app.include_router(sms_router.router)
 app.include_router(tcp_listener_router.router)
 app.include_router(geospatial_router.router)
 app.include_router(crfs_router.router)
+app.include_router(websocket_router)
 
 
 def build_decodio_service(config) -> DecodioIntegrationService:
@@ -328,6 +345,11 @@ async def create_tables():
     )
     await app.state.crfs_ingest_service.start()
 
+@app.on_event("startup")
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
 
 @app.on_event("shutdown")
 async def shutdown_services():
@@ -352,3 +374,10 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except:
         manager.disconnect(websocket)
+
+import asyncio
+from app.core.websocket_manager import manager
+
+@app.on_event("startup")
+async def startup_event():
+    manager.loop = asyncio.get_event_loop()
