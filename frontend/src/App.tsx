@@ -12,6 +12,7 @@ import JammerControlPage from "./pages/JammerControlPage";
 >>>>>>> origin/Akash
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+<<<<<<< HEAD
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminCommandCenterPage = lazy(() => import("./pages/admin/AdminCommandCenterPage"));
@@ -32,6 +33,11 @@ const GeospatialSourcesPage = lazy(() => import("./pages/admin/GeospatialSources
 function RouteFallback() {
   return <div style={{ minHeight: "100vh", background: "#071120" }} />;
 }
+=======
+import UserManagement from "./pages/admin/UserManagement";
+import AssetsManagementPage from "./pages/admin/AssetsManagementPage";
+import OperatorDashboard from "./pages/OperatorDashboard";
+>>>>>>> origin/aditya-new-branch
 
 function FallbackRedirect() {
   const { user } = useAuth();
@@ -136,7 +142,56 @@ export default function App() {
             path="/operator/sms"
             element={
               <ProtectedRoute requiredRole="OPERATOR">
+<<<<<<< HEAD
                 <OperatorSMSPage />
+=======
+                <Navigate to="/operator/map" replace />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/dashboard"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/map"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorMapPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/alerts"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorAlertsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/tcp-client"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <OperatorTcpClientPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/operator/tcpclient"
+            element={
+              <ProtectedRoute requiredRole="OPERATOR">
+                <Navigate to="/operator/tcp-client" replace />
+>>>>>>> origin/aditya-new-branch
               </ProtectedRoute>
             }
           />
