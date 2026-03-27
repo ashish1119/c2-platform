@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
+
 import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polygon, Polyline, ScaleControl, ZoomControl, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw";
@@ -1640,24 +1641,37 @@ export default function MapView({
         />
       )}
 
-      {showSignals && signals.map((signal) => (
-        <CircleMarker key={`sig-${signal.id}`} center={[signal.latitude, signal.longitude]} radius={5} pathOptions={{ color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 0.8 }} />
-        <CircleMarker
-          key={`sig-${signal.id}`}
-          center={[signal.latitude, signal.longitude]}
-          radius={5 * lowZoomStyleScale}
-          pathOptions={{ color: "#1d4ed8" }}
-        >
-          <Popup>
+   {showSignals &&
+  signals.map((signal) => (
+    <Fragment key={`sig-${signal.id}`}>
+      <CircleMarker
+        center={[signal.latitude, signal.longitude]}
+        radius={5}
+        pathOptions={{
+          color: "#0ea5e9",
+          fillColor: "#0ea5e9",
+          fillOpacity: 0.8,
+        }}
+      />
+
+      <CircleMarker
+        center={[signal.latitude, signal.longitude]}
+        radius={5 * lowZoomStyleScale}
+        pathOptions={{ color: "#1d4ed8" }}
+      >
+        <Popup>
+          <div>
+            <div>Frequency: {signal.frequency}</div>
+            <div>Modulation: {signal.modulation}</div>
+            <div>Power: {signal.power_level}</div>
             <div>
-              <div>Frequency: {signal.frequency}</div>
-              <div>Modulation: {signal.modulation}</div>
-              <div>Power: {signal.power_level}</div>
-              <div>Detected: {new Date(signal.detected_at).toLocaleString()}</div>
+              Detected: {new Date(signal.detected_at).toLocaleString()}
             </div>
-          </Popup>
-        </CircleMarker>
-      ))}
+          </div>
+        </Popup>
+      </CircleMarker>
+    </Fragment>
+  ))}
 
       {tcpPointerLine && (
         <Polyline positions={[tcpPointerLine.start, tcpPointerLine.end]} pathOptions={{ color: '#f43f5e', weight: 3, dashArray: '10 5', opacity: 0.9 }} />

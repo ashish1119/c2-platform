@@ -80,7 +80,6 @@
 //   );
 // }
 
-
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -118,7 +117,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     );
   };
 
-  const navItem = (to: string, label: string, Icon: any) => {
+  // ✅ FIXED: Icon is optional
+  const navItem = (to: string, label: string, Icon?: any) => {
     const active = location.pathname === to;
 
     return (
@@ -152,7 +152,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           }
         }}
       >
-        {/* 🔥 Active Indicator Bar */}
+        {/* Active Indicator */}
         {active && (
           <div
             style={{
@@ -167,10 +167,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           />
         )}
 
-        {/* Icon */}
-        <Icon size={18} />
+        {/* ✅ SAFE ICON */}
+        {Icon && <Icon size={18} />}
 
-        {/* Label */}
         <span>{label}</span>
       </Link>
     );
@@ -187,7 +186,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         height: "100%",
       }}
     >
-      {/* 🔥 TOP LOGO */}
+      {/* 🔥 LOGO */}
       <div
         style={{
           padding: theme.spacing.lg,
@@ -215,7 +214,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         </span>
       </div>
 
-      {/* NAV ITEMS */}
+      {/* NAV */}
       <div
         style={{
           flex: 1,
@@ -228,16 +227,22 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             {navItem("/admin", "Dashboard", LayoutDashboard)}
             {navItem("/admin/users", "Users", Users)}
             {navItem("/admin/assets", "Assets", Database)}
+            {navItem("/admin/command-center", "Admin Command Center", LayoutDashboard)}
+            {navItem("/admin/geospatial", "Geospatial Sources", Map)}
+            {navItem("/planning", "Reporting Center", FileText)}
           </>
         )}
 
         {/* OPERATOR */}
         {user?.role === "OPERATOR" && (
           <>
-            {navItem("/operator/map", "Map", Map)}
+            {navItem("/operator/command-center", "Command Center", LayoutDashboard)}
+            {navItem("/operator/dashboard", "RF Operations", Radio)}
+            {navItem("/operator/map", "Tactical Map", Map)}
             {navItem("/operator/alerts", "Alerts", AlertTriangle)}
-            {navItem("/operator/tcp-client", "TCP Client", Terminal)}
-            {navItem("/reports", "Reports", FileText)}
+            {navItem("/operator/tcp-client", "Sensor Network", Terminal)}
+            {navItem("/operator/simulation", "Signal Lab", Zap)}
+            {navItem("/reports", "Reporting Center", FileText)}
           </>
         )}
 
@@ -248,20 +253,6 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {hasPermission("jammer:write") &&
           navItem("/jammer/control", "Jammer Control", Zap)}
       </div>
-      {user?.role === "ADMIN" && navItem("/admin/command-center", "Admin Command Center")}
-      {user?.role === "ADMIN" && navItem("/admin/users", "Identity and Access")}
-      {user?.role === "ADMIN" && navItem("/admin/assets", "Assets and Systems")}
-      {user?.role === "ADMIN" && navItem("/admin/geospatial", "Geospatial Sources")}
-      {user?.role === "ADMIN" && navItem("/planning", "Reporting Center")}
-
-      {user?.role === "OPERATOR" && navItem("/operator/command-center", "Command Center")}
-      {user?.role === "OPERATOR" && navItem("/operator/dashboard", "RF Operations")}
-      {user?.role === "OPERATOR" && navItem("/operator/map", "Tactical Map")}
-      {user?.role === "OPERATOR" && navItem("/operator/tcp-client", "Sensor Network")}
-      {user?.role === "OPERATOR" && navItem("/operator/simulation", "Signal Lab")}
-      {user?.role === "OPERATOR" && navItem("/reports", "Reporting Center")}
-      {hasPermission("crfs:read") && navItem("/crfs/live", "CRFS Live")}
-      {hasPermission("jammer:write") && navItem("/jammer/control", "Jammer Control")}
     </div>
   );
 }

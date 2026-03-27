@@ -276,192 +276,182 @@ export default function AdminDashboard() {
     );
   };
 
-  return (
-    <AppLayout>
-      <PageContainer title="Admin Dashboard">
+return (
+  <AppLayout>
+    <PageContainer title="Admin Dashboard">
 
-        {/* METRICS */}
+      {/* METRICS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: theme.spacing.lg,
+          marginBottom: theme.spacing.xl,
+        }}
+      >
+        <Metric label="Active Users" value={loading ? "..." : String(activeUsers)} type="blue" />
+        <Metric label="Open Alerts" value={loading ? "..." : String(openAlerts)} type="red" />
+        <Metric label="RF Signals" value={loading ? "..." : String(signals)} type="purple" />
+        <Metric label="System Health" value={error ? "Degraded" : "Online"} type="green" />
+      </div>
+
+      {/* ERROR */}
+      {error && (
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: theme.spacing.lg,
-            marginBottom: theme.spacing.xl,
+            marginBottom: theme.spacing.lg,
+            padding: theme.spacing.md,
+            borderRadius: theme.radius.md,
+            background: theme.colors.surfaceAlt,
+            color: theme.colors.danger,
+            border: `1px solid ${theme.colors.border}`,
           }}
         >
-          <Metric label="Active Users" value={loading ? "..." : String(activeUsers)} type="blue" />
-          <Metric label="Open Alerts" value={loading ? "..." : String(openAlerts)} type="red" />
-          <Metric label="RF Signals" value={loading ? "..." : String(signals)} type="purple" />
-          <Metric label="System Health" value={error ? "Degraded" : "Online"} type="green" />
+          {error}
         </div>
+      )}
 
-        {/* ERROR */}
-        {error && (
-          <div
-            style={{
-              marginBottom: theme.spacing.lg,
-              padding: theme.spacing.md,
-              borderRadius: theme.radius.md,
-              background: theme.colors.surfaceAlt,
-              color: theme.colors.danger,
-              border: `1px solid ${theme.colors.border}`,
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {/* ACTION */}
-        <Card>
-          <div style={{ display: "flex", flexDirection: "column", gap: theme.spacing.md }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: theme.spacing.md,
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 16 }}>
-                  Alert Simulation
-                </div>
-                <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
-                  Generate alerts for testing system behavior.
-                </div>
-              </div>
-
-              <button
-                onClick={handleSimulateAlerts}
-                disabled={simulateLoading}
-                style={{
-                  minWidth: 180,
-                  height: 40,
-                  border: "none",
-                  borderRadius: theme.radius.md,
-                  background: theme.colors.primary,
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: simulateLoading ? "not-allowed" : "pointer",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = "0.9";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = "1";
-                }}
-              >
-                {simulateLoading ? "Simulating..." : "Simulate 50 Alerts"}
-              </button>
-            </div>
-
-            {/* ✅ MESSAGE */}
-            {simulateMessage && (
-              <div
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: simulateMessage.startsWith("Failed")
-                    ? theme.colors.danger
-                    : theme.colors.success,
-                }}
-              >
-                {simulateMessage}
-        <Card>
+      {/* ALERT SIMULATION */}
+      <Card>
+        <div style={{ display: "flex", flexDirection: "column", gap: theme.spacing.md }}>
           <div
             style={{
               display: "flex",
-              alignItems: "center",
               justifyContent: "space-between",
+              flexWrap: "wrap",
+              alignItems: "center",
               gap: theme.spacing.md,
             }}
           >
             <div>
-              <div style={{ fontSize: theme.typography.h3.fontSize, fontWeight: theme.typography.h3.fontWeight }}>
-                Geospatial Ingestion Sources
+              <div style={{ fontWeight: 600, fontSize: 16 }}>
+                Alert Simulation
               </div>
-              <div style={{ color: theme.colors.textSecondary }}>Register and manage multi-source geospatial feeds with ISO 19115 metadata.</div>
+              <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
+                Generate alerts for testing system behavior.
+              </div>
             </div>
-            <Link
-              to="/admin/geospatial"
+
+            <button
+              onClick={handleSimulateAlerts}
+              disabled={simulateLoading}
               style={{
-                textDecoration: "none",
+                minWidth: 180,
+                height: 40,
+                border: "none",
                 borderRadius: theme.radius.md,
                 background: theme.colors.primary,
-                color: theme.colors.surface,
-                padding: `${theme.spacing.xs} ${theme.spacing.md}`,
-                fontWeight: 600,
-                whiteSpace: "nowrap",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: simulateLoading ? "not-allowed" : "pointer",
               }}
             >
-              Manage Sources
+              {simulateLoading ? "Simulating..." : "Simulate 50 Alerts"}
+            </button>
+          </div>
+
+          {/* ✅ MESSAGE FIXED */}
+          {simulateMessage && (
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: simulateMessage.startsWith("Failed")
+                  ? theme.colors.danger
+                  : theme.colors.success,
+              }}
+            >
+              {simulateMessage}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* GEOSPATIAL */}
+      <Card>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: theme.spacing.md,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: theme.typography.h3.fontSize,
+                fontWeight: theme.typography.h3.fontWeight,
+              }}
+            >
+              Geospatial Ingestion Sources
+            </div>
+            <div style={{ color: theme.colors.textSecondary }}>
+              Register and manage multi-source geospatial feeds with ISO 19115 metadata.
+            </div>
+          </div>
+
+          <Link
+            to="/admin/geospatial"
+            style={{
+              textDecoration: "none",
+              borderRadius: theme.radius.md,
+              background: theme.colors.primary,
+              color: theme.colors.surface,
+              padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Manage Sources
+          </Link>
+        </div>
+      </Card>
+
+      {/* CRFS LIVE */}
+      <div style={{ marginTop: theme.spacing.lg }}>
+        <Card>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: theme.spacing.md,
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 16 }}>
+                CRFS Live Monitoring
+              </div>
+              <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
+                Monitor live ingest health and RF activity streams.
+              </div>
+            </div>
+
+            <Link
+              to="/crfs/live"
+              style={{
+                minWidth: 180,
+                height: 40,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                textDecoration: "none",
+                background: theme.colors.primary,
+                color: "#fff",
+                borderRadius: theme.radius.md,
+                fontWeight: 500,
+              }}
+            >
+              Open Dashboard
             </Link>
           </div>
         </Card>
+      </div>
 
-        <Card>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: theme.spacing.md,
-            }}
-          >
-            <div>
-              <div style={{ fontSize: theme.typography.h3.fontSize, fontWeight: theme.typography.h3.fontWeight }}>
-                CRFS Live
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* CRFS */}
-        <div style={{ marginTop: theme.spacing.lg }}>
-          <Card>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: theme.spacing.md,
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 16 }}>
-                  CRFS Live Monitoring
-                </div>
-                <div style={{ fontSize: 13, color: theme.colors.textSecondary }}>
-                  Monitor live ingest health and RF activity streams.
-                </div>
-              </div>
-
-              <Link
-                to="/crfs/live"
-                style={{
-                  minWidth: 180,
-                  height: 40,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textDecoration: "none",
-                  background: theme.colors.primary,
-                  color: "#fff",
-                  borderRadius: theme.radius.md,
-                  fontWeight: 500,
-                }}
-              >
-                Open Dashboard
-              </Link>
-            </div>
-          </Card>
-        </div>
-
-      </PageContainer>
-    </AppLayout>
-  );
+    </PageContainer>
+  </AppLayout>
+);
 }
