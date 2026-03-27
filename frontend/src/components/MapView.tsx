@@ -54,6 +54,15 @@ import {
   toQuadKey,
 } from "./mapViewUtils";
 import MapOverlaysPanel from "./MapOverlaysPanel";
+import {
+  Save,
+  RotateCcw,
+  Crosshair,
+  Radio,
+  AlertTriangle,
+  Tag,
+  Layers,
+} from "lucide-react";
 
 type Props = {
   assets?: AssetRecord[];
@@ -1641,12 +1650,11 @@ export default function MapView({
       )}
 
       {showSignals && signals.map((signal) => (
-        <CircleMarker key={`sig-${signal.id}`} center={[signal.latitude, signal.longitude]} radius={5} pathOptions={{ color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 0.8 }} />
         <CircleMarker
           key={`sig-${signal.id}`}
           center={[signal.latitude, signal.longitude]}
           radius={5 * lowZoomStyleScale}
-          pathOptions={{ color: "#1d4ed8" }}
+          pathOptions={{ color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 0.8 }}
         >
           <Popup>
             <div>
@@ -1673,30 +1681,30 @@ export default function MapView({
       }}
     >
       {[
-        { icon: "💾", title: "Save View", onClick: () => currentView && setSavedView(currentView), active: !!savedView },
-        { icon: "⟲", title: "Reset View", onClick: () => setResetCounter(c => c + 1) },
-        { icon: "⌖", title: "Assets", onClick: () => setShowAssets(!showAssets), active: showAssets, color: "#38bdf8" },
-        { icon: "📡", title: "Signals", onClick: () => setShowSignals(!showSignals), active: showSignals, color: "#38bdf8" },
-        { icon: "🚨", title: "Alerts", onClick: () => setShowAlerts(!showAlerts), active: showAlerts, color: "#fb7185" },
-        { icon: "🏷", title: "Labels", onClick: () => setShowNodeLabels(!showNodeLabels), active: showNodeLabels },
-        { icon: "🗺", title: "Map Layers", onClick: () => setShowBaseMapSelector(!showBaseMapSelector), active: showBaseMapSelector },
+        { icon: Save, title: "Save View", onClick: () => currentView && setSavedView(currentView), active: !!savedView },
+        { icon: RotateCcw, title: "Reset View", onClick: () => setResetCounter(c => c + 1) },
+        { icon: Crosshair, title: "Assets", onClick: () => setShowAssets(!showAssets), active: showAssets, color: "#38bdf8" },
+        { icon: Radio, title: "Signals", onClick: () => setShowSignals(!showSignals), active: showSignals, color: "#38bdf8" },
+        { icon: AlertTriangle, title: "Alerts", onClick: () => setShowAlerts(!showAlerts), active: showAlerts, color: "#fb7185" },
+        { icon: Tag, title: "Labels", onClick: () => setShowNodeLabels(!showNodeLabels), active: showNodeLabels },
+        { icon: Layers, title: "Map Layers", onClick: () => setShowBaseMapSelector(!showBaseMapSelector), active: showBaseMapSelector },
       ].map((btn, idx) => (
         <button
           key={idx} type="button" title={btn.title} onClick={btn.onClick}
           style={{
-            width: 34, height: 34, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            width: 36, height: 36, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             background: btn.active ? "rgba(56, 189, 248, 0.2)" : "rgba(255,255,255,0.05)",
             border: `1px solid ${btn.active ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
-            color: btn.color || "#f8fafc", fontSize: "16px", transition: "all 0.2s"
+            color: btn.color || "#f8fafc", transition: "all 0.2s"
           }}
         >
-          {btn.icon}
+          <btn.icon size={16} strokeWidth={2.2} />
         </button>
       ))}
     </div>
 
     {/* --- FLOATING STATUS BAR (BOTTOM) --- */}
-    <div style={{ position: "absolute", left: 16, bottom: 20, zIndex: 1000, display: "flex", gap: "10px", alignItems: "flex-end" }}>
+    <div style={{ position: "absolute", left: 92, bottom: 20, zIndex: 1000, display: "flex", gap: "10px", alignItems: "flex-end" }}>
        {/* Glass Coordinates */}
       {mousePosition && (
         <div style={{ 
@@ -1776,7 +1784,7 @@ export default function MapView({
 
     {/* Floating Selectors */}
     {showBaseMapSelector && (
-      <div style={{ position: "absolute", left: 70, top: 250, zIndex: 1100, background: "#1e293b", padding: "10px", borderRadius: "8px", border: "1px solid #38bdf8" }}>
+      <div style={{ position: "absolute", left: 92, top: 250, zIndex: 1100, background: "#1e293b", padding: "10px", borderRadius: "8px", border: "1px solid #38bdf8" }}>
         <select value={baseMapId} onChange={(e) => { handleBaseMapSelectionChange(e.target.value); setShowBaseMapSelector(false); }}
           style={{ background: "#0f172a", color: "white", border: "1px solid #334155", padding: "4px" }}>
           {BASE_MAP_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}

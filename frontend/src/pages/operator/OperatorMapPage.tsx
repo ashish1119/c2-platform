@@ -695,18 +695,6 @@ export default function OperatorMapPage() {
             }}
           >
             <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 'bold' }}>«</div>
-            <MapView
-              assets={mapAssets}
-              alerts={mapAlerts}
-              signals={mapSignals}
-              heatCells={mapHeatCells}
-              triangulation={mapTriangulation}
-              tcpRecentMessages={tcpRecentMessages}
-              jammerLifecycleByAssetId={jammerLifecycleByAssetId}
-              onJammerToggle={handleJammerToggle}
-              jammerActionInProgressId={jammerActionAssetId}
-              mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
-            />
           </div>
         )}
 

@@ -370,6 +370,11 @@ export default function AdminDashboard() {
                 }}
               >
                 {simulateMessage}
+              </div>
+            )}
+          </div>
+        </Card>
+
         <Card>
           <div
             style={{
@@ -415,7 +420,24 @@ export default function AdminDashboard() {
               <div style={{ fontSize: theme.typography.h3.fontSize, fontWeight: theme.typography.h3.fontWeight }}>
                 CRFS Live
               </div>
-            )}
+              <div style={{ color: theme.colors.textSecondary }}>
+                Open the live CRFS dashboard for ingest and RF monitoring.
+              </div>
+            </div>
+            <Link
+              to="/crfs/live"
+              style={{
+                textDecoration: "none",
+                borderRadius: theme.radius.md,
+                background: theme.colors.primary,
+                color: theme.colors.surface,
+                padding: `${theme.spacing.xs} ${theme.spacing.md}`,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Open CRFS Live
+            </Link>
           </div>
         </Card>
 

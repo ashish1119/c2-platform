@@ -4,62 +4,35 @@
 		{
 			"label": "Run SMS Smoke Test",
 			"type": "shell",
-			"command": "wsl",
-			"args": [
-				"-e",
-				"bash",
-				"-lc",
-				"cd /mnt/d/c2-platform; docker compose exec -T backend python - < scripts/sms_smoke_test.py"
-			],
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform'; Get-Content '.\\scripts\\sms_smoke_test.py' | docker compose exec -T backend python -",
 			"isBackground": false,
 			"group": "test"
 		},
 		{
 			"label": "Check Compose Health",
 			"type": "shell",
-			"command": "wsl",
-			"args": [
-				"-e",
-				"bash",
-				"-lc",
-				"cd /mnt/d/c2-platform; docker compose ps; echo '-----'; docker compose logs --no-color --tail=40 backend frontend"
-			],
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform'; docker compose ps; Write-Output '-----'; docker compose logs --no-color --tail=40 backend frontend",
 			"isBackground": false,
 			"group": "test"
 		},
 		{
 			"label": "Install Frontend Deps (Windows)",
 			"type": "shell",
-			"command": "powershell",
-			"args": [
-				"-NoProfile",
-				"-Command",
-				"$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location frontend; npm install"
-			],
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform\\frontend'; npm install",
 			"isBackground": false,
 			"group": "test"
 		},
 		{
 			"label": "Build Frontend (Windows)",
 			"type": "shell",
-			"command": "powershell",
-			"args": [
-				"-NoProfile",
-				"-Command",
-				"$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location frontend; npm run build"
-			],
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform\\frontend'; npm run build",
 			"isBackground": false,
 			"group": "test"
 		},
 		{
 			"label": "Install + Build Frontend (Windows)",
 			"type": "shell",
-			"command": "powershell",
-			"args": [
-				"-NoProfile",
-				"-Command",
-				"$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location frontend; npm install; npm run build"
-			],
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform\\frontend'; npm install; npm run build",
 			"isBackground": false,
 			"group": "test"
 		}

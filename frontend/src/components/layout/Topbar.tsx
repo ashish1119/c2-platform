@@ -367,8 +367,6 @@ export default function Topbar({}: TopbarProps) {
     if (pathname === "/admin/assets") return "Assets and Systems";
     if (pathname === "/admin/geospatial") return "Geospatial Sources";
     if (pathname === "/operator") return "Operations Center";
-<<<<<<< HEAD
-<<<<<<< HEAD
     if (pathname === "/operator/command-center") return "Operator Command Center";
     if (pathname === "/operator/dashboard") return "RF Operations";
     if (pathname === "/operator/map") return "Tactical Map";
@@ -376,17 +374,6 @@ export default function Topbar({}: TopbarProps) {
     if (pathname === "/operator/simulation") return "Signal Lab";
     if (pathname === "/planning") return "Reporting Center";
     if (pathname === "/reports") return "Reporting Center";
-=======
-=======
-    if (pathname === "/operator/dashboard") return "Operator Dashboard";
->>>>>>> origin/aditya-new-branch
-    if (pathname === "/operator/map") return "Operator Map";
-    if (pathname === "/operator/alerts") return "Operator Alerts";
-    if (pathname === "/operator/tcp-client") return "TCP Client";
-    if (pathname === "/operator/sms") return "Spectrum Monitoring Suite";
-    if (pathname === "/planning") return "Planning Tool";
-    if (pathname === "/reports") return "Reports";
->>>>>>> origin/Akash
     if (pathname === "/crfs/live") return "CRFS Live";
     if (pathname === "/jammer/control") return "Jammer Control";
     return "";

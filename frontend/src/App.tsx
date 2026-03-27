@@ -1,18 +1,7 @@
 import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-<<<<<<< HEAD
-=======
-import LoginPage from "./pages/LoginPage";
-import AdminDashboard from "./pages/AdminDashboard";
-import { OperatorMapPage, OperatorAlertsPage, OperatorTcpClientPage, OperatorSMSPage } from "./pages/operator";
-import ReportsPage from "./pages/ReportsPage";
-import PlanningPage from "./pages/PlanningPage";
-import CrfsLivePage from "./pages/CrfsLivePage";
-import JammerControlPage from "./pages/JammerControlPage";
->>>>>>> origin/Akash
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-<<<<<<< HEAD
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminCommandCenterPage = lazy(() => import("./pages/admin/AdminCommandCenterPage"));
@@ -21,6 +10,8 @@ const AssetsManagementPage = lazy(() => import("./pages/admin/AssetsManagementPa
 const OperatorDashboardPage = lazy(() => import("./pages/operator/OperatorDashboardPage"));
 const OperatorCommandCenterPage = lazy(() => import("./pages/operator/OperatorCommandCenterPage"));
 const OperatorMapPage = lazy(() => import("./pages/operator/OperatorMapPage"));
+const OperatorAlertsPage = lazy(() => import("./pages/operator/OperatorAlertsPage"));
+const OperatorSMSPage = lazy(() => import("./pages/operator/OperatorSMSPage"));
 const OperatorTcpClientPage = lazy(() => import("./pages/operator/OperatorTcpClientPage"));
 const OperatorSignalSimulationPage = lazy(
   () => import("./pages/operator/OperatorSignalSimulationPage"),
@@ -33,11 +24,7 @@ const GeospatialSourcesPage = lazy(() => import("./pages/admin/GeospatialSources
 function RouteFallback() {
   return <div style={{ minHeight: "100vh", background: "#071120" }} />;
 }
-=======
-import UserManagement from "./pages/admin/UserManagement";
-import AssetsManagementPage from "./pages/admin/AssetsManagementPage";
-import OperatorDashboard from "./pages/OperatorDashboard";
->>>>>>> origin/aditya-new-branch
+
 
 function FallbackRedirect() {
   const { user } = useAuth();
@@ -128,7 +115,6 @@ export default function App() {
               }
             />
 
-<<<<<<< HEAD
             <Route
               path="/operator/dashboard"
               element={
@@ -137,74 +123,14 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-=======
-          <Route
-            path="/operator/sms"
-            element={
-              <ProtectedRoute requiredRole="OPERATOR">
-<<<<<<< HEAD
-                <OperatorSMSPage />
-=======
-                <Navigate to="/operator/map" replace />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/operator/dashboard"
-            element={
-              <ProtectedRoute requiredRole="OPERATOR">
-                <OperatorDashboard />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/operator/map"
-            element={
-              <ProtectedRoute requiredRole="OPERATOR">
-                <OperatorMapPage />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/operator/alerts"
-            element={
-              <ProtectedRoute requiredRole="OPERATOR">
-                <OperatorAlertsPage />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/operator/tcp-client"
-            element={
-              <ProtectedRoute requiredRole="OPERATOR">
-                <OperatorTcpClientPage />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/operator/tcpclient"
-            element={
-              <ProtectedRoute requiredRole="OPERATOR">
-                <Navigate to="/operator/tcp-client" replace />
->>>>>>> origin/aditya-new-branch
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/reports"
-            element={
-              <ProtectedRoute requiredRole="OPERATOR">
-                <ReportsPage />
-              </ProtectedRoute>
-            }
-          />
->>>>>>> origin/Akash
+            <Route
+              path="/operator/sms"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <OperatorSMSPage />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/operator/interception"
