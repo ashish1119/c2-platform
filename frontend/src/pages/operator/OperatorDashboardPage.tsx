@@ -385,20 +385,54 @@ export default function OperatorDashboardPage() {
           }));
         }
 
-        if (eventType === "sms_ingest") {
-          const accepted = typeof payload.accepted === "number" ? payload.accepted : 0;
-          const rejected = typeof payload.rejected === "number" ? payload.rejected : 0;
-          const sourceNode = typeof payload.source_node === "string" ? payload.source_node : "";
+        // if (eventType === "sms_ingest") {
+        //   const accepted = typeof payload.accepted === "number" ? payload.accepted : 0;
+        //   const rejected = typeof payload.rejected === "number" ? payload.rejected : 0;
+        //   const sourceNode = typeof payload.source_node === "string" ? payload.source_node : "";
 
-          setStatus((previous) => ({
-            ...previous,
-            sourceNode: sourceNode || previous.sourceNode,
-            accepted,
-            rejected,
-            updatedAt: new Date().toISOString(),
-            message: `Live ingest update: accepted ${accepted}, rejected ${rejected}.`,
-          }));
-        }
+        //   setStatus((previous) => ({
+        //     ...previous,
+        //     sourceNode: sourceNode || previous.sourceNode,
+        //     accepted,
+        //     rejected,
+        //     updatedAt: new Date().toISOString(),
+        //     message: `Live ingest update: accepted ${accepted}, rejected ${rejected}.`,
+        //   }));
+        // }
+
+        if (eventType === "sms_ingest") {
+            const accepted = typeof payload.accepted === "number" ? payload.accepted : 0;
+            const rejected = typeof payload.rejected === "number" ? payload.rejected : 0;
+            const sourceNode = typeof payload.source_node === "string" ? payload.source_node : "";
+
+  // ✅ UPDATE STATUS
+  setStatus((previous) => ({
+    ...previous,
+    sourceNode: sourceNode || previous.sourceNode,
+    accepted,
+    rejected,
+    updatedAt: new Date().toISOString(),
+    message: `Live ingest update: accepted ${accepted}, rejected ${rejected}.`,
+  }));
+
+  // ============================================
+  // 🔥 NEW: PUSH TCP DATA INTO UI
+  // ============================================
+  if (payload.data) {
+    const d = payload.data;
+
+    const newDetection = {
+      id: d.id,
+      source_node: sourceNode || "tcp_node_01",
+      frequency_hz: d.freq,
+      power_dbm: d.power,
+      doa_azimuth_deg: d.DOA,
+      timestamp_utc: d.timestamp,
+    };
+
+    setDetections((prev) => [newDetection, ...prev].slice(0, 200));
+  }
+}
       };
 
       websocket.onclose = () => {

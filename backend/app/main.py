@@ -25,6 +25,9 @@ from app.core.app_lifecycle import initialize_runtime_services, shutdown_runtime
 from app.core.db_bootstrap import bootstrap_database
 from app.logging_config import logger
 from app.database import engine
+from app.services.tcp_server import start_tcp_server
+
+import threading
 
 app = FastAPI(title="C2 Platform")
 
@@ -61,6 +64,8 @@ async def create_tables():
         await bootstrap_database(conn)
     await initialize_runtime_services(app)
 
+    threading.Thread(target=start_tcp_server, daemon=True).start()
+
 
 @app.on_event("shutdown")
 async def shutdown_services():
@@ -70,6 +75,48 @@ async def shutdown_services():
 @app.websocket("/ws/alerts")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except:
+        manager.disconnect(websocket)
+
+
+
+
+from jose import jwt, JWTError
+
+SECRET_KEY = "supersecretkey"
+ALGORITHM = "HS256"
+
+@app.websocket("/ws/rf-data")
+async def websocket_rf_data(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+
+    if not token:
+        print("❌ No token")
+        await websocket.close(code=403)
+        return
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+
+        if not user_id:
+            print("❌ Invalid token")
+            await websocket.close(code=403)
+            return
+
+        print("✅ WS Authenticated:", user_id)
+
+    except JWTError as e:
+        print("❌ JWT Error:", e)
+        await websocket.close(code=403)
+        return
+
+    # ✅ CONNECT
+    await manager.connect(websocket)
+
     try:
         while True:
             await websocket.receive_text()
