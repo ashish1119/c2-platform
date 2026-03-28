@@ -19,15 +19,36 @@
 // }
 
 
+import React from "react";
 import { useTheme } from "../../context/ThemeContext";
 
-export default function Card({ children }: { children: React.ReactNode }) {
+type CardProps = {
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+  className?: string;
+  onClick?: () => void;
+  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
+};
+
+export default function Card({
+  children,
+  style,
+  className,
+  onClick,
+  onMouseEnter,
+  onMouseLeave,
+}: CardProps) {
   const { theme } = useTheme();
 
   const isDark = theme.mode === "dark";
 
   return (
     <div
+      className={className}
+      onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         position: "relative",
 
@@ -39,25 +60,20 @@ export default function Card({ children }: { children: React.ReactNode }) {
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
 
-        // 🔹 Spacing
         padding: theme.spacing.lg,
-
-        // 🔹 Shape (sharper edges)
         borderRadius: 10,
 
-        // 🔹 Border (your color)
         border: "1px solid rgba(17, 193, 202, 0.6)",
 
-        // 🔹 Subtle glow border effect
         boxShadow: isDark
           ? "0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(17,193,202,0.2)"
           : "0 4px 20px rgba(0,0,0,0.08), 0 0 0 1px rgba(17,193,202,0.15)",
 
-        // 🔹 Smooth hover feel
         transition: "all 0.25s ease",
 
-        // 🔹 Better text rendering
         color: theme.colors.textPrimary,
+
+        ...style, // ✅ allow override
       }}
     >
       {children}
