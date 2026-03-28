@@ -244,6 +244,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             {navItem("/operator/tcp-client", "Sensor Network", Terminal)}
             {navItem("/operator/simulation", "Signal Lab", Zap)}
             {navItem("/reports", "Reporting Center", FileText)}
+            {navItem("/operator/decodio", "Decodio", Database)}
           </>
         )}
 

@@ -1,5 +1,5 @@
 #version: "3.9"
-
+ 
 services:
   postgres:
     image: postgis/postgis:15-3.4
@@ -14,11 +14,11 @@ services:
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U c2user -d c2db "]
       interval: 5s
       timeout: 5s
       retries: 5
-
+ 
   backend:
     build: ./backend
     container_name: c2_backend
@@ -36,7 +36,7 @@ services:
       uvicorn app.main:app
       --host 0.0.0.0
       --port 8000
-
+ 
   frontend:
     build: ./frontend
     container_name: c2_frontend
@@ -45,6 +45,6 @@ services:
       - "3000:80"
     depends_on:
       - backend
-
+ 
 volumes:
   postgres_data:

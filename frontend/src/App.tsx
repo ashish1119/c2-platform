@@ -20,11 +20,12 @@ const ReportingCenterPage = lazy(() => import("./pages/ReportingCenterPage"));
 const CrfsLivePage = lazy(() => import("./pages/CrfsLivePage"));
 const JammerControlPage = lazy(() => import("./pages/JammerControlPage"));
 const GeospatialSourcesPage = lazy(() => import("./pages/admin/GeospatialSourcesPage"));
+const OperatorDecodioPage = lazy(() => import("./pages/operator/OperatorDecodioPage"));
+const DecodioWorkspacePage = lazy(() => import("./pages/operator/DecodioWorkspacePage"));
 
 function RouteFallback() {
   return <div style={{ minHeight: "100vh", background: "#071120" }} />;
 }
-
 
 function FallbackRedirect() {
   const { user } = useAuth();
@@ -227,6 +228,24 @@ export default function App() {
               element={
                 <ProtectedRoute requiredPermission="jammer:write">
                   <JammerControlPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/operator/decodio"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <OperatorDecodioPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/operator/decodio/workspace"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <DecodioWorkspacePage />
                 </ProtectedRoute>
               }
             />
