@@ -33,21 +33,22 @@
 //     );
 //   };
 
-//   const pageTitle = (() => {
-//     const pathname = location.pathname;
-//     if (pathname === "/admin") return "Admin Dashboard";
-//     if (pathname === "/admin/users") return "User Management";
-//     if (pathname === "/admin/assets") return "Asset Management";
-//     if (pathname === "/operator") return "Operations Center";
-//     if (pathname === "/operator/map") return "Operator Map";
-//     if (pathname === "/operator/alerts") return "Operator Alerts";
-//     if (pathname === "/operator/tcp-client") return "TCP Client";
-//     if (pathname === "/planning") return "Planning Tool";
-//     if (pathname === "/reports") return "Reports";
-//     if (pathname === "/crfs/live") return "CRFS Live";
-//     if (pathname === "/jammer/control") return "Jammer Control";
-//     return "";
-//   })();
+  const pageTitle = (() => {
+    const pathname = location.pathname;
+    if (pathname === "/admin") return "Admin Dashboard";
+    if (pathname === "/admin/users") return "User Management";
+    if (pathname === "/admin/assets") return "Asset Management";
+    if (pathname === "/operator") return "Operations Center";
+    if (pathname === "/operator/map") return "Operator Map";
+    if (pathname === "/operator/alerts") return "Operator Alerts";
+    if (pathname === "/operator/tcp-client") return "TCP Client";
+    if (pathname.startsWith("/operator/decodio")) return "Decodio";
+    if (pathname === "/planning") return "Planning Tool";
+    if (pathname === "/reports") return "Reports";
+    if (pathname === "/crfs/live") return "CRFS Live";
+    if (pathname === "/jammer/control") return "Jammer Control";
+    return "";
+  })();
 
 //   return (
 //     <div
@@ -349,31 +350,16 @@ export default function Topbar({}: TopbarProps) {
   };
 
   const pageTitle = (() => {
-    const p = location.pathname;
-    if (p === "/admin") return "Dashboard";
-    if (p === "/admin/users") return "Users";
-    if (p === "/admin/assets") return "Assets";
-    if (p === "/operator/map") return "Map";
-    if (p === "/operator/alerts") return "Alerts";
-    if (p === "/operator/tcp-client") return "TCP Client";
-    if (p === "/reports") return "Reports";
-    if (p === "/crfs/live") return "CRFS Live";
-    if (p === "/jammer/control") return "Jammer Control";
     const pathname = location.pathname;
-    if (pathname === "/admin") return "Admin Command Center";
-    if (pathname === "/admin/command-center") return "Admin Command Center";
-    if (pathname === "/admin/overview") return "Admin Dashboard";
-    if (pathname === "/admin/users") return "Identity and Access";
-    if (pathname === "/admin/assets") return "Assets and Systems";
-    if (pathname === "/admin/geospatial") return "Geospatial Sources";
-    if (pathname === "/operator") return "Operations Center";
-    if (pathname === "/operator/command-center") return "Operator Command Center";
-    if (pathname === "/operator/dashboard") return "RF Operations";
-    if (pathname === "/operator/map") return "Tactical Map";
-    if (pathname === "/operator/tcp-client") return "Sensor Network";
-    if (pathname === "/operator/simulation") return "Signal Lab";
-    if (pathname === "/planning") return "Reporting Center";
-    if (pathname === "/reports") return "Reporting Center";
+    if (pathname === "/admin") return "Admin Dashboard";
+    if (pathname === "/admin/users") return "Users";
+    if (pathname === "/admin/assets") return "Assets";
+    if (pathname === "/operator/map") return "Map";
+    if (pathname === "/operator/alerts") return "Alerts";
+    if (pathname === "/operator/tcp-client") return "TCP Client";
+    if (pathname.startsWith("/operator/decodio")) return "Decodio";
+    if (pathname === "/planning") return "Planning Tool";
+    if (pathname === "/reports") return "Reports";
     if (pathname === "/crfs/live") return "CRFS Live";
     if (pathname === "/jammer/control") return "Jammer Control";
     return "";
