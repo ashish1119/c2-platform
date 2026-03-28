@@ -116,6 +116,7 @@ import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import { resetPassword } from "../api/auth";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -139,6 +140,34 @@ export default function LoginPage() {
         if (!error.response) { alert("Server not reachable."); return; }
       }
       alert("Login failed. Please try again.");
+    }
+  };
+
+  const handleResetPassword = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+
+    const resetUsername = window.prompt("Enter your username");
+    if (!resetUsername) return;
+
+    const resetEmail = window.prompt("Enter your registered email");
+    if (!resetEmail) return;
+
+    const resetNewPassword = window.prompt("Enter a new password (minimum 8 characters)");
+    if (!resetNewPassword) return;
+
+    try {
+      await resetPassword({
+        username: resetUsername.trim(),
+        email: resetEmail.trim(),
+        new_password: resetNewPassword,
+      });
+      alert("Password reset successful. Please login with your new password.");
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        alert(error.response?.data?.detail || "Password reset failed");
+        return;
+      }
+      alert("Password reset failed");
     }
   };
 
@@ -186,7 +215,12 @@ export default function LoginPage() {
         </form>
 
         <div style={{ textAlign: 'center', marginTop: '10px', color: theme.colors.textSecondary }}>
-          <span>Forgot your password? <a href='#' style={{ color: accentColor, fontWeight: 600 }}>Reset</a></span>
+          <span>
+            Forgot your password?{' '}
+            <a href='#' onClick={handleResetPassword} style={{ color: accentColor, fontWeight: 600 }}>
+              Reset
+            </a>
+          </span>
         </div>
 
       </div>

@@ -23,6 +23,12 @@ class ChangePasswordRequest(BaseModel):
     new_password: str
 
 
+class ResetPasswordRequest(BaseModel):
+    username: str
+    email: str
+    new_password: str
+
+
 class RoleRead(BaseModel):
     id: int
     name: str

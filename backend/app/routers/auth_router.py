@@ -8,7 +8,7 @@ from app.models import User
 from app.core.security import verify_password, create_access_token, hash_password
 from app.deps import get_current_user_claims
 from app.services.role_service import get_effective_permissions
-from app.schemas import LoginRequest, LoginResponse, ChangePasswordRequest
+from app.schemas import LoginRequest, LoginResponse, ChangePasswordRequest, ResetPasswordRequest
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -75,3 +75,32 @@ async def change_password(
     await db.commit()
 
     return {"message": "Password changed successfully"}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    payload: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    result = await db.execute(
+        select(User).where(
+            User.username == payload.username,
+            User.email == payload.email,
+            User.is_active.is_(True),
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found for provided username/email")
+
+    if verify_password(payload.new_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+
+    user.hashed_password = hash_password(payload.new_password)
+    await db.commit()
+
+    return {"message": "Password reset successfully"}
