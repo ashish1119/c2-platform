@@ -22,6 +22,7 @@ const JammerControlPage = lazy(() => import("./pages/JammerControlPage"));
 const GeospatialSourcesPage = lazy(() => import("./pages/admin/GeospatialSourcesPage"));
 const OperatorDecodioPage = lazy(() => import("./pages/operator/OperatorDecodioPage"));
 const DecodioWorkspacePage = lazy(() => import("./pages/operator/DecodioWorkspacePage"));
+const TelecomIntelligencePage = lazy(() => import("./pages/TelecomIntelligencePage"));
 
 function RouteFallback() {
   return <div style={{ minHeight: "100vh", background: "#071120" }} />;
@@ -246,6 +247,15 @@ export default function App() {
               element={
                 <ProtectedRoute requiredRole="OPERATOR">
                   <DecodioWorkspacePage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/telecom/intelligence"
+              element={
+                <ProtectedRoute requiredPermission="crfs:read">
+                  <TelecomIntelligencePage />
                 </ProtectedRoute>
               }
             />

@@ -94,6 +94,7 @@ import {
   FileText,
   Radio,
   Zap,
+  Signal,
 } from "lucide-react";
 
 type SidebarProps = {
@@ -249,6 +250,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {/* EXTRA */}
         {hasPermission("crfs:read") &&
           navItem("/crfs/live", "CRFS Live", Radio)}
+
+        {hasPermission("crfs:read") &&
+          navItem("/telecom/intelligence", "Telecom Intelligence", Signal)}
 
         {hasPermission("jammer:write") &&
           navItem("/jammer/control", "Jammer Control", Zap)}
