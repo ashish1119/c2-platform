@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // import React, { useState, useMemo, useEffect, useRef } from "react";
 // //import AppLayout from "../../components/layout/AppLayout";
 // //import PageContainer from "../../components/layout/PageContainer";
@@ -283,6 +284,8 @@
 // }
 
 
+=======
+>>>>>>> origin/Akash
 import React, { useState, useEffect } from "react";
 import Card from "../../components/ui/Card";
 
@@ -401,7 +404,10 @@ function InterceptListTable({
   );
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/Akash
 // ✅ MAIN COMPONENT
 export default function CESMTableTabs() {
   const [activeSubTab, setActiveSubTab] = useState(0);
@@ -416,6 +422,7 @@ export default function CESMTableTabs() {
   ];
 
   useEffect(() => {
+<<<<<<< HEAD
     const token = localStorage.getItem("token");
 
     console.log("TOKEN:", token);
@@ -423,19 +430,33 @@ export default function CESMTableTabs() {
     const ws = new WebSocket(
       `ws://localhost:8000/ws/rf-data?token=${token}` //use this for local development
     );
+=======
+    const ws = new WebSocket("ws://localhost:8000/ws/rf-data");
+>>>>>>> origin/Akash
 
     ws.onopen = () => console.log("✅ WS Connected");
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
+<<<<<<< HEAD
+=======
+      // ✅ update table data
+>>>>>>> origin/Akash
       setRfData((prev) => {
         const updated = [data, ...prev].slice(0, 50);
         return updated;
       });
 
+<<<<<<< HEAD
       setHighlightIds((prev) => [...prev, data.id]);
 
+=======
+      // ✅ highlight new row
+      setHighlightIds((prev) => [...prev, data.id]);
+
+      // ✅ remove highlight after 2 sec
+>>>>>>> origin/Akash
       setTimeout(() => {
         setHighlightIds((prev) =>
           prev.filter((id) => id !== data.id)
@@ -473,7 +494,11 @@ export default function CESMTableTabs() {
           ))}
         </div>
 
+<<<<<<< HEAD
         {/* INTERCEPT TABLE */}
+=======
+        {/* ONLY INTERCEPT TABLE UPDATED */}
+>>>>>>> origin/Akash
         {activeSubTab === 0 && (
           <InterceptListTable
             data={rfData}

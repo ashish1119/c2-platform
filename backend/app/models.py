@@ -506,3 +506,14 @@ class AuditLog(Base):
     timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="audit_logs")
+
+
+class RFDataModel(Base):
+    __tablename__ = "rf_data"
+
+    id = Column(Integer, primary_key=True, index=True)
+    freq = Column(Float)
+    power = Column(Float)
+    snr = Column(Float)
+    lat = Column(Float)
+    lon = Column(Float)

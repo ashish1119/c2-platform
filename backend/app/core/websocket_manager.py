@@ -20,7 +20,10 @@
 
 # manager = ConnectionManager()
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/Akash
 from fastapi import WebSocket
 from typing import List
 import asyncio

@@ -27,8 +27,12 @@ services:
       - ./docker/.env
     ports:
       - "8000:8000"
+<<<<<<< HEAD
       - "9300:9300"
       - "5000:5000"
+=======
+      - "5000:5000" 
+>>>>>>> origin/Akash
     depends_on:
       postgres:
         condition: service_healthy

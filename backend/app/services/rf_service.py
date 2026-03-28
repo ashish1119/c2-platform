@@ -10,6 +10,16 @@ from geoalchemy2 import Geometry
 from app.logging_config import logger
 from app.models import RFSignal
 
+from sqlalchemy.orm import Session
+from app.models import RFDataModel
+from app.schemas import RFData
+
+def save_rf_data(db: Session, data: RFData):
+    obj = RFDataModel(**data.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 def _rf_partition_bounds(detected_at: datetime | None) -> tuple[str, str, datetime, datetime]:
     timestamp = detected_at or datetime.now(timezone.utc)
@@ -353,3 +363,27 @@ async def triangulate_signals(
         "rays": rays,
         "warning": None,
     }
+
+
+from sqlalchemy.dialects.postgresql import insert
+from app.models import RFDataModel   # ✅ CORRECT MODEL
+from app.schemas import RFData       # ✅ SCHEMA
+
+
+def save_rf_data(db, rf_data: RFData):
+    stmt = insert(RFDataModel).values(**rf_data.dict())
+
+    # 🔥 UPSERT (fix duplicate error permanently)
+    stmt = stmt.on_conflict_do_update(
+        index_elements=['id'],
+        set_={
+            "freq": rf_data.freq,
+            "power": rf_data.power,
+            "snr": rf_data.snr,
+            "lat": rf_data.lat,
+            "lon": rf_data.lon
+        }
+    )
+
+    db.execute(stmt)
+    db.commit()

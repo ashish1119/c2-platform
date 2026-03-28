@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # import socket
 # import threading
 # import json
@@ -321,11 +322,22 @@ from app.database import AsyncSessionLocal
 from app.schemas import RFSignalCreate
 from app.services.rf_service import ingest_signal
 from app.core.websocket_manager import manager
+=======
+import socket
+import threading
+import json
+
+from app.database import SessionLocal
+from app.schemas import RFData
+from app.services.rf_service import save_rf_data
+from app.core.websocket_manager import manager  # ✅ NEW
+>>>>>>> origin/Akash
 
 HOST = "0.0.0.0"
 PORT = 5000
 
 
+<<<<<<< HEAD
 # ✅ helper to safely run async tasks from threads
 def run_async_task(coro):
     try:
@@ -337,6 +349,8 @@ def run_async_task(coro):
     loop.create_task(coro)
 
 
+=======
+>>>>>>> origin/Akash
 def start_tcp_server():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -380,6 +394,7 @@ def handle_client(conn, addr):
 
                 print("📩 Received:", line)
 
+<<<<<<< HEAD
                 try:
                     raw = json.loads(line)
 
@@ -432,6 +447,9 @@ def handle_client(conn, addr):
 
                 except Exception as e:
                     print("❌ Error:", e)
+=======
+                process_message(line)
+>>>>>>> origin/Akash
 
     except Exception as e:
         print(f"⚠️ Error with {addr}: {e}")
@@ -440,6 +458,7 @@ def handle_client(conn, addr):
         conn.close()
 
 
+<<<<<<< HEAD
 async def process_message_async(data_dict: dict):
     async with AsyncSessionLocal() as db:
         try:
@@ -449,3 +468,35 @@ async def process_message_async(data_dict: dict):
 
         except Exception as e:
             print("❌ Error processing message:", e)
+=======
+def process_message(message: str):
+    db = SessionLocal()
+
+    try:
+        # ✅ Parse JSON safely
+        try:
+            data_dict = json.loads(message)
+        except json.JSONDecodeError:
+            print("❌ Invalid JSON:", message)
+            return
+
+        # ✅ Validate schema
+        rf_data = RFData(**data_dict)
+
+        # ✅ Save to DB (make sure duplicate handling is fixed in service)
+        save_rf_data(db, rf_data)
+
+        print("✅ Saved:", rf_data.id)
+
+        # 🚀 SEND TO WEBSOCKET CLIENTS (REAL-TIME)
+        try:
+            manager.send_from_thread(data_dict)
+        except Exception as ws_error:
+            print("⚠️ WebSocket error:", ws_error)
+
+    except Exception as e:
+        print("❌ Error processing message:", e)
+
+    finally:
+        db.close()
+>>>>>>> origin/Akash
