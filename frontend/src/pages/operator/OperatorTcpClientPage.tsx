@@ -62,7 +62,7 @@ export default function OperatorTcpClientPage() {
   const [error, setError] = useState<string | null>(null);
   const [serverHost, setServerHost] = useState("");
   const [serverPort, setServerPort] = useState("");
-  const [protocol, setProtocol] = useState<"line" | "proto">("proto");
+  const [protocol, setProtocol] = useState<"line" | "proto">("line");
   const [lengthEndian, setLengthEndian] = useState<"big" | "little">("little");
   const [serverDirty, setServerDirty] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export default function OperatorTcpClientPage() {
             clientResponse.data.target_port ?? healthResponse.data.port;
           setServerHost(resolvedHost ?? "");
           setServerPort(resolvedPort ? String(resolvedPort) : "");
-          setProtocol(clientResponse.data.protocol ?? "proto");
+          setProtocol(clientResponse.data.protocol ?? "line");
           setLengthEndian(clientResponse.data.length_endian ?? "little");
         }
       } catch (loadError) {
@@ -433,7 +433,9 @@ export default function OperatorTcpClientPage() {
                     fontSize: 14,
                   }}
                 >
-                  <option value="proto">proto (protobuf)</option>
+                  <option value="proto" disabled>
+                    proto (protobuf) - coming soon
+                  </option>
                   <option value="line">line (text/json)</option>
                 </select>
               </label>

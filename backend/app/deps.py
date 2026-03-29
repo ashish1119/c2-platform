@@ -1,25 +1,33 @@
 import uuid
 from typing import Any
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jose import JWTError
 
 from app.config import settings
+from app.core.security import decode_access_token
 from app.database import AsyncSessionLocal
 from app.models import User
 from app.services.role_service import get_effective_permissions
 from sqlalchemy import select
 
-bearer_scheme = HTTPBearer(auto_error=True)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user_claims(
-	credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+	request: Request,
+	credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+	cookie_token: str | None = Cookie(default=None, alias=settings.ACCESS_TOKEN_COOKIE_NAME),
 ) -> dict[str, Any]:
-	token = credentials.credentials
+	token = credentials.credentials if credentials else cookie_token
+	if not token:
+		raise HTTPException(
+			status_code=status.HTTP_401_UNAUTHORIZED,
+			detail="Authentication required",
+		)
 	try:
-		payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+		payload = decode_access_token(token)
 	except JWTError:
 		raise HTTPException(
 			status_code=status.HTTP_401_UNAUTHORIZED,

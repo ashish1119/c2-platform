@@ -1,6 +1,13 @@
 #version: "3.9"
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: c2_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
   postgres:
     image: postgis/postgis:15-3.4
     container_name: c2_postgres
@@ -25,6 +32,8 @@ services:
     restart: always
     env_file:
       - ./docker/.env
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     ports:
       - "8000:8000"
       - "9300:9300"
@@ -32,6 +41,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     volumes:
       - ./backend/app:/app/app
     command: >

@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+from app.deps import get_current_user_claims
 from app.schemas import (
     DirectionFinderProfileCreate,
     DirectionFinderProfileRead,
@@ -39,8 +40,9 @@ def _to_direction_finder_profile_read(row) -> DirectionFinderProfileRead:
     return DirectionFinderProfileRead.model_validate(payload)
 
 
+@router.post("", response_model=DirectionFinderProfileRead, include_in_schema=False)
 @router.post("/", response_model=DirectionFinderProfileRead)
-async def create(data: DirectionFinderProfileCreate, db: AsyncSession = Depends(get_db)):
+async def create(data: DirectionFinderProfileCreate, db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     try:
         row = await create_direction_finder_profile(data, db)
         return _to_direction_finder_profile_read(row)
@@ -48,14 +50,15 @@ async def create(data: DirectionFinderProfileCreate, db: AsyncSession = Depends(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.get("", response_model=list[DirectionFinderProfileRead], include_in_schema=False)
 @router.get("/", response_model=list[DirectionFinderProfileRead])
-async def list_all(db: AsyncSession = Depends(get_db)):
+async def list_all(db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     rows = await list_direction_finder_profiles(db)
     return [_to_direction_finder_profile_read(row) for row in rows]
 
 
 @router.get("/{profile_id}", response_model=DirectionFinderProfileRead)
-async def get_one(profile_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def get_one(profile_id: uuid.UUID, db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     row = await get_direction_finder_profile(profile_id, db)
     if row is None:
         raise HTTPException(status_code=404, detail="Direction finder profile not found")
@@ -63,7 +66,7 @@ async def get_one(profile_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.patch("/{profile_id}", response_model=DirectionFinderProfileRead)
-async def update(profile_id: uuid.UUID, data: DirectionFinderProfileUpdate, db: AsyncSession = Depends(get_db)):
+async def update(profile_id: uuid.UUID, data: DirectionFinderProfileUpdate, db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     try:
         row = await update_direction_finder_profile(profile_id, data, db)
         if row is None:
@@ -74,7 +77,7 @@ async def update(profile_id: uuid.UUID, data: DirectionFinderProfileUpdate, db: 
 
 
 @router.delete("/{profile_id}")
-async def delete(profile_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+async def delete(profile_id: uuid.UUID, db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     deleted = await delete_direction_finder_profile(profile_id, db)
     if not deleted:
         raise HTTPException(status_code=404, detail="Direction finder profile not found")
@@ -82,19 +85,19 @@ async def delete(profile_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/export/csv")
-async def export_csv(db: AsyncSession = Depends(get_db)):
+async def export_csv(db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     rows = await list_direction_finder_profiles(db)
     return PlainTextResponse(export_direction_finder_profiles_csv(rows), media_type="text/csv")
 
 
 @router.get("/export/xml")
-async def export_xml(db: AsyncSession = Depends(get_db)):
+async def export_xml(db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     rows = await list_direction_finder_profiles(db)
     return PlainTextResponse(export_direction_finder_profiles_xml(rows), media_type="application/xml")
 
 
 @router.post("/import/csv")
-async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     if not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="CSV file required")
     content = (await file.read()).decode("utf-8")
@@ -105,7 +108,7 @@ async def import_csv(file: UploadFile = File(...), db: AsyncSession = Depends(ge
 
 
 @router.post("/import/xml")
-async def import_xml(file: UploadFile = File(...), db: AsyncSession = Depends(get_db)):
+async def import_xml(file: UploadFile = File(...), db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     if not file.filename.lower().endswith(".xml"):
         raise HTTPException(status_code=400, detail="XML file required")
     content = (await file.read()).decode("utf-8")

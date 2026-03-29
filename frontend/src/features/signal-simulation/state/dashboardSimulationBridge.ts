@@ -69,7 +69,7 @@ function toDirectionFinderAssets(config: SimulationConfig): AssetRecord[] {
       status: "ACTIVE",
       latitude: Number(sensor.location.latitude.toFixed(6)),
       longitude: Number(sensor.location.longitude.toFixed(6)),
-      df_radius_m: Math.round(sensor.rayLengthM ?? config.bearingRayLengthM ?? 12_000),
+      df_radius_m: Math.round(sensor.rayLengthM ?? config.bearingRayLengthM ?? 10_000),
       bearing_deg: 0,
     }));
 }

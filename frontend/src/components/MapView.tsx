@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polygon, Polyline, ScaleControl, ZoomControl, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polygon, Polyline, ScaleControl, useMap, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw";
 import "leaflet-draw/dist/leaflet.draw.css";
@@ -39,6 +39,7 @@ import {
   type SavedMapView,
   JAMMING_CODE_OPTIONS,
   DELHI_CENTER,
+  TRIANGULATION_RAY_COLORS,
 } from "./mapViewConfig";
 import {
   buildAssetIcon,
@@ -49,7 +50,6 @@ import {
   getAssetTypeSettings,
   getBearingDegrees,
   getHeatCellColor,
-  getTriangulationColor,
   isJammerAssetType,
   toQuadKey,
 } from "./mapViewUtils";
@@ -60,9 +60,22 @@ import {
   Crosshair,
   Radio,
   AlertTriangle,
-  Tag,
+  Eye,
+  EyeOff,
   Layers,
+  Palette,
+  Ruler,
+  ZoomIn,
+  ZoomOut,
+  Spline,
+  Pentagon,
+  Circle as CircleIcon,
+  MapPin,
+  Edit2,
+  Trash2,
 } from "lucide-react";
+
+const ASSET_ICON_COLOR_OVERRIDES_KEY = "ui.operator.map.assetIconColorOverrides";
 
 type Props = {
   assets?: AssetRecord[];
@@ -78,6 +91,8 @@ type Props = {
   jammerLifecycleByAssetId?: Record<string, string>;
   jammerActionInProgressId?: string | null;
   onJammerToggle?: (assetId: string, nextAction: "start" | "stop", config?: JammerControlConfig) => void;
+  initialShowAlerts?: boolean;
+  initialShowSignals?: boolean;
 };
 
 export type JammerControlConfig = {
@@ -230,12 +245,14 @@ function DrawMeasureControl({
   circleColor,
   showNodeLabels,
   onActiveShapeChange,
+  onDrawControlReady,
 }: {
   polygonColor: string;
   polylineColor: string;
   circleColor: string;
   showNodeLabels: boolean;
   onActiveShapeChange: (shape: DrawShapeType | null) => void;
+  onDrawControlReady: (ctrl: any) => void;
 }) {
   const map = useMap();
 
@@ -284,6 +301,13 @@ function DrawMeasureControl({
 
     map.addControl(drawControl);
 
+    // Hide the native Leaflet draw toolbar — replaced by custom buttons in the parent toolbar
+    const nativeContainer = (drawControl as any).getContainer?.() as HTMLElement | undefined;
+    if (nativeContainer) nativeContainer.style.display = "none";
+
+    // Expose control to parent
+    onDrawControlReady(drawControl);
+
     const onDrawStart: L.LeafletEventHandlerFn = (event) => {
       const layerType = (event as L.DrawEvents.DrawStart).layerType;
       if (layerType === "polygon" || layerType === "polyline" || layerType === "circle") {
@@ -297,8 +321,18 @@ function DrawMeasureControl({
       onActiveShapeChange(null);
     };
 
+    const onEditStop: L.LeafletEventHandlerFn = () => {
+      onActiveShapeChange(null);
+    };
+
+    const onDeleteStop: L.LeafletEventHandlerFn = () => {
+      onActiveShapeChange(null);
+    };
+
     map.on(L.Draw.Event.DRAWSTART, onDrawStart);
     map.on(L.Draw.Event.DRAWSTOP, onDrawStop);
+    map.on(L.Draw.Event.EDITSTOP, onEditStop);
+    map.on(L.Draw.Event.DELETESTOP, onDeleteStop);
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Enter") {
@@ -671,9 +705,12 @@ function DrawMeasureControl({
       window.removeEventListener("keydown", handleKeyDown);
       map.off(L.Draw.Event.DRAWSTART, onDrawStart);
       map.off(L.Draw.Event.DRAWSTOP, onDrawStop);
+      map.off(L.Draw.Event.EDITSTOP, onEditStop);
+      map.off(L.Draw.Event.DELETESTOP, onDeleteStop);
       map.off(L.Draw.Event.CREATED, onCreated);
       map.off(L.Draw.Event.EDITED, onEdited);
       map.off(L.Draw.Event.DELETED, onDeleted);
+      onDrawControlReady(null);
       saveDrawingsToStorage();
       shapeNodeLayerGroups.forEach((labelsGroup) => {
         map.removeLayer(labelsGroup);
@@ -767,6 +804,15 @@ function MapResizeController() {
   return null;
 }
 
+function MapRefCapture({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+    return () => { mapRef.current = null; };
+  }, [map, mapRef]);
+  return null;
+}
+
 export default function MapView({
   assets = [],
   alerts = [],
@@ -781,6 +827,8 @@ export default function MapView({
   jammerLifecycleByAssetId = {},
   jammerActionInProgressId = null,
   onJammerToggle,
+  initialShowAlerts = true,
+  initialShowSignals = true,
 }: Props) {
   const { mode } = useTheme();
   const defaultCenter = DELHI_CENTER;
@@ -789,8 +837,9 @@ export default function MapView({
   const [mousePosition, setMousePosition] = useState<[number, number] | null>(null);
   const [resetCounter, setResetCounter] = useState(0);
   const [showAssets, setShowAssets] = useState(true);
-  const [showAlerts, setShowAlerts] = useState(true);
-  const [showSignals, setShowSignals] = useState(true);
+  const [showAlerts, setShowAlerts] = useState(initialShowAlerts);
+  const [showSignals, setShowSignals] = useState(initialShowSignals);
+  const [showRangeOverlays, setShowRangeOverlays] = useState(true);
   const [showHeatOverlay, setShowHeatOverlay] = useState(true);
   const [showTriangulationOverlay, setShowTriangulationOverlay] = useState(true);
   const [showNodeLabels, setShowNodeLabels] = useState<boolean>(() => {
@@ -803,12 +852,50 @@ export default function MapView({
   const [polylineColor, setPolylineColor] = useState("#16a34a");
   const [circleColor, setCircleColor] = useState("#f59e0b");
   const [activeDrawShape, setActiveDrawShape] = useState<DrawShapeType | null>(null);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const drawControlRef = useRef<any>(null);
+
+  const handleActiveShapeChange = useCallback((shape: DrawShapeType | null) => {
+    setActiveDrawShape(shape);
+    if (!shape) setActiveTool(null);
+  }, []);
+
+  const handleDrawControlReady = useCallback((ctrl: any) => {
+    drawControlRef.current = ctrl;
+  }, []);
+
+  const handleDrawTool = useCallback((tool: string) => {
+    const ctrl = drawControlRef.current;
+    if (!ctrl) return;
+    const drawModes = ctrl._toolbars?.draw?._modes;
+    const editModes = ctrl._toolbars?.edit?._modes;
+
+    // Disable current tool
+    if (activeTool) {
+      if (activeTool === "edit") editModes?.edit?.handler?.disable?.();
+      else if (activeTool === "delete") editModes?.remove?.handler?.disable?.();
+      else drawModes?.[activeTool]?.handler?.disable?.();
+    }
+
+    if (activeTool === tool) {
+      setActiveTool(null);
+      return;
+    }
+
+    // Enable new tool
+    if (tool === "edit") editModes?.edit?.handler?.enable?.();
+    else if (tool === "delete") editModes?.remove?.handler?.enable?.();
+    else drawModes?.[tool]?.handler?.enable?.();
+    setActiveTool(tool);
+  }, [activeTool]);
   const [baseMapId, setBaseMapId] = useState<string>("osm");
   const [showBaseMapSelector, setShowBaseMapSelector] = useState(false);
   const [baseMapTileErrors, setBaseMapTileErrors] = useState(0);
   const [baseMapTileLoads, setBaseMapTileLoads] = useState(0);
   const [autoOfflineFallbackActive, setAutoOfflineFallbackActive] = useState(false);
   const [showAssetLegend, setShowAssetLegend] = useState(false);
+  const [showColorPanel, setShowColorPanel] = useState(false);
   const [showTransparencySlider, setShowTransparencySlider] = useState(false);
   const [showJammerColorPicker, setShowJammerColorPicker] = useState(false);
   const [showDfColorPicker, setShowDfColorPicker] = useState(false);
@@ -850,6 +937,24 @@ export default function MapView({
     }
 
     return normalized;
+  });
+  const [assetIconColorOverrides, setAssetIconColorOverrides] = useState<Record<string, string>>(() => {
+    try {
+      const raw = localStorage.getItem(ASSET_ICON_COLOR_OVERRIDES_KEY);
+      if (!raw) {
+        return {};
+      }
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      const sanitized: Record<string, string> = {};
+      for (const [key, value] of Object.entries(parsed)) {
+        if (/^#[0-9a-fA-F]{6}$/.test(value)) {
+          sanitized[key.toUpperCase()] = value;
+        }
+      }
+      return sanitized;
+    } catch {
+      return {};
+    }
   });
   const [jammerControlByAssetId, setJammerControlByAssetId] = useState<Record<string, JammerPopupControlState>>({});
   const [currentView, setCurrentView] = useState<SavedMapView | null>(null);
@@ -898,6 +1003,10 @@ export default function MapView({
   useEffect(() => {
     localStorage.setItem(DF_RANGE_COLOR_KEY, dfRangeColor);
   }, [dfRangeColor]);
+
+  useEffect(() => {
+    localStorage.setItem(ASSET_ICON_COLOR_OVERRIDES_KEY, JSON.stringify(assetIconColorOverrides));
+  }, [assetIconColorOverrides]);
 
   useEffect(() => {
     const timer = setInterval(() => setBlinkOn((current) => !current), 500);
@@ -1026,17 +1135,34 @@ export default function MapView({
       seen.add(typeKey);
     }
 
-    const orderedKnown = ASSET_TYPE_ORDER.filter((typeKey) => seen.has(typeKey)).map((typeKey) => [
-      typeKey,
-      ASSET_TYPE_SETTINGS[typeKey],
-    ] as [string, AssetTypeSettings]);
+    const orderedKnown = ASSET_TYPE_ORDER.filter((typeKey) => seen.has(typeKey)).map((typeKey) => {
+      const base = ASSET_TYPE_SETTINGS[typeKey];
+      const overrideColor = assetIconColorOverrides[typeKey];
+      return [
+        typeKey,
+        {
+          ...base,
+          markerColor: overrideColor ?? (typeKey === "DIRECTION_FINDER" ? dfRangeColor : base.markerColor),
+        },
+      ] as [string, AssetTypeSettings];
+    });
 
     const unknown = Array.from(seen)
       .filter((typeKey) => !ASSET_TYPE_SETTINGS[typeKey])
-      .map((typeKey) => [typeKey, getAssetTypeSettings(typeKey)] as [string, AssetTypeSettings]);
+      .map((typeKey) => {
+        const base = getAssetTypeSettings(typeKey);
+        const overrideColor = assetIconColorOverrides[typeKey];
+        return [
+          typeKey,
+          {
+            ...base,
+            markerColor: overrideColor ?? base.markerColor,
+          },
+        ] as [string, AssetTypeSettings];
+      });
 
     return [...orderedKnown, ...unknown];
-  }, [visibleAssets]);
+  }, [assetIconColorOverrides, dfRangeColor, visibleAssets]);
   const hasAlertMarkers = alertMarkers.length > 0;
   const hasAssets = visibleAssets.length > 0;
   const hasSignals = signals.length > 0;
@@ -1050,8 +1176,12 @@ export default function MapView({
   const triangulationIntersections = triangulation?.intersections ?? [];
   const triangulationRayColorBySource = useMemo(() => {
     const bySource = new Map<string, string>();
+    let index = 0;
     for (const ray of triangulation?.rays ?? []) {
-      bySource.set(ray.source_id, getTriangulationColor(ray.source_id));
+      if (!bySource.has(ray.source_id)) {
+        bySource.set(ray.source_id, TRIANGULATION_RAY_COLORS[index % TRIANGULATION_RAY_COLORS.length]);
+        index += 1;
+      }
     }
     return bySource;
   }, [triangulation]);
@@ -1291,15 +1421,16 @@ export default function MapView({
       <MousePositionTracker onPositionChange={setMousePosition} />
       <MapViewportTracker onViewChange={setCurrentView} />
       <AttributionPrefixController />
+      <MapRefCapture mapRef={mapRef} />
       <DrawMeasureControl
         polygonColor={polygonColor}
         polylineColor={polylineColor}
         circleColor={circleColor}
         showNodeLabels={showNodeLabels}
-        onActiveShapeChange={setActiveDrawShape}
+        onActiveShapeChange={handleActiveShapeChange}
+        onDrawControlReady={handleDrawControlReady}
       />
       <ScaleControl position="bottomleft" />
-      <ZoomControl position="bottomright" />
       
       {selectedBaseMap.requiresQuadKey ? (
         <BingTileLayer
@@ -1333,10 +1464,12 @@ export default function MapView({
         const actionPending = jammerActionInProgressId === asset.id;
         const markerStatus = isJammer && isJamming ? "JAMMING" : asset.status;
         const baseAssetSettings = getAssetTypeSettings(asset.type);
-        const assetSettings =
-          assetTypeKey === "DIRECTION_FINDER"
-            ? ({ ...baseAssetSettings, markerColor: dfRangeColor } as AssetTypeSettings)
-            : baseAssetSettings;
+        const overrideColor = assetIconColorOverrides[assetTypeKey];
+        const assetSettings = {
+          ...baseAssetSettings,
+          markerColor:
+            overrideColor ?? (assetTypeKey === "DIRECTION_FINDER" ? dfRangeColor : baseAssetSettings.markerColor),
+        } as AssetTypeSettings;
         const jammerControl = jammerControlByAssetId[asset.id] ?? DEFAULT_JAMMER_POPUP_CONTROL_STATE;
 
         return (
@@ -1510,7 +1643,7 @@ export default function MapView({
       })}
 
       {/* Shapes & Overlays */}
-      {showAssets && directionFinderAssets.map((asset) => {
+      {showAssets && showRangeOverlays && directionFinderAssets.map((asset) => {
         const radiusM = getAssetCircleRadiusMeters(asset);
         return radiusM ? (
           <Circle key={`df-circle-${asset.id}`} center={[asset.latitude, asset.longitude]} radius={radiusM}
@@ -1518,12 +1651,12 @@ export default function MapView({
         ) : null;
       })}
 
-      {showAssets && activeJammerAssetsWithRange.map(({ asset, radiusM }) => (
+      {showAssets && showRangeOverlays && activeJammerAssetsWithRange.map(({ asset, radiusM }) => (
         <Circle key={`jammer-range-${asset.id}`} center={[asset.latitude, asset.longitude]} radius={radiusM}
           pathOptions={{ color: jammerRangeColor, weight: 3, dashArray: "8 5", fillColor: jammerRangeColor, fillOpacity: 0.05, opacity: blinkOn ? 0.95 : 0.6 }} />
       ))}
 
-      {showAssets && activeJammerAssetsWithRange.flatMap(({ asset, radiusM }) => Array.from({ length: JAMMER_SIGNAL_RING_COUNT }, (_, ringIndex) => (
+      {showAssets && showRangeOverlays && activeJammerAssetsWithRange.flatMap(({ asset, radiusM }) => Array.from({ length: JAMMER_SIGNAL_RING_COUNT }, (_, ringIndex) => (
         <Circle key={`jammer-inner-${asset.id}-${ringIndex}`} center={[asset.latitude, asset.longitude]} radius={((ringIndex + 1) / (JAMMER_SIGNAL_RING_COUNT + 1)) * radiusM} 
           pathOptions={{ color: jammerRangeColor, weight: blinkOn ? (ringIndex % 2 === 0 ? 2.2 : 1.4) : (ringIndex % 2 === 0 ? 1.4 : 2.2), opacity: blinkOn ? 0.7 : 0.2, dashArray: "6 6", fillOpacity: 0 }} />
       )))}
@@ -1672,11 +1805,13 @@ export default function MapView({
       )}
     </MapContainer>
 
-    {/* --- TACTICAL GLASS SIDEBAR --- */}
+    {/* --- TACTICAL GLASS TOOLBAR (TOP HORIZONTAL) --- */}
     <div
       style={{
-        position: "absolute", left: 16, top: 16, zIndex: 1000, display: "flex", flexDirection: "column", gap: 10,
-        padding: "12px", borderRadius: "16px", background: "rgba(15, 23, 42, 0.7)", backdropFilter: "blur(12px)",
+        position: "absolute", left: 16, top: 16, zIndex: 1000,
+        display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 8,
+        padding: "8px 12px", borderRadius: "16px",
+        background: "rgba(15, 23, 42, 0.7)", backdropFilter: "blur(12px)",
         border: "1px solid rgba(56, 189, 248, 0.3)", boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
       }}
     >
@@ -1684,9 +1819,22 @@ export default function MapView({
         { icon: Save, title: "Save View", onClick: () => currentView && setSavedView(currentView), active: !!savedView },
         { icon: RotateCcw, title: "Reset View", onClick: () => setResetCounter(c => c + 1) },
         { icon: Crosshair, title: "Assets", onClick: () => setShowAssets(!showAssets), active: showAssets, color: "#38bdf8" },
+        {
+          icon: Ruler,
+          title: showRangeOverlays ? "Hide Ranges" : "Show Ranges",
+          onClick: () => setShowRangeOverlays(!showRangeOverlays),
+          active: showRangeOverlays,
+          color: "#38bdf8",
+        },
         { icon: Radio, title: "Signals", onClick: () => setShowSignals(!showSignals), active: showSignals, color: "#38bdf8" },
         { icon: AlertTriangle, title: "Alerts", onClick: () => setShowAlerts(!showAlerts), active: showAlerts, color: "#fb7185" },
-        { icon: Tag, title: "Labels", onClick: () => setShowNodeLabels(!showNodeLabels), active: showNodeLabels },
+        {
+          icon: showNodeLabels ? EyeOff : Eye,
+          title: showNodeLabels ? "Hide Shape Labels" : "Show Shape Labels",
+          onClick: () => setShowNodeLabels(!showNodeLabels),
+          active: showNodeLabels,
+        },
+        { icon: Palette, title: "Colors", onClick: () => setShowColorPanel(!showColorPanel), active: showColorPanel },
         { icon: Layers, title: "Map Layers", onClick: () => setShowBaseMapSelector(!showBaseMapSelector), active: showBaseMapSelector },
       ].map((btn, idx) => (
         <button
@@ -1701,9 +1849,114 @@ export default function MapView({
           <btn.icon size={16} strokeWidth={2.2} />
         </button>
       ))}
+
+      {/* Separator */}
+      <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.15)", margin: "0 2px", alignSelf: "center" }} />
+
+      {/* Zoom buttons */}
+      {[
+        { icon: ZoomIn, title: "Zoom In", onClick: () => mapRef.current?.zoomIn() },
+        { icon: ZoomOut, title: "Zoom Out", onClick: () => mapRef.current?.zoomOut() },
+      ].map((btn, idx) => (
+        <button
+          key={`zoom-${idx}`} type="button" title={btn.title} onClick={btn.onClick}
+          style={{
+            width: 36, height: 36, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+            color: "#f8fafc", transition: "all 0.2s",
+          }}
+        >
+          <btn.icon size={16} strokeWidth={2.2} />
+        </button>
+      ))}
+
+      {/* Separator */}
+      <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.15)", margin: "0 2px", alignSelf: "center" }} />
+
+      {/* Draw tool buttons */}
+      {[
+        { icon: Spline, title: "Draw Line", tool: "polyline" },
+        { icon: Pentagon, title: "Draw Polygon", tool: "polygon" },
+        { icon: CircleIcon, title: "Draw Circle", tool: "circle" },
+        { icon: MapPin, title: "Place Marker", tool: "marker" },
+        { icon: Edit2, title: "Edit Shapes", tool: "edit" },
+        { icon: Trash2, title: "Delete Shapes", tool: "delete" },
+      ].map(({ icon: Icon, title, tool }) => (
+        <button
+          key={tool} type="button" title={title} onClick={() => handleDrawTool(tool)}
+          style={{
+            width: 36, height: 36, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            background: activeTool === tool ? "rgba(56, 189, 248, 0.2)" : "rgba(255,255,255,0.05)",
+            border: `1px solid ${activeTool === tool ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
+            color: activeTool === tool ? "#38bdf8" : "#f8fafc", transition: "all 0.2s",
+          }}
+        >
+          <Icon size={16} strokeWidth={2.2} />
+        </button>
+      ))}
     </div>
 
-    {/* --- FLOATING STATUS BAR (BOTTOM) --- */}
+    {showColorPanel && (
+      <div
+        style={{
+          position: "absolute",
+          left: 16,
+          top: 80,
+          zIndex: 1100,
+          width: 260,
+          maxHeight: 380,
+          overflowY: "auto",
+          borderRadius: 12,
+          padding: 12,
+          background: "rgba(15, 23, 42, 0.92)",
+          border: "1px solid rgba(56, 189, 248, 0.35)",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
+          display: "grid",
+          gap: 10,
+        }}
+      >
+        <div style={{ color: "#f8fafc", fontWeight: 700, fontSize: 13 }}>Map Colors</div>
+        <div style={{ color: "#94a3b8", fontSize: 11 }}>Shape Colors</div>
+        {[
+          { label: "Polygon", value: polygonColor, onChange: setPolygonColor },
+          { label: "Polyline", value: polylineColor, onChange: setPolylineColor },
+          { label: "Circle", value: circleColor, onChange: setCircleColor },
+          { label: "Jammer Ring", value: jammerRangeColor, onChange: setJammerRangeColor },
+          { label: "DF Ring", value: dfRangeColor, onChange: setDfRangeColor },
+        ].map((entry) => (
+          <label key={entry.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "#e2e8f0", fontSize: 12 }}>
+            <span>{entry.label}</span>
+            <input
+              type="color"
+              value={entry.value}
+              onChange={(event) => entry.onChange(event.target.value)}
+              style={{ width: 28, height: 20, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
+            />
+          </label>
+        ))}
+
+        <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 4 }}>Asset Icon Colors</div>
+        {assetTypeLegend.map(([typeKey, settings]) => (
+          <label key={typeKey} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "#e2e8f0", fontSize: 12 }}>
+            <span>{settings.label}</span>
+            <input
+              type="color"
+              value={settings.markerColor}
+              onChange={(event) => {
+                const nextColor = event.target.value;
+                setAssetIconColorOverrides((current) => ({
+                  ...current,
+                  [typeKey]: nextColor,
+                }));
+              }}
+              style={{ width: 28, height: 20, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
+            />
+          </label>
+        ))}
+      </div>
+    )}
+
+    {/* --- FLOATING STATUS BAR (BOTTOM LEFT) --- */}
     <div style={{ position: "absolute", left: 92, bottom: 20, zIndex: 1000, display: "flex", gap: "10px", alignItems: "flex-end" }}>
        {/* Glass Coordinates */}
       {mousePosition && (
@@ -1714,19 +1967,31 @@ export default function MapView({
           LAT: {mousePosition[0].toFixed(6)} | LON: {mousePosition[1].toFixed(6)}
         </div>
       )}
+    </div>
 
-      {/* Compact Tactical Compass */}
+    {/* Compact Tactical Compass (BOTTOM RIGHT, RESOLUTION AWARE) */}
+    <div
+      style={{
+        position: "absolute",
+        right: "clamp(10px, 1.8vw, 24px)",
+        bottom: "clamp(10px, 2.2vh, 24px)",
+        zIndex: 1000,
+      }}
+    >
       <div style={{
-        width: 60, height: 60, borderRadius: "50%", background: "rgba(15, 23, 42, 0.8)", border: "2px solid #38bdf8",
+        width: "clamp(48px, 5.5vw, 64px)",
+        height: "clamp(48px, 5.5vw, 64px)",
+        borderRadius: "50%", background: "rgba(15, 23, 42, 0.8)", border: "2px solid #38bdf8",
         display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 15px rgba(56, 189, 248, 0.2)"
       }}>
-        <svg width="45" height="45" viewBox="0 0 64 64">
+        <svg width="72%" height="72%" viewBox="0 0 64 64">
           <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(56, 189, 248, 0.2)" strokeWidth="1" />
           <path d="M32 10 L36 32 L32 35 L28 32 Z" fill="#ef4444" />
           <path d="M32 54 L28 32 L32 29 L36 32 Z" fill="#94a3b8" />
           <text x="32" y="16" textAnchor="middle" fontSize="9" fill="#ef4444" fontWeight="bold">N</text>
         </svg>
       </div>
+    </div>
     <MapOverlaysPanel
       dfRangeColor={dfRangeColor}
       showTransparencySlider={showTransparencySlider}
@@ -1780,7 +2045,6 @@ export default function MapView({
       showAssetLegend={showAssetLegend}
       onToggleAssetLegend={() => setShowAssetLegend((current) => !current)}
     />
-    </div>
 
     {/* Floating Selectors */}
     {showBaseMapSelector && (

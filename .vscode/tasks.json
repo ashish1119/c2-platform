@@ -35,6 +35,20 @@
 			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform\\frontend'; npm install; npm run build",
 			"isBackground": false,
 			"group": "test"
+		},
+		{
+			"label": "Run Security Regression Smoke Test",
+			"type": "shell",
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform'; Get-Content '.\\scripts\\security_regression_smoke_test.py' | docker compose exec -T backend python -",
+			"isBackground": false,
+			"group": "test"
+		},
+		{
+			"label": "Run Platform Regression Test",
+			"type": "shell",
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform'; Get-Content '.\\scripts\\platform_regression_test.py' | docker compose exec -T backend python -",
+			"isBackground": false,
+			"group": "test"
 		}
 	]
 }

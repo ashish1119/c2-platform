@@ -1,5 +1,6 @@
 import asyncio
 import json
+import socket
 from typing import Any
 
 from geoalchemy2.elements import WKTElement
@@ -30,6 +31,18 @@ class TcpListenerService:
         self._total_connections = 0
         self._messages_received = 0
         self._messages_rejected = 0
+        self._client_reader: asyncio.StreamReader | None = None
+        self._client_writer: asyncio.StreamWriter | None = None
+        self._client_reader_task: asyncio.Task | None = None
+        self._client_target_host: str | None = None
+        self._client_target_port: int | None = None
+        self._client_protocol: str | None = None
+        self._client_length_endian: str | None = None
+        self._client_recent_messages: list[dict[str, Any]] = []
+        self._client_last_message_at: str | None = None
+        self._client_last_error: str | None = None
+        self._client_messages_received = 0
+        self._client_messages_rejected = 0
 
     async def start(self) -> None:
         if not self.enabled:
@@ -45,6 +58,8 @@ class TcpListenerService:
         logger.info(f"TCP listener started on {self.host}:{self.port}")
 
     async def stop(self) -> None:
+        await self.disconnect_client()
+
         if self._server is not None:
             self._server.close()
             await self._server.wait_closed()
@@ -59,6 +74,134 @@ class TcpListenerService:
 
         self._writers.clear()
         logger.info("TCP listener stopped")
+
+    async def connect_client(self, host: str, port: int, protocol: str = "line", length_endian: str = "little") -> None:
+        if protocol != "line":
+            raise ValueError("Only 'line' protocol is currently supported")
+
+        if length_endian not in {"big", "little"}:
+            raise ValueError("length_endian must be 'big' or 'little'")
+
+        await self.disconnect_client()
+
+        reader, writer = await asyncio.open_connection(host, port)
+        self._client_reader = reader
+        self._client_writer = writer
+        self._client_target_host = host
+        self._client_target_port = port
+        self._client_protocol = protocol
+        self._client_length_endian = length_endian
+        self._client_last_error = None
+        self._client_reader_task = asyncio.create_task(self._read_client_stream(), name="tcp-listener-client-reader")
+
+    async def disconnect_client(self) -> None:
+        if self._client_reader_task is not None:
+            self._client_reader_task.cancel()
+            try:
+                await self._client_reader_task
+            except asyncio.CancelledError:
+                pass
+            self._client_reader_task = None
+
+        if self._client_writer is not None:
+            self._client_writer.close()
+            try:
+                await self._client_writer.wait_closed()
+            except Exception:
+                pass
+
+        self._client_reader = None
+        self._client_writer = None
+        self._client_target_host = None
+        self._client_target_port = None
+        self._client_protocol = None
+        self._client_length_endian = None
+
+    async def update_endpoint(self, host: str, port: int) -> None:
+        host = host.strip()
+        if not host:
+            raise ValueError("host is required")
+
+        if self._server is not None:
+            self._server.close()
+            await self._server.wait_closed()
+            self._server = None
+
+        self.host = host
+        self.port = port
+
+        if self.enabled:
+            self._server = await asyncio.start_server(
+                self._handle_client,
+                host=self.host,
+                port=self.port,
+                limit=self.max_line_bytes,
+            )
+            logger.info("TCP listener endpoint updated to %s:%s", self.host, self.port)
+
+    def get_client_snapshot(self) -> dict[str, Any]:
+        return {
+            "connected": self._client_writer is not None,
+            "target_host": self._client_target_host,
+            "target_port": self._client_target_port,
+            "protocol": self._client_protocol,
+            "length_endian": self._client_length_endian,
+            "messages_received": self._client_messages_received,
+            "messages_rejected": self._client_messages_rejected,
+            "last_message_at": self._client_last_message_at,
+            "last_error": self._client_last_error,
+            "recent_messages": self._client_recent_messages[-50:],
+        }
+
+    async def _read_client_stream(self) -> None:
+        if self._client_reader is None:
+            return
+
+        try:
+            while True:
+                raw = await asyncio.wait_for(self._client_reader.readline(), timeout=self.idle_timeout_seconds)
+                if not raw:
+                    break
+
+                if len(raw) > self.max_line_bytes:
+                    self._client_messages_rejected += 1
+                    self._client_last_error = f"Frame too large: {len(raw)} bytes"
+                    break
+
+                line = raw.decode("utf-8", errors="replace").strip()
+                if not line:
+                    continue
+
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    self._client_messages_rejected += 1
+                    self._client_last_error = f"Invalid JSON from upstream: {exc}"
+                    continue
+
+                self._client_messages_received += 1
+                self._client_last_message_at = payload.get("ts") or payload.get("timestamp") or ""
+                self._client_recent_messages.append(payload)
+                if len(self._client_recent_messages) > 200:
+                    self._client_recent_messages = self._client_recent_messages[-200:]
+
+        except (TimeoutError, asyncio.TimeoutError):
+            self._client_last_error = "Client read timeout"
+        except asyncio.CancelledError:
+            raise
+        except (OSError, socket.error) as exc:
+            self._client_last_error = f"Client stream error: {exc}"
+        except Exception as exc:
+            self._client_last_error = f"Unexpected client stream error: {exc}"
+        finally:
+            if self._client_writer is not None:
+                self._client_writer.close()
+                try:
+                    await self._client_writer.wait_closed()
+                except Exception:
+                    pass
+            self._client_reader = None
+            self._client_writer = None
 
     async def _handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         peer = writer.get_extra_info("peername")

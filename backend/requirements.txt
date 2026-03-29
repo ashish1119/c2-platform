@@ -20,3 +20,4 @@ mgrs
 protobuf>=4.25
 grpcio-tools>=1.62
 redis>=5.0
+websockets>=12.0

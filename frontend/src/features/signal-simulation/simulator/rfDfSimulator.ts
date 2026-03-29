@@ -120,7 +120,7 @@ export class RfDfSimulator {
         }
 
         return solveTriangulation(trackedEmitter, emitterBearings, {
-          rayLengthM: this.config.bearingRayLengthM ?? 12_000,
+          rayLengthM: this.config.bearingRayLengthM ?? 10_000,
           parallelAngleThresholdDeg: this.config.parallelAngleThresholdDeg ?? 6,
           maxIntersectionDistanceM: this.config.maxIntersectionDistanceM ?? 25_000,
           heatmapGridSize: this.config.heatmapGridSize ?? 13,
