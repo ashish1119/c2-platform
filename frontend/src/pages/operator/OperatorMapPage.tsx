@@ -126,6 +126,14 @@ const resolveAlertsWsUrl = () => {
   return `${wsProtocol}//${window.location.hostname}:8000/ws/alerts`;
 };
 
+const resolveRfWsUrl = () => {
+  if (typeof window === "undefined") {
+    return "ws://localhost:8000/ws/rf";
+  }
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.hostname}:8000/ws/rf`;
+};
+
 export default function OperatorMapPage() {
   const { theme } = useTheme();
   const [assets, setAssets] = useState<AssetRecord[]>([]);
@@ -156,6 +164,13 @@ export default function OperatorMapPage() {
   const [error, setError] = useState<string | null>(null);
   const [simulationMode, setSimulationMode] = useState(false);
   const [simulationSnapshot, setSimulationSnapshot] = useState<DashboardSimulationSnapshot | null>(null);
+
+  // 🔥 NEW: WebSocket real-time DF data states
+  const [wsSignals, setWsSignals] = useState<any[]>([]);
+  const [wsSpectrum, setWsSpectrum] = useState<any[]>([]);
+  const [wsSpectrogram, setWsSpectrogram] = useState<any[]>([]);
+  const [wsTriangulation, setWsTriangulation] = useState<any | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   const refreshTcpStatus = useCallback(async () => {
     try {
@@ -226,6 +241,81 @@ export default function OperatorMapPage() {
       ws.close();
     };
   }, [load, refreshTcpStatus]);
+
+  // 🔥 NEW: RF WebSocket connection for real-time DF data
+  useEffect(() => {
+    const ws = new WebSocket(resolveRfWsUrl());
+
+    ws.onopen = () => {
+      console.log("✅ RF WebSocket connected");
+      setWsConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        console.log("📡 RF DATA:", msg.type, msg.data);
+
+        switch (msg.type) {
+          case "rf_signal": {
+            const normalized = {
+              id: msg.data.id ?? Date.now(),
+
+              // ✅ Match RFSignal schema (MapView expects this)
+              frequency: msg.data.freq,
+              power_level: msg.data.power,
+              confidence: Math.min((msg.data.snr ?? 0) / 30, 1),
+
+              latitude: msg.data.lat,
+              longitude: msg.data.lon,
+
+              doa_deg: msg.data.doa,
+              detected_at: msg.data.timestamp,
+
+              // 🔥 keep for DF coloring / debugging
+              system_id: msg.data.system_id,
+            };
+
+            console.log("✅ NORMALIZED SIGNAL:", normalized);
+
+            setWsSignals((prev) => [...prev.slice(-50), normalized]);
+            break;
+          }
+
+          case "spectrum":
+            setWsSpectrum((prev) => [...prev.slice(-100), msg.data]);
+            break;
+
+          case "spectrogram":
+            setWsSpectrogram((prev) => [...prev.slice(-200), msg.data]);
+            break;
+
+          case "triangulation":
+            setWsTriangulation(msg.data);
+            break;
+
+          default:
+            console.warn("Unknown RF message type:", msg.type);
+        }
+      } catch (err) {
+        console.error("❌ Failed to parse RF WebSocket message:", err);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error("❌ RF WebSocket error:", err);
+      setWsConnected(false);
+    };
+
+    ws.onclose = () => {
+      console.log("🔌 RF WebSocket closed");
+      setWsConnected(false);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   useEffect(() => {
     const unsubscribe = subscribeDashboardSimulation((snapshot) => {
@@ -330,11 +420,23 @@ export default function OperatorMapPage() {
     });
   }, [assets, selectedAssetIds, selectedAssetTypes, showAllAssets]);
 
+  // 🔥 UPDATED: Use WebSocket data when available, fall back to REST/simulation
   const mapAssets = simulationMode ? simulationSnapshot?.directionFinderAssets ?? [] : filteredAssets;
   const mapAlerts = simulationMode ? simulationSnapshot?.alerts ?? [] : alerts;
-  const mapSignals = simulationMode ? simulationSnapshot?.signals ?? [] : signals;
-  const mapHeatCells = simulationMode ? simulationSnapshot?.heatCells ?? [] : heatCells;
-  const mapTriangulation = simulationMode ? simulationSnapshot?.triangulation ?? null : null;
+  
+  const mapSignals = simulationMode
+    ? simulationSnapshot?.signals ?? []
+    : wsSignals.length > 0
+    ? wsSignals
+    : signals;
+
+  const mapHeatCells = simulationMode
+    ? simulationSnapshot?.heatCells ?? []
+    : heatCells;
+
+  const mapTriangulation = simulationMode
+    ? simulationSnapshot?.triangulation ?? null
+    : wsTriangulation;
 
   const jammerProfileByAssetId = useMemo(
     () =>
@@ -556,435 +658,452 @@ export default function OperatorMapPage() {
     return `${selectedCount}/${groupAssetIds.length}`;
   };
 
- return (
-  <AppLayout>
-    <PageContainer title="Operator Map">
+  return (
+    <AppLayout>
+      <PageContainer title="Operator Map">
 
-      {/* STATUS & ALERTS */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-        {loading && (
-          <div style={{
-            color: "#38bdf8",
-            fontSize: 12,
-            letterSpacing: '1px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
-          }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#38bdf8', animation: 'pulse 1.5s infinite' }} />
-            SYSTEM: LOADING MAP FEEDS...
-          </div>
-        )}
-        {simulationMode && (
-          <div
-            style={{
-              marginBottom: theme.spacing.md,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: theme.spacing.md,
-              color: theme.colors.warning,
-              background: theme.colors.surfaceAlt,
-              border: `1px solid ${theme.colors.border}`,
-              borderRadius: theme.radius.md,
-              padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-            }}
-          >
-            <span>Simulation feed active on operator map. Rendering DF sensors, rays, centroid, and uncertainty layers.</span>
-            <button
-              type="button"
-              onClick={() => {
-                stopDashboardSimulation();
-                setSimulationMode(false);
-                setSimulationSnapshot(null);
-              }}
+        {/* STATUS & ALERTS */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {loading && (
+            <div style={{
+              color: "#38bdf8",
+              fontSize: 12,
+              letterSpacing: '1px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#38bdf8', animation: 'pulse 1.5s infinite' }} />
+              SYSTEM: LOADING MAP FEEDS...
+            </div>
+          )}
+
+          {/* 🔥 NEW: WebSocket connection status */}
+          {wsConnected && (
+            <div style={{
+              color: "#10b981",
+              fontSize: 12,
+              letterSpacing: '1px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981', animation: 'pulse 1.5s infinite' }} />
+              RF WEBSOCKET: LIVE DATA STREAMING ({wsSignals.length} signals, {wsTriangulation ? '✓' : '✗'} triangulation)
+            </div>
+          )}
+
+          {simulationMode && (
+            <div
               style={{
+                marginBottom: theme.spacing.md,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: theme.spacing.md,
+                color: theme.colors.warning,
+                background: theme.colors.surfaceAlt,
                 border: `1px solid ${theme.colors.border}`,
                 borderRadius: theme.radius.md,
-                background: theme.colors.surface,
-                color: theme.colors.textPrimary,
-                cursor: "pointer",
-                padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
+                padding: `${theme.spacing.sm} ${theme.spacing.md}`,
               }}
             >
-              Stop Simulation
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            padding: "8px 12px",
-            borderRadius: 6,
-            background: "rgba(239, 68, 68, 0.1)",
-            border: "1px solid #ef4444",
-            color: "#ef4444",
-            fontSize: 13,
-            fontWeight: 600
-          }}>
-            ERROR_REPORT: {error}
-          </div>
-        )}
-
-        {/* TOAST */}
-        {jammerToast && (
-          <div style={{
-            padding: "12px 16px",
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            borderLeft: `4px solid ${jammerToast.type === "success" ? "#10b981" : "#ef4444"}`,
-            background: "rgba(30, 41, 59, 0.9)",
-            color: jammerToast.type === "success" ? "#10b981" : "#f87171",
-            boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
-            backdropFilter: "blur(4px)"
-          }}>
-            {jammerToast.message.toUpperCase()}
-          </div>
-        )}
-      </div>
-
-      {/* MAIN GRID */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: isTreeVisible ? "1fr 400px" : "1fr 60px",
-        gap: 20,
-        alignItems: "stretch",
-        transition: "grid-template-columns 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
-      }}>
-
-        {/* MAP PANEL */}
-        <div style={{
-          borderRadius: 16,
-          overflow: "hidden",
-          minHeight: OPERATOR_MAP_MIN_HEIGHT_PX,
-          background: "#0f172a",
-          border: `1px solid rgba(56, 189, 248, 0.2)`,
-          boxShadow: "0 0 40px rgba(0,0,0,0.3)",
-          position: 'relative'
-        }}>
-          {/* Subtle UI overlay effect for corners */}
-          <div style={{ position: 'absolute', top: 0, left: 0, width: 20, height: 20, borderTop: '2px solid #38bdf8', borderLeft: '2px solid #38bdf8', pointerEvents: 'none', zIndex: 10 }} />
-          <MapView
-            assets={filteredAssets}
-            alerts={alerts}
-            signals={signals}
-            heatCells={heatCells}
-            tcpRecentMessages={tcpRecentMessages}
-            jammerLifecycleByAssetId={jammerLifecycleByAssetId}
-            onJammerToggle={handleJammerToggle}
-            jammerActionInProgressId={jammerActionAssetId}
-            mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
-          />
-        </div>
-
-        {/* COLLAPSED TAB */}
-        {!isTreeVisible && (
-          <div
-            onMouseEnter={() => setIsTreeVisible(true)}
-            style={{
-              width: 60,
-              borderRadius: 16,
-              border: `1px solid rgba(56, 189, 248, 0.1)`,
-              background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)"
-            }}
-          >
-            <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 'bold' }}>«</div>
-          </div>
-        )}
-
-        {/* SIDEBAR */}
-        {isTreeVisible && (
-          <div
-            onMouseLeave={() => !isTreePinned && setIsTreeVisible(false)}
-            style={{
-              borderRadius: 16,
-              padding: 20,
-              background: "rgba(15, 23, 42, 0.95)",
-              backdropFilter: "blur(12px)",
-              border: `1px solid rgba(56, 189, 248, 0.2)`,
-              overflowY: "auto",
-              boxShadow: "-10px 0 30px rgba(0,0,0,0.5)",
-              maxHeight: OPERATOR_MAP_PANEL_HEIGHT
-            }}
-          >
-
-            {/* HEADER */}
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: 'center',
-              marginBottom: 20,
-              paddingBottom: 10,
-              borderBottom: "1px solid rgba(56, 189, 248, 0.1)"
-            }}>
-              <strong style={{ fontSize: 16, color: "#f8fafc", letterSpacing: '1px' }}>SYSTEM ASSETS</strong>
-
+              <span>Simulation feed active on operator map. Rendering DF sensors, rays, centroid, and uncertainty layers.</span>
               <button
-                onClick={() => setIsTreePinned(p => !p)}
+                type="button"
+                onClick={() => {
+                  stopDashboardSimulation();
+                  setSimulationMode(false);
+                  setSimulationSnapshot(null);
+                }}
                 style={{
-                  borderRadius: 6,
-                  border: "1px solid rgba(56, 189, 248, 0.3)",
-                  background: isTreePinned ? "#38bdf8" : "transparent",
-                  color: isTreePinned ? "#0f172a" : "#38bdf8",
-                  padding: "4px 12px",
-                  fontSize: 11,
-                  fontWeight: 'bold',
+                  border: `1px solid ${theme.colors.border}`,
+                  borderRadius: theme.radius.md,
+                  background: theme.colors.surface,
+                  color: theme.colors.textPrimary,
                   cursor: "pointer",
-                  transition: 'all 0.2s'
+                  padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
                 }}
               >
-                {isTreePinned ? "PINNED" : "PIN"}
+                Stop Simulation
               </button>
             </div>
+          )}
 
-            {/* SHOW ALL */}
-            <label style={{ 
-              display: "flex", 
-              alignItems: 'center', 
-              gap: 10, 
-              marginBottom: 16, 
-              cursor: 'pointer',
+          {error && (
+            <div style={{
+              padding: "8px 12px",
+              borderRadius: 6,
+              background: "rgba(239, 68, 68, 0.1)",
+              border: "1px solid #ef4444",
+              color: "#ef4444",
               fontSize: 13,
-              color: '#94a3b8'
+              fontWeight: 600
             }}>
-              <input
-                type="checkbox"
-                style={{ accentColor: '#38bdf8', width: 16, height: 16 }}
-                checked={showAllAssets}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  setShowAllAssets(checked);
-                  checked ? setAllSelections() : (
-                    setSelectedAssetTypes([]),
-                    setSelectedAssetIds([])
-                  );
-                }}
-              />
-              SELECT ALL ASSETS
-            </label>
-
-            {/* GROUPS */}
-            <div style={{ display: "grid", gap: 12 }}>
-              {assetTypeGroups.map(type => {
-                const groupAssets = assetsByType.get(type) ?? [];
-                const expanded = expandedAssetTypes.includes(type);
-
-                return (
-                  <div key={type} style={{
-                    borderRadius: 12,
-                    border: `1px solid ${expanded ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255,255,255,0.05)'}`,
-                    background: expanded ? "rgba(30, 41, 59, 0.5)" : "rgba(30, 41, 59, 0.2)",
-                    overflow: 'hidden'
-                  }}>
-
-                    {/* GROUP HEADER */}
-                    <div style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "12px"
-                    }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <button
-                          onClick={() => toggleGroupExpanded(type)}
-                          style={{
-                            width: 20,
-                            height: 20,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            borderRadius: 4,
-                            border: "1px solid rgba(56, 189, 248, 0.4)",
-                            background: "transparent",
-                            color: "#38bdf8",
-                            cursor: "pointer",
-                            fontSize: 14
-                          }}
-                        >
-                          {expanded ? "−" : "+"}
-                        </button>
-
-                        <label style={{ display: "flex", gap: 8, alignItems: 'center', cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            style={{ accentColor: '#38bdf8' }}
-                            checked={isGroupChecked(type)}
-                            onChange={() => toggleAssetType(type)}
-                          />
-                          <span style={{ fontWeight: 600, color: expanded ? "#fff" : "#cbd5e1", fontSize: 13 }}>{type}</span>
-                        </label>
-                      </div>
-
-                      <span style={{ fontSize: 10, color: "#64748b", fontWeight: 'bold' }}>
-                        {groupSummary(type)}
-                      </span>
-                    </div>
-
-                    {/* ITEMS */}
-                    {expanded && (
-                      <div style={{
-                        padding: "0 12px 12px 40px",
-                        display: "grid",
-                        gap: 8,
-                        borderTop: "1px solid rgba(56, 189, 248, 0.1)",
-                        paddingTop: 12
-                      }}>
-                        {groupAssets.map(asset => {
-                          const isJammer = type === "JAMMER";
-                          const isJamming =
-                            (jammerLifecycleByAssetId[asset.id] ?? "")
-                              .toUpperCase() === "JAMMING";
-
-                          const control =
-                            jammerTreeControlByAssetId[asset.id] ??
-                            DEFAULT_JAMMER_TREE_CONTROL_STATE;
-
-                          return (
-                            <div key={asset.id} style={{ paddingBottom: 8 }}>
-
-                              {/* ASSET LABEL */}
-                              <label style={{
-                                display: "flex",
-                                gap: 10,
-                                fontSize: 13,
-                                color: "#e2e8f0",
-                                cursor: 'pointer',
-                                alignItems: 'center'
-                              }}>
-                                <input
-                                  type="checkbox"
-                                  style={{ accentColor: '#38bdf8' }}
-                                  checked={showAllAssets || selectedAssetIds.includes(asset.id)}
-                                  onChange={() => toggleAssetId(asset.id, type)}
-                                />
-                                {asset.name}
-                              </label>
-
-                              {/* JAMMER PANEL */}
-                              {isJammer && (
-                                <div style={{
-                                  marginTop: 10,
-                                  padding: 12,
-                                  borderRadius: 8,
-                                  background: "#0f172a",
-                                  border: `1px solid ${isJamming ? '#ef4444' : 'rgba(56, 189, 248, 0.2)'}`,
-                                  display: "grid",
-                                  gap: 10,
-                                  boxShadow: isJamming ? "0 0 15px rgba(239, 68, 68, 0.1)" : "none"
-                                }}>
-                                  <div style={{ 
-                                    fontSize: 10, 
-                                    color: isJamming ? "#f87171" : "#94a3b8", 
-                                    fontWeight: 'bold',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 5
-                                  }}>
-                                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: isJamming ? "#ef4444" : "#38bdf8" }} />
-                                    STATUS: {jammerLifecycleByAssetId[asset.id] || "IDLE"}
-                                  </div>
-
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                                    <div style={{ display: 'grid', gap: 4 }}>
-                                      <span style={{ fontSize: 9, color: '#64748b' }}>MODULE</span>
-                                      <select
-                                        style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
-                                        value={control.moduleId}
-                                        onChange={e => setJammerTreeControlField(asset.id, "moduleId", e.target.value)}
-                                      >
-                                        {MODULE_ID_OPTIONS.map(m => <option key={m}>{m}</option>)}
-                                      </select>
-                                    </div>
-
-                                    <div style={{ display: 'grid', gap: 4 }}>
-                                      <span style={{ fontSize: 9, color: '#64748b' }}>GAIN</span>
-                                      <select
-                                        style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
-                                        value={control.gain}
-                                        onChange={e => setJammerTreeControlField(asset.id, "gain", e.target.value)}
-                                      >
-                                        {GAIN_OPTIONS.map(g => <option key={g}>{g}</option>)}
-                                      </select>
-                                    </div>
-                                  </div>
-
-                                  <div style={{ display: 'grid', gap: 4 }}>
-                                    <span style={{ fontSize: 9, color: '#64748b' }}>JAMMING CODE</span>
-                                    <select
-                                      style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
-                                      value={control.jammingCode}
-                                      onChange={e => setJammerTreeControlField(asset.id, "jammingCode", e.target.value)}
-                                    >
-                                      {JAMMING_CODE_OPTIONS.map(o => (
-                                        <option key={o.code} value={o.code}>{o.code} - {o.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  <div style={{ display: 'grid', gap: 4 }}>
-                                    <span style={{ fontSize: 9, color: '#64748b' }}>FREQUENCY (MHz)</span>
-                                    <input
-                                      type="number"
-                                      placeholder="0.00"
-                                      style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
-                                      value={control.frequency}
-                                      onChange={e => setJammerTreeControlField(asset.id, "frequency", e.target.value)}
-                                    />
-                                  </div>
-
-                                  <button
-                                    onClick={() => {
-                                      if (isJamming) {
-                                        handleJammerToggle(asset.id, "stop");
-                                      } else {
-                                        handleJammerToggle(asset.id, "start", {
-                                          moduleId: Number(control.moduleId),
-                                          jammingCode: Number(control.jammingCode),
-                                          gain: Number(control.gain),
-                                          frequency: control.frequency ? Number(control.frequency) : undefined
-                                        });
-                                      }
-                                    }}
-                                    style={{
-                                      borderRadius: 6,
-                                      border: "none",
-                                      padding: "10px",
-                                      background: isJamming 
-                                        ? "linear-gradient(to bottom, #ef4444, #991b1b)" 
-                                        : "linear-gradient(to bottom, #10b981, #065f46)",
-                                      color: "#fff",
-                                      fontWeight: "bold",
-                                      fontSize: 11,
-                                      cursor: "pointer",
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '1px',
-                                      marginTop: 4,
-                                      boxShadow: isJamming ? "0 4px 12px rgba(239, 68, 68, 0.2)" : "0 4px 12px rgba(16, 185, 129, 0.2)"
-                                    }}
-                                  >
-                                    {isJamming ? "⚡ TERMINATE JAMMING" : "▶ INITIATE JAMMING"}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              ERROR_REPORT: {error}
             </div>
+          )}
+
+          {/* TOAST */}
+          {jammerToast && (
+            <div style={{
+              padding: "12px 16px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              borderLeft: `4px solid ${jammerToast.type === "success" ? "#10b981" : "#ef4444"}`,
+              background: "rgba(30, 41, 59, 0.9)",
+              color: jammerToast.type === "success" ? "#10b981" : "#f87171",
+              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.4)",
+              backdropFilter: "blur(4px)"
+            }}>
+              {jammerToast.message.toUpperCase()}
+            </div>
+          )}
+        </div>
+
+        {/* MAIN GRID */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isTreeVisible ? "1fr 400px" : "1fr 60px",
+          gap: 20,
+          alignItems: "stretch",
+          transition: "grid-template-columns 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
+        }}>
+
+          {/* MAP PANEL */}
+          <div style={{
+            borderRadius: 16,
+            overflow: "hidden",
+            minHeight: OPERATOR_MAP_MIN_HEIGHT_PX,
+            background: "#0f172a",
+            border: `1px solid rgba(56, 189, 248, 0.2)`,
+            boxShadow: "0 0 40px rgba(0,0,0,0.3)",
+            position: 'relative'
+          }}>
+            {/* Subtle UI overlay effect for corners */}
+            <div style={{ position: 'absolute', top: 0, left: 0, width: 20, height: 20, borderTop: '2px solid #38bdf8', borderLeft: '2px solid #38bdf8', pointerEvents: 'none', zIndex: 10 }} />
+            <MapView
+              assets={mapAssets}
+              alerts={mapAlerts}
+              signals={mapSignals}
+              heatCells={mapHeatCells}
+              triangulation={mapTriangulation}
+              tcpRecentMessages={tcpRecentMessages}
+              jammerLifecycleByAssetId={jammerLifecycleByAssetId}
+              onJammerToggle={handleJammerToggle}
+              jammerActionInProgressId={jammerActionAssetId}
+              mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
+            />
           </div>
-        )}
-      </div>
-    </PageContainer>
-  </AppLayout>
-);
+
+          {/* COLLAPSED TAB */}
+          {!isTreeVisible && (
+            <div
+              onMouseEnter={() => setIsTreeVisible(true)}
+              style={{
+                width: 60,
+                borderRadius: 16,
+                border: `1px solid rgba(56, 189, 248, 0.1)`,
+                background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)"
+              }}
+            >
+              <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 'bold' }}>«</div>
+            </div>
+          )}
+
+          {/* SIDEBAR */}
+          {isTreeVisible && (
+            <div
+              onMouseLeave={() => !isTreePinned && setIsTreeVisible(false)}
+              style={{
+                borderRadius: 16,
+                padding: 20,
+                background: "rgba(15, 23, 42, 0.95)",
+                backdropFilter: "blur(12px)",
+                border: `1px solid rgba(56, 189, 248, 0.2)`,
+                overflowY: "auto",
+                boxShadow: "-10px 0 30px rgba(0,0,0,0.5)",
+                maxHeight: OPERATOR_MAP_PANEL_HEIGHT
+              }}
+            >
+
+              {/* HEADER */}
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: 'center',
+                marginBottom: 20,
+                paddingBottom: 10,
+                borderBottom: "1px solid rgba(56, 189, 248, 0.1)"
+              }}>
+                <strong style={{ fontSize: 16, color: "#f8fafc", letterSpacing: '1px' }}>SYSTEM ASSETS</strong>
+
+                <button
+                  onClick={() => setIsTreePinned(p => !p)}
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid rgba(56, 189, 248, 0.3)",
+                    background: isTreePinned ? "#38bdf8" : "transparent",
+                    color: isTreePinned ? "#0f172a" : "#38bdf8",
+                    padding: "4px 12px",
+                    fontSize: 11,
+                    fontWeight: 'bold',
+                    cursor: "pointer",
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  {isTreePinned ? "PINNED" : "PIN"}
+                </button>
+              </div>
+
+              {/* SHOW ALL */}
+              <label style={{ 
+                display: "flex", 
+                alignItems: 'center', 
+                gap: 10, 
+                marginBottom: 16, 
+                cursor: 'pointer',
+                fontSize: 13,
+                color: '#94a3b8'
+              }}>
+                <input
+                  type="checkbox"
+                  style={{ accentColor: '#38bdf8', width: 16, height: 16 }}
+                  checked={showAllAssets}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setShowAllAssets(checked);
+                    checked ? setAllSelections() : (
+                      setSelectedAssetTypes([]),
+                      setSelectedAssetIds([])
+                    );
+                  }}
+                />
+                SELECT ALL ASSETS
+              </label>
+
+              {/* GROUPS */}
+              <div style={{ display: "grid", gap: 12 }}>
+                {assetTypeGroups.map(type => {
+                  const groupAssets = assetsByType.get(type) ?? [];
+                  const expanded = expandedAssetTypes.includes(type);
+
+                  return (
+                    <div key={type} style={{
+                      borderRadius: 12,
+                      border: `1px solid ${expanded ? 'rgba(56, 189, 248, 0.3)' : 'rgba(255,255,255,0.05)'}`,
+                      background: expanded ? "rgba(30, 41, 59, 0.5)" : "rgba(30, 41, 59, 0.2)",
+                      overflow: 'hidden'
+                    }}>
+
+                      {/* GROUP HEADER */}
+                      <div style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "12px"
+                      }}>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <button
+                            onClick={() => toggleGroupExpanded(type)}
+                            style={{
+                              width: 20,
+                              height: 20,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderRadius: 4,
+                              border: "1px solid rgba(56, 189, 248, 0.4)",
+                              background: "transparent",
+                              color: "#38bdf8",
+                              cursor: "pointer",
+                              fontSize: 14
+                            }}
+                          >
+                            {expanded ? "−" : "+"}
+                          </button>
+
+                          <label style={{ display: "flex", gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              style={{ accentColor: '#38bdf8' }}
+                              checked={isGroupChecked(type)}
+                              onChange={() => toggleAssetType(type)}
+                            />
+                            <span style={{ fontWeight: 600, color: expanded ? "#fff" : "#cbd5e1", fontSize: 13 }}>{type}</span>
+                          </label>
+                        </div>
+
+                        <span style={{ fontSize: 10, color: "#64748b", fontWeight: 'bold' }}>
+                          {groupSummary(type)}
+                        </span>
+                      </div>
+
+                      {/* ITEMS */}
+                      {expanded && (
+                        <div style={{
+                          padding: "0 12px 12px 40px",
+                          display: "grid",
+                          gap: 8,
+                          borderTop: "1px solid rgba(56, 189, 248, 0.1)",
+                          paddingTop: 12
+                        }}>
+                          {groupAssets.map(asset => {
+                            const isJammer = type === "JAMMER";
+                            const isJamming =
+                              (jammerLifecycleByAssetId[asset.id] ?? "")
+                                .toUpperCase() === "JAMMING";
+
+                            const control =
+                              jammerTreeControlByAssetId[asset.id] ??
+                              DEFAULT_JAMMER_TREE_CONTROL_STATE;
+
+                            return (
+                              <div key={asset.id} style={{ paddingBottom: 8 }}>
+
+                                {/* ASSET LABEL */}
+                                <label style={{
+                                  display: "flex",
+                                  gap: 10,
+                                  fontSize: 13,
+                                  color: "#e2e8f0",
+                                  cursor: 'pointer',
+                                  alignItems: 'center'
+                                }}>
+                                  <input
+                                    type="checkbox"
+                                    style={{ accentColor: '#38bdf8' }}
+                                    checked={showAllAssets || selectedAssetIds.includes(asset.id)}
+                                    onChange={() => toggleAssetId(asset.id, type)}
+                                  />
+                                  {asset.name}
+                                </label>
+
+                                {/* JAMMER PANEL */}
+                                {isJammer && (
+                                  <div style={{
+                                    marginTop: 10,
+                                    padding: 12,
+                                    borderRadius: 8,
+                                    background: "#0f172a",
+                                    border: `1px solid ${isJamming ? '#ef4444' : 'rgba(56, 189, 248, 0.2)'}`,
+                                    display: "grid",
+                                    gap: 10,
+                                    boxShadow: isJamming ? "0 0 15px rgba(239, 68, 68, 0.1)" : "none"
+                                  }}>
+                                    <div style={{ 
+                                      fontSize: 10, 
+                                      color: isJamming ? "#f87171" : "#94a3b8", 
+                                      fontWeight: 'bold',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: 5
+                                    }}>
+                                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: isJamming ? "#ef4444" : "#38bdf8" }} />
+                                      STATUS: {jammerLifecycleByAssetId[asset.id] || "IDLE"}
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                      <div style={{ display: 'grid', gap: 4 }}>
+                                        <span style={{ fontSize: 9, color: '#64748b' }}>MODULE</span>
+                                        <select
+                                          style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
+                                          value={control.moduleId}
+                                          onChange={e => setJammerTreeControlField(asset.id, "moduleId", e.target.value)}
+                                        >
+                                          {MODULE_ID_OPTIONS.map(m => <option key={m}>{m}</option>)}
+                                        </select>
+                                      </div>
+
+                                      <div style={{ display: 'grid', gap: 4 }}>
+                                        <span style={{ fontSize: 9, color: '#64748b' }}>GAIN</span>
+                                        <select
+                                          style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
+                                          value={control.gain}
+                                          onChange={e => setJammerTreeControlField(asset.id, "gain", e.target.value)}
+                                        >
+                                          {GAIN_OPTIONS.map(g => <option key={g}>{g}</option>)}
+                                        </select>
+                                      </div>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gap: 4 }}>
+                                      <span style={{ fontSize: 9, color: '#64748b' }}>JAMMING CODE</span>
+                                      <select
+                                        style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
+                                        value={control.jammingCode}
+                                        onChange={e => setJammerTreeControlField(asset.id, "jammingCode", e.target.value)}
+                                      >
+                                        {JAMMING_CODE_OPTIONS.map(o => (
+                                          <option key={o.code} value={o.code}>{o.code} - {o.name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    <div style={{ display: 'grid', gap: 4 }}>
+                                      <span style={{ fontSize: 9, color: '#64748b' }}>FREQUENCY (MHz)</span>
+                                      <input
+                                        type="number"
+                                        placeholder="0.00"
+                                        style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: 4, padding: '4px', fontSize: 11 }}
+                                        value={control.frequency}
+                                        onChange={e => setJammerTreeControlField(asset.id, "frequency", e.target.value)}
+                                      />
+                                    </div>
+
+                                    <button
+                                      onClick={() => {
+                                        if (isJamming) {
+                                          handleJammerToggle(asset.id, "stop");
+                                        } else {
+                                          handleJammerToggle(asset.id, "start", {
+                                            moduleId: Number(control.moduleId),
+                                            jammingCode: Number(control.jammingCode),
+                                            gain: Number(control.gain),
+                                            frequency: control.frequency ? Number(control.frequency) : undefined
+                                          });
+                                        }
+                                      }}
+                                      style={{
+                                        borderRadius: 6,
+                                        border: "none",
+                                        padding: "10px",
+                                        background: isJamming 
+                                          ? "linear-gradient(to bottom, #ef4444, #991b1b)" 
+                                          : "linear-gradient(to bottom, #10b981, #065f46)",
+                                        color: "#fff",
+                                        fontWeight: "bold",
+                                        fontSize: 11,
+                                        cursor: "pointer",
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '1px',
+                                        marginTop: 4,
+                                        boxShadow: isJamming ? "0 4px 12px rgba(239, 68, 68, 0.2)" : "0 4px 12px rgba(16, 185, 129, 0.2)"
+                                      }}
+                                    >
+                                      {isJamming ? "⚡ TERMINATE JAMMING" : "▶ INITIATE JAMMING"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </PageContainer>
+    </AppLayout>
+  );
 }

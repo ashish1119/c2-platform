@@ -14,7 +14,7 @@ services:
       - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U c2user -d c2db "]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -27,6 +27,7 @@ services:
       - ./docker/.env
     ports:
       - "8000:8000"
+      - "5000:5000" # Expose TCP server port
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,6 +37,7 @@ services:
       uvicorn app.main:app
       --host 0.0.0.0
       --port 8000
+        
 
   frontend:
     build: ./frontend

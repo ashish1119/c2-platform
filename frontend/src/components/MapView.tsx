@@ -64,6 +64,19 @@ import {
   Layers,
 } from "lucide-react";
 
+// ⭐ Extended RFSignal type to handle both old and new field names
+type ExtendedRFSignal = RFSignal & {
+  lat?: number;
+  lon?: number;
+  freq?: number;
+  power?: number;
+  doa?: number;
+  doa_deg?: number;
+  snr?: number;
+  system_id?: string;
+  timestamp?: string;
+};
+
 type Props = {
   assets?: AssetRecord[];
   alerts?: AlertRecord[];
@@ -793,6 +806,7 @@ export default function MapView({
   const [showSignals, setShowSignals] = useState(true);
   const [showHeatOverlay, setShowHeatOverlay] = useState(true);
   const [showTriangulationOverlay, setShowTriangulationOverlay] = useState(true);
+  const [showDfRays, setShowDfRays] = useState(true);
   const [showNodeLabels, setShowNodeLabels] = useState<boolean>(() => {
     const raw = localStorage.getItem(MAP_NODE_LABELS_VISIBLE_KEY);
     if (raw === "true") return true;
@@ -1062,12 +1076,24 @@ export default function MapView({
         .sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
     [triangulationRayColorBySource]
   );
+
+  // ⭐ DF SIGNAL COLOR MAP (SYSTEM_ID → COLOR)
+  const dfSignalColorMap = useMemo(() => {
+    const colorMap: Record<string, string> = {
+      "5507": "#ef4444", // Red
+      "5508": "#3b82f6", // Blue
+      "5509": "#22c55e", // Green
+    };
+    return colorMap;
+  }, []);
+
   const lowZoomStyleScale = useMemo(() => {
     if (mapZoom <= 9) return 1.5;
     if (mapZoom <= 11) return 1.3;
     if (mapZoom <= 13) return 1.15;
     return 1;
   }, [mapZoom]);
+  
   const mapCenter: [number, number] = useMemo(
     () =>
       triangulationCentroid
@@ -1077,8 +1103,13 @@ export default function MapView({
         : hasAssets
         ? [visibleAssets[0].latitude, visibleAssets[0].longitude]
         : hasSignals
-          ? [signals[0].latitude, signals[0].longitude]
-        : hasHeatCells
+          ? (() => {
+              const signal = signals[0] as ExtendedRFSignal;
+              const lat = signal.latitude ?? signal.lat;
+              const lon = signal.longitude ?? signal.lon;
+              return lat !== undefined && lon !== undefined ? [lat, lon] : defaultCenter;
+            })()
+          : hasHeatCells
           ? [heatCells[0].latitude_bucket, heatCells[0].longitude_bucket]
         : hasCoverage
             ? [coveragePoints[0].latitude, coveragePoints[0].longitude]
@@ -1201,6 +1232,7 @@ export default function MapView({
     setAutoOfflineFallbackActive(true);
     setBaseMapId("offline-blank");
   }, [baseMapId, baseMapTileErrors]);
+  
   const resetFitPoints: Array<[number, number]> = useMemo(() => {
     const points: Array<[number, number]> = [];
 
@@ -1218,7 +1250,13 @@ export default function MapView({
 
     if (showSignals) {
       for (const signal of signals) {
-        points.push([signal.latitude, signal.longitude]);
+        const extSignal = signal as ExtendedRFSignal;
+        const lat = extSignal.latitude ?? extSignal.lat;
+        const lon = extSignal.longitude ?? extSignal.lon;
+
+        if (lat !== undefined && lon !== undefined) {
+          points.push([lat, lon]);
+        }
       }
 
       if (showHeatOverlay) {
@@ -1272,7 +1310,7 @@ export default function MapView({
         width: "100%",
         borderRadius: "12px",
         overflow: "hidden",
-        border: "1px solid rgba(56, 189, 248, 0.3)", // Sky blue border
+        border: "1px solid rgba(56, 189, 248, 0.3)",
         boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
         ["--jammer-popup-alpha" as string]: jammerPopupAlpha,
       } as React.CSSProperties
@@ -1325,6 +1363,7 @@ export default function MapView({
         />
       )}
 
+      {/* ASSET MARKERS */}
       {showAssets && visibleAssets.map((asset) => {
         const assetTypeKey = (asset.type ?? "UNKNOWN").trim().toUpperCase();
         const jammerLifecycleState = jammerLifecycleByAssetId[asset.id] ?? "ACTIVE_SERVICE";
@@ -1350,14 +1389,13 @@ export default function MapView({
     minWidth: isJammer ? 280 : 200, 
     color: "#f8fafc", 
     fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    background: "rgba(15, 23, 42, 0.95)", // Deep navy glass effect
+    background: "rgba(15, 23, 42, 0.95)",
     padding: "12px",
     borderRadius: "8px",
     boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
     border: "1px solid rgba(56, 189, 248, 0.3)"
   }}>
-    {/* Header Section */}
-    <div style={{ marginBottom: "10px", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", pb: "8px" }}>
+    <div style={{ marginBottom: "10px", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", paddingBottom: "8px" }}>
       <strong style={{ 
         color: "#38bdf8", 
         fontSize: "15px", 
@@ -1368,7 +1406,6 @@ export default function MapView({
       </strong>
     </div>
 
-    {/* Metadata Grid */}
     <div style={{ display: "grid", gap: "6px" }}>
       <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between" }}>
         <span style={{ color: "#94a3b8" }}>Type:</span>
@@ -1414,7 +1451,6 @@ export default function MapView({
       )}
     </div>
 
-    {/* Controls Section */}
     {isJammer && onJammerToggle && (
       <div style={{ 
         marginTop: 12, 
@@ -1509,7 +1545,7 @@ export default function MapView({
         );
       })}
 
-      {/* Shapes & Overlays */}
+      {/* DF RANGE CIRCLES */}
       {showAssets && directionFinderAssets.map((asset) => {
         const radiusM = getAssetCircleRadiusMeters(asset);
         return radiusM ? (
@@ -1518,22 +1554,178 @@ export default function MapView({
         ) : null;
       })}
 
+      {/* JAMMER RANGE CIRCLES */}
       {showAssets && activeJammerAssetsWithRange.map(({ asset, radiusM }) => (
         <Circle key={`jammer-range-${asset.id}`} center={[asset.latitude, asset.longitude]} radius={radiusM}
           pathOptions={{ color: jammerRangeColor, weight: 3, dashArray: "8 5", fillColor: jammerRangeColor, fillOpacity: 0.05, opacity: blinkOn ? 0.95 : 0.6 }} />
       ))}
 
+      {/* JAMMER SIGNAL RINGS */}
       {showAssets && activeJammerAssetsWithRange.flatMap(({ asset, radiusM }) => Array.from({ length: JAMMER_SIGNAL_RING_COUNT }, (_, ringIndex) => (
         <Circle key={`jammer-inner-${asset.id}-${ringIndex}`} center={[asset.latitude, asset.longitude]} radius={((ringIndex + 1) / (JAMMER_SIGNAL_RING_COUNT + 1)) * radiusM} 
           pathOptions={{ color: jammerRangeColor, weight: blinkOn ? (ringIndex % 2 === 0 ? 2.2 : 1.4) : (ringIndex % 2 === 0 ? 1.4 : 2.2), opacity: blinkOn ? 0.7 : 0.2, dashArray: "6 6", fillOpacity: 0 }} />
       )))}
 
+      {/* ALERT MARKERS */}
       {showAlerts && alertMarkers.map((alert) => (
         <CircleMarker key={`alert-${alert.id}`} center={[alert.latitude as number, alert.longitude as number]} 
           radius={String(alert.status).toUpperCase() === "NEW" ? (blinkOn ? 12 : 6) : 8}
           pathOptions={{ color: String(alert.status).toUpperCase() === "NEW" ? "#ef4444" : "#f59e0b", fillOpacity: 0.6 }} />
       ))}
 
+      {/* ⭐ DF SIGNAL DOA RAYS - WEBSOCKET DATA */}
+      {showSignals && showDfRays && signals.map((signal, i) => {
+        const extSignal = signal as ExtendedRFSignal;
+        const lat = extSignal.latitude ?? extSignal.lat;
+        const lon = extSignal.longitude ?? extSignal.lon;
+        const doa = extSignal.doa_deg ?? extSignal.doa;
+
+        if (lat === undefined || lon === undefined || doa === undefined || doa === null) {
+          return null;
+        }
+
+        const start: [number, number] = [lat, lon];
+        const end = destinationPointFromBearing(start, doa, 2000);
+
+        const systemId = String(extSignal.system_id ?? "unknown");
+        const rayColor = dfSignalColorMap[systemId] || "#f59e0b";
+
+        return (
+          <Fragment key={`df-ray-${i}-${systemId}`}>
+            <Polyline
+              positions={[start, end]}
+              pathOptions={{
+                color: "#ffffff",
+                weight: 5,
+                opacity: 0.3,
+              }}
+            />
+            <Polyline
+              positions={[start, end]}
+              pathOptions={{
+                color: rayColor,
+                weight: 3,
+                dashArray: "8 4",
+                opacity: 0.9,
+              }}
+            >
+              <Popup>
+                <div style={{ fontSize: "12px", color: "#1f2937" }}>
+                  <div><strong>DF Ray - System {systemId}</strong></div>
+                  <div>DOA: {doa.toFixed(1)}°</div>
+                  <div>Position: {lat.toFixed(5)}, {lon.toFixed(5)}</div>
+                </div>
+              </Popup>
+            </Polyline>
+          </Fragment>
+        );
+      })}
+
+      {/* ⭐ DF SIGNAL MARKERS - WEBSOCKET DATA */}
+      {showSignals && signals.map((signal, i) => {
+        const extSignal = signal as ExtendedRFSignal;
+        const lat = extSignal.latitude ?? extSignal.lat;
+        const lon = extSignal.longitude ?? extSignal.lon;
+
+        if (lat === undefined || lon === undefined) {
+          return null;
+        }
+
+        const systemId = String(extSignal.system_id ?? "unknown");
+        const rayColor = dfSignalColorMap[systemId] || "#f59e0b";
+        const frequency = extSignal.frequency ?? extSignal.freq;
+        const power = extSignal.power_level ?? extSignal.power;
+        const doa = extSignal.doa_deg ?? extSignal.doa;
+
+        return (
+          <CircleMarker
+            key={`sig-${extSignal.id || i}-${systemId}-${lat}-${lon}`}
+            center={[lat, lon]}
+            radius={6 * lowZoomStyleScale}
+            pathOptions={{ 
+              color: "#ffffff", 
+              fillColor: rayColor, 
+              fillOpacity: 0.85, 
+              weight: 2 
+            }}
+          >
+            <Popup>
+              <div style={{ 
+                fontSize: "12px", 
+                color: "#f8fafc",
+                background: "rgba(15, 23, 42, 0.95)",
+                padding: "8px",
+                borderRadius: "6px",
+                minWidth: "180px"
+              }}>
+                <div style={{ 
+                  borderBottom: "1px solid rgba(56, 189, 248, 0.3)", 
+                  paddingBottom: "6px", 
+                  marginBottom: "6px" 
+                }}>
+                  <strong style={{ color: "#38bdf8" }}>DF Signal Detection</strong>
+                </div>
+                
+                <div style={{ display: "grid", gap: "4px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#94a3b8" }}>System:</span>
+                    <span style={{ fontWeight: 600 }}>{systemId}</span>
+                  </div>
+                  
+                  {frequency !== undefined && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "#94a3b8" }}>Frequency:</span>
+                      <span>{frequency.toFixed(2)} MHz</span>
+                    </div>
+                  )}
+                  
+                  {doa !== undefined && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "#94a3b8" }}>DOA:</span>
+                      <span style={{ color: rayColor, fontWeight: 600 }}>{doa.toFixed(1)}°</span>
+                    </div>
+                  )}
+                  
+                  {power !== undefined && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "#94a3b8" }}>Power:</span>
+                      <span>{power.toFixed(1)} dBm</span>
+                    </div>
+                  )}
+                  
+                  {extSignal.snr !== undefined && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "#94a3b8" }}>SNR:</span>
+                      <span>{extSignal.snr.toFixed(1)} dB</span>
+                    </div>
+                  )}
+                  
+                  {extSignal.confidence !== undefined && (
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "#94a3b8" }}>Confidence:</span>
+                      <span>{(extSignal.confidence * 100).toFixed(0)}%</span>
+                    </div>
+                  )}
+                  
+                  {extSignal.detected_at && (
+                    <div style={{ 
+                      marginTop: "4px", 
+                      paddingTop: "4px", 
+                      borderTop: "1px solid rgba(148, 163, 184, 0.2)",
+                      fontSize: "10px",
+                      color: "#64748b"
+                    }}>
+                      {new Date(extSignal.detected_at).toLocaleTimeString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        );
+      })}
+
+      {/* HEAT OVERLAY */}
       {showSignals && showHeatOverlay && heatCells.map((cell, index) => (
         <CircleMarker
           key={`heat-${cell.latitude_bucket}-${cell.longitude_bucket}-${index}`}
@@ -1557,6 +1749,7 @@ export default function MapView({
         </CircleMarker>
       ))}
 
+      {/* TRIANGULATION RAYS */}
       {showSignals && showTriangulationOverlay && triangulation?.rays.map((ray) => (
         <Fragment key={`tri-ray-group-${ray.source_id}`}>
           <Polyline
@@ -1595,6 +1788,7 @@ export default function MapView({
         </Fragment>
       ))}
 
+      {/* TRIANGULATION INTERSECTIONS */}
       {showSignals && showTriangulationOverlay && triangulationIntersections.map((point, index) => (
         <CircleMarker
           key={`tri-x-${index}`}
@@ -1611,6 +1805,7 @@ export default function MapView({
         </CircleMarker>
       ))}
 
+      {/* TRIANGULATION CENTROID */}
       {showSignals && showTriangulationOverlay && triangulationCentroid && (
         <>
           <CircleMarker
@@ -1637,6 +1832,7 @@ export default function MapView({
         </>
       )}
 
+      {/* TRIANGULATION POLYGON */}
       {showSignals && showTriangulationOverlay && triangulationPolygon.length > 2 && (
         <Polygon
           positions={triangulationPolygon}
@@ -1649,30 +1845,13 @@ export default function MapView({
         />
       )}
 
-      {showSignals && signals.map((signal) => (
-        <CircleMarker
-          key={`sig-${signal.id}`}
-          center={[signal.latitude, signal.longitude]}
-          radius={5 * lowZoomStyleScale}
-          pathOptions={{ color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 0.8 }}
-        >
-          <Popup>
-            <div>
-              <div>Frequency: {signal.frequency}</div>
-              <div>Modulation: {signal.modulation}</div>
-              <div>Power: {signal.power_level}</div>
-              <div>Detected: {new Date(signal.detected_at).toLocaleString()}</div>
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
-
+      {/* TCP POINTER LINE */}
       {tcpPointerLine && (
         <Polyline positions={[tcpPointerLine.start, tcpPointerLine.end]} pathOptions={{ color: '#f43f5e', weight: 3, dashArray: '10 5', opacity: 0.9 }} />
       )}
     </MapContainer>
 
-    {/* --- TACTICAL GLASS SIDEBAR --- */}
+    {/* TACTICAL GLASS SIDEBAR */}
     <div
       style={{
         position: "absolute", left: 16, top: 16, zIndex: 1000, display: "flex", flexDirection: "column", gap: 10,
@@ -1703,9 +1882,8 @@ export default function MapView({
       ))}
     </div>
 
-    {/* --- FLOATING STATUS BAR (BOTTOM) --- */}
+    {/* FLOATING STATUS BAR */}
     <div style={{ position: "absolute", left: 92, bottom: 20, zIndex: 1000, display: "flex", gap: "10px", alignItems: "flex-end" }}>
-       {/* Glass Coordinates */}
       {mousePosition && (
         <div style={{ 
           background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(56, 189, 248, 0.4)",
@@ -1715,7 +1893,6 @@ export default function MapView({
         </div>
       )}
 
-      {/* Compact Tactical Compass */}
       <div style={{
         width: 60, height: 60, borderRadius: "50%", background: "rgba(15, 23, 42, 0.8)", border: "2px solid #38bdf8",
         display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 15px rgba(56, 189, 248, 0.2)"
@@ -1727,62 +1904,62 @@ export default function MapView({
           <text x="32" y="16" textAnchor="middle" fontSize="9" fill="#ef4444" fontWeight="bold">N</text>
         </svg>
       </div>
-    <MapOverlaysPanel
-      dfRangeColor={dfRangeColor}
-      showTransparencySlider={showTransparencySlider}
-      onToggleTransparencySlider={() => setShowTransparencySlider((current) => !current)}
-      jammerPopupAlpha={jammerPopupAlpha}
-      onJammerPopupAlphaChange={setJammerPopupAlpha}
-      showJammerColorPicker={showJammerColorPicker}
-      onToggleJammerColorPicker={() => setShowJammerColorPicker((current) => !current)}
-      jammerRangeColor={jammerRangeColor}
-      onJammerRangeColorChange={setJammerRangeColor}
-      showDfColorPicker={showDfColorPicker}
-      onToggleDfColorPicker={() => setShowDfColorPicker((current) => !current)}
-      onDfRangeColorChange={setDfRangeColor}
-      showBaseMapSelector={showBaseMapSelector}
-      onToggleBaseMapSelector={() => setShowBaseMapSelector((current) => !current)}
-      baseMapId={baseMapId}
-      onBaseMapSelectionChange={handleBaseMapSelectionChange}
-      isOfflineBaseMap={isOfflineBaseMap}
-      baseMapTileErrors={baseMapTileErrors}
-      autoOfflineFallbackActive={autoOfflineFallbackActive}
-      navigatorOnline={typeof navigator !== "undefined" ? navigator.onLine : false}
-      currentViewAvailable={Boolean(currentView)}
-      onSaveCurrentView={() => {
-        if (!currentView) {
-          return;
-        }
-        setSavedView(currentView);
-      }}
-      hasSavedView={Boolean(savedView)}
-      onResetView={handleResetView}
-      showAssets={showAssets}
-      onToggleAssets={() => setShowAssets((current) => !current)}
-      showSignals={showSignals}
-      onToggleSignals={() => setShowSignals((current) => !current)}
-      showHeatOverlay={showHeatOverlay}
-      onToggleHeatOverlay={() => setShowHeatOverlay((current) => !current)}
-      showTriangulationOverlay={showTriangulationOverlay}
-      onToggleTriangulationOverlay={() => setShowTriangulationOverlay((current) => !current)}
-      showNodeLabels={showNodeLabels}
-      onToggleNodeLabels={() => setShowNodeLabels((current) => !current)}
-      showAlerts={showAlerts}
-      onToggleAlerts={() => setShowAlerts((current) => !current)}
-      activeDrawShape={activeDrawShape}
-      activeShapeMenuTop={activeShapeMenuTop}
-      activeShapeColor={activeShapeColor}
-      activeShapeLabel={activeShapeLabel}
-      onActiveShapeColorChange={handleActiveShapeColorChange}
-      mousePosition={mousePosition}
-      assetTypeLegend={assetTypeLegend}
-      triangulationLegendEntries={triangulationLegendEntries}
-      showAssetLegend={showAssetLegend}
-      onToggleAssetLegend={() => setShowAssetLegend((current) => !current)}
-    />
+
+      <MapOverlaysPanel
+        dfRangeColor={dfRangeColor}
+        showTransparencySlider={showTransparencySlider}
+        onToggleTransparencySlider={() => setShowTransparencySlider((current) => !current)}
+        jammerPopupAlpha={jammerPopupAlpha}
+        onJammerPopupAlphaChange={setJammerPopupAlpha}
+        showJammerColorPicker={showJammerColorPicker}
+        onToggleJammerColorPicker={() => setShowJammerColorPicker((current) => !current)}
+        jammerRangeColor={jammerRangeColor}
+        onJammerRangeColorChange={setJammerRangeColor}
+        showDfColorPicker={showDfColorPicker}
+        onToggleDfColorPicker={() => setShowDfColorPicker((current) => !current)}
+        onDfRangeColorChange={setDfRangeColor}
+        showBaseMapSelector={showBaseMapSelector}
+        onToggleBaseMapSelector={() => setShowBaseMapSelector((current) => !current)}
+        baseMapId={baseMapId}
+        onBaseMapSelectionChange={handleBaseMapSelectionChange}
+        isOfflineBaseMap={isOfflineBaseMap}
+        baseMapTileErrors={baseMapTileErrors}
+        autoOfflineFallbackActive={autoOfflineFallbackActive}
+        navigatorOnline={typeof navigator !== "undefined" ? navigator.onLine : false}
+        currentViewAvailable={Boolean(currentView)}
+        onSaveCurrentView={() => {
+          if (!currentView) {
+            return;
+          }
+          setSavedView(currentView);
+        }}
+        hasSavedView={Boolean(savedView)}
+        onResetView={handleResetView}
+        showAssets={showAssets}
+        onToggleAssets={() => setShowAssets((current) => !current)}
+        showSignals={showSignals}
+        onToggleSignals={() => setShowSignals((current) => !current)}
+        showHeatOverlay={showHeatOverlay}
+        onToggleHeatOverlay={() => setShowHeatOverlay((current) => !current)}
+        showTriangulationOverlay={showTriangulationOverlay}
+        onToggleTriangulationOverlay={() => setShowTriangulationOverlay((current) => !current)}
+        showNodeLabels={showNodeLabels}
+        onToggleNodeLabels={() => setShowNodeLabels((current) => !current)}
+        showAlerts={showAlerts}
+        onToggleAlerts={() => setShowAlerts((current) => !current)}
+        activeDrawShape={activeDrawShape}
+        activeShapeMenuTop={activeShapeMenuTop}
+        activeShapeColor={activeShapeColor}
+        activeShapeLabel={activeShapeLabel}
+        onActiveShapeColorChange={handleActiveShapeColorChange}
+        mousePosition={mousePosition}
+        assetTypeLegend={assetTypeLegend}
+        triangulationLegendEntries={triangulationLegendEntries}
+        showAssetLegend={showAssetLegend}
+        onToggleAssetLegend={() => setShowAssetLegend((current) => !current)}
+      />
     </div>
 
-    {/* Floating Selectors */}
     {showBaseMapSelector && (
       <div style={{ position: "absolute", left: 92, top: 250, zIndex: 1100, background: "#1e293b", padding: "10px", borderRadius: "8px", border: "1px solid #38bdf8" }}>
         <select value={baseMapId} onChange={(e) => { handleBaseMapSelectionChange(e.target.value); setShowBaseMapSelector(false); }}
