@@ -36,6 +36,15 @@ const resolveAlertsWsUrl = () => {
   return `${wsProtocol}//${window.location.hostname}:8000/ws/alerts`;
 };
 
+let pdfDepsPromise: Promise<[any, any]> | null = null;
+
+const loadPdfDeps = () => {
+  if (!pdfDepsPromise) {
+    pdfDepsPromise = Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  }
+  return pdfDepsPromise;
+};
+
 export default function AlertTable({ showAcknowledge = true }: Props) {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -395,6 +404,16 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     };
   }, [loadAlerts]);
 
+  useEffect(() => {
+    const warmPdfDepsTimer = window.setTimeout(() => {
+      void loadPdfDeps().catch(() => undefined);
+    }, 1500);
+
+    return () => {
+      window.clearTimeout(warmPdfDepsTimer);
+    };
+  }, []);
+
   const handleAcknowledge = async (id: string) => {
     if (!user) return;
     try {
@@ -537,10 +556,7 @@ export default function AlertTable({ showAcknowledge = true }: Props) {
     setPdfExportInProgress(true);
 
     try {
-      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
-        import("jspdf"),
-        import("jspdf-autotable"),
-      ]);
+      const [{ jsPDF }, { default: autoTable }] = await loadPdfDeps();
 
       const doc = new jsPDF({ orientation: "landscape" });
       doc.setFontSize(12);

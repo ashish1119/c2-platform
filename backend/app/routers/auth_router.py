@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict, deque
 import re
@@ -5,9 +6,9 @@ import threading
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from jose import JWTError
+from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 import uuid
 from app.database import AsyncSessionLocal
@@ -24,6 +25,7 @@ from app.core.security import (
 from app.config import settings
 from app.deps import get_current_user_claims
 from app.services.role_service import get_effective_permissions
+from app.core.websocket_manager import manager
 from app.schemas import (
     ChangePasswordRequest,
     LoginRequest,
@@ -60,6 +62,9 @@ async def get_db():
 
 
 async def _build_login_response(user: User, db: AsyncSession) -> LoginResponse:
+    if user.role is None or user.role_id is None:
+        raise HTTPException(status_code=403, detail="User role misconfigured")
+
     permission_rows = await get_effective_permissions(user.role_id, db) if user.role_id else []
     permissions = [f"{row['resource']}:{row['action']}" for row in permission_rows]
     token = create_access_token(
@@ -194,11 +199,28 @@ async def get_current_session(
 async def logout(request: Request, response: Response):
     token = _extract_request_token(request)
     if token:
+        token_jti: str | None = None
         try:
+            payload = jwt.decode(
+                token,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_exp": False},
+            )
+            raw_jti = payload.get("jti")
+            token_jti = str(raw_jti) if raw_jti else None
             revoke_access_token(token)
         except JWTError:
             # Invalid/expired tokens are effectively unusable and can be ignored here.
             pass
+
+        if token_jti:
+            try:
+                await asyncio.wait_for(manager.disconnect_by_jti(token_jti), timeout=2.0)
+            except Exception:
+                # Logout should remain responsive even if websocket teardown stalls.
+                pass
+
     _clear_access_cookie(response)
     return {"message": "Logged out successfully"}
 
@@ -253,18 +275,28 @@ async def request_password_reset(
     )
     user = result.scalar_one_or_none()
 
+    raw_token: str | None = None
     if user is not None:
+        now = datetime.now(timezone.utc)
+        await db.execute(
+            update(PasswordResetToken)
+            .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+            .values(used_at=now)
+        )
+
         raw_token = generate_password_reset_token()
         db.add(
             PasswordResetToken(
                 user_id=user.id,
                 token_hash=hash_reset_token(raw_token),
-                expires_at=datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_TTL_MINUTES),
+                expires_at=now + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_TTL_MINUTES),
             )
         )
         await db.commit()
 
-    response_payload = {"message": "If the account exists, a reset token has been issued."}
+    response_payload: dict[str, str] = {"message": "If the account exists, a reset token has been issued."}
+    if raw_token and settings.PASSWORD_RESET_EXPOSE_TOKEN_IN_DEV and settings.ENVIRONMENT.lower() == "development":
+        response_payload["reset_token"] = raw_token
     return response_payload
 
 

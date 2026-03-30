@@ -34,7 +34,12 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008)
         return
 
-    await manager.connect(websocket)
+    jti = payload.get("jti")
+    if not jti:
+        await websocket.close(code=1008)
+        return
+
+    await manager.connect(websocket, jti=str(jti))
 
     try:
         while True:
@@ -71,7 +76,12 @@ async def alerts_websocket(websocket: WebSocket):
         await websocket.close(code=1008)
         return
 
-    await manager.connect(websocket)
+    jti = payload.get("jti")
+    if not jti:
+        await websocket.close(code=1008)
+        return
+
+    await manager.connect(websocket, jti=str(jti))
     try:
         while True:
             await websocket.receive_text()

@@ -1,11 +1,17 @@
-import { Suspense, lazy, useState } from "react";
+import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useTheme } from "../../../context/ThemeContext";
 import { useTelecomIntelligence } from "../state/useTelecomIntelligence";
 import { useTelecomAnalytics } from "../state/useTelecomAnalytics";
 import TelecomFilterBar from "./TelecomFilterBar";
 import TelecomKPICards from "./TelecomKPICards";
+import TelecomCallerPanel from "./TelecomCallerPanel";
+import TelecomMapPanel from "./TelecomMapPanel";
 import TelecomInsightsPanel from "./TelecomInsightsPanel";
+import TelecomTimeline from "./TelecomTimeline";
+import TelecomTable from "./TelecomTable";
+import TelecomChartsPanel from "./TelecomChartsPanel";
+import TelecomAIInsights from "./TelecomAIInsights";
 import { exportCSV, exportPDF } from "../utils/exportUtils";
 import {
   Activity, BarChart2, Clock, Download, FileText,
@@ -13,13 +19,6 @@ import {
 } from "lucide-react";
 
 type ViewTab = "map" | "table" | "timeline";
-
-const TelecomCallerPanel = lazy(() => import("./TelecomCallerPanel"));
-const TelecomMapPanel = lazy(() => import("./TelecomMapPanel"));
-const TelecomTimeline = lazy(() => import("./TelecomTimeline"));
-const TelecomTable = lazy(() => import("./TelecomTable"));
-const TelecomChartsPanel = lazy(() => import("./TelecomChartsPanel"));
-const TelecomAIInsights = lazy(() => import("./TelecomAIInsights"));
 
 export default function TelecomIntelligenceDashboard() {
   const { theme } = useTheme();
@@ -54,7 +53,6 @@ export default function TelecomIntelligenceDashboard() {
 
   const csvBannerIsSuccess =
     state.csvError?.startsWith("✓") || state.csvError?.startsWith("Loaded");
-  const panelFallback = <div style={{ minHeight: 120 }} />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -187,24 +185,20 @@ export default function TelecomIntelligenceDashboard() {
       {showAnalytics && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {/* AI Insights + Extended KPIs */}
-          <Suspense fallback={panelFallback}>
-            <TelecomAIInsights
-              insights={analytics.insights}
-              extKPIs={analytics.extKPIs}
-              totalRecords={state.records.length}
-            />
-          </Suspense>
+          <TelecomAIInsights
+            insights={analytics.insights}
+            extKPIs={analytics.extKPIs}
+            totalRecords={state.records.length}
+          />
 
           {/* Charts */}
-          <Suspense fallback={panelFallback}>
-            <TelecomChartsPanel
-              dailyVolume={analytics.dailyVolume}
-              callTypeDist={analytics.callTypeDist}
-              operatorDist={analytics.operatorDist}
-              topContacts={analytics.topContacts}
-              durationTrend={analytics.durationTrend}
-            />
-          </Suspense>
+          <TelecomChartsPanel
+            dailyVolume={analytics.dailyVolume}
+            callTypeDist={analytics.callTypeDist}
+            operatorDist={analytics.operatorDist}
+            topContacts={analytics.topContacts}
+            durationTrend={analytics.durationTrend}
+          />
         </div>
       )}
 
@@ -218,25 +212,21 @@ export default function TelecomIntelligenceDashboard() {
           }}
         >
           <div style={{ minHeight: 0, overflowY: "auto" }}>
-            <Suspense fallback={panelFallback}>
-              <TelecomCallerPanel
-                records={state.records}
-                selectedRecord={state.selectedRecord}
-                onSelect={state.setSelectedId}
-                onFocusTarget={state.focusTarget}
-              />
-            </Suspense>
+            <TelecomCallerPanel
+              records={state.records}
+              selectedRecord={state.selectedRecord}
+              onSelect={state.setSelectedId}
+              onFocusTarget={state.focusTarget}
+            />
           </div>
           <div style={{ minHeight: 480 }}>
-            <Suspense fallback={panelFallback}>
-              <TelecomMapPanel
-                records={state.records}
-                selectedRecord={state.selectedRecord}
-                msisdnFilter={state.filters.msisdn}
-                onSelect={state.setSelectedId}
-                onFocusTarget={state.focusTarget}
-              />
-            </Suspense>
+            <TelecomMapPanel
+              records={state.records}
+              selectedRecord={state.selectedRecord}
+              msisdnFilter={state.filters.msisdn}
+              onSelect={state.setSelectedId}
+              onFocusTarget={state.focusTarget}
+            />
           </div>
           <div style={{ minHeight: 0, overflowY: "auto" }}>
             <TelecomInsightsPanel record={state.selectedRecord} />
@@ -246,32 +236,28 @@ export default function TelecomIntelligenceDashboard() {
 
       {activeTab === "table" && (
         <div style={{ minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <Suspense fallback={panelFallback}>
-            <TelecomTable
-              rows={state.tablePage}
-              total={state.tableTotal}
-              page={state.page}
-              totalPages={state.totalPages}
-              pageSize={state.PAGE_SIZE}
-              sortKey={state.sortKey}
-              sortDir={state.sortDir}
-              onSort={state.toggleSort}
-              onPageChange={state.setPage}
-              tableSearch={state.filters.tableSearch}
-              onTableSearch={(v) => state.updateFilter("tableSearch", v)}
-              onSelect={state.setSelectedId}
-              selectedId={state.selectedId}
-              onFocusTarget={state.focusTarget}
-            />
-          </Suspense>
+          <TelecomTable
+            rows={state.tablePage}
+            total={state.tableTotal}
+            page={state.page}
+            totalPages={state.totalPages}
+            pageSize={state.PAGE_SIZE}
+            sortKey={state.sortKey}
+            sortDir={state.sortDir}
+            onSort={state.toggleSort}
+            onPageChange={state.setPage}
+            tableSearch={state.filters.tableSearch}
+            onTableSearch={(v) => state.updateFilter("tableSearch", v)}
+            onSelect={state.setSelectedId}
+            selectedId={state.selectedId}
+            onFocusTarget={state.focusTarget}
+          />
         </div>
       )}
 
       {activeTab === "timeline" && (
         <div style={{ overflowY: "auto" }}>
-          <Suspense fallback={panelFallback}>
-            <TelecomTimeline dayGroups={state.dayGroups} />
-          </Suspense>
+          <TelecomTimeline dayGroups={state.dayGroups} />
         </div>
       )}
 

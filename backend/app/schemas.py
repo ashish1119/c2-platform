@@ -54,7 +54,7 @@ class UserCreate(BaseModel):
     username: str
     email: str
     password: str
-    role_id: int | None = None
+    role_id: int
 
 
 class UserUpdate(BaseModel):

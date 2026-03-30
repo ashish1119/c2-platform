@@ -160,9 +160,15 @@ export default function LoginPage() {
 
     try {
       if (resetStep === "request") {
-        await requestPasswordReset({ identifier: resetIdentifier.trim() });
+        const response = await requestPasswordReset({ identifier: resetIdentifier.trim() });
+        const issuedToken = response.data?.reset_token?.trim() || "";
+        if (issuedToken) {
+          setResetToken(issuedToken);
+          setResetInfo("Reset token issued (development mode). Continue to set a new password.");
+        } else {
+          setResetInfo("If the account exists, a reset token has been issued. Please use the token from your configured delivery channel.");
+        }
         setResetStep("confirm");
-        setResetInfo("If the account exists, a reset token has been issued.");
         return;
       }
 

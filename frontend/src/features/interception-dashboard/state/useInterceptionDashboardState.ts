@@ -3,6 +3,21 @@ import { INTERCEPTION_SNAPSHOTS } from "../mockData";
 import type { InterceptionSnapshot, InterceptionTimeWindowPreset } from "../model";
 
 const SNAPSHOT_ROTATION_MS = 4000;
+const EMPTY_SNAPSHOT: InterceptionSnapshot = {
+  generatedAt: new Date(0).toISOString(),
+  missionName: "Interception Dashboard",
+  theater: "No source data available",
+  posture: "Awaiting data",
+  filters: [],
+  reviewChecks: [],
+  metrics: [],
+  contacts: [],
+  events: [],
+  alerts: [],
+  zones: [],
+  platforms: [],
+  directives: [],
+};
 
 function parseTimeWindowLabel(label: string) {
   const [startRaw, endRaw] = label.split(" to ");
@@ -58,17 +73,22 @@ export function useInterceptionDashboardState() {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(
     INTERCEPTION_SNAPSHOTS[0]?.contacts[0]?.id ?? null
   );
+  const hasSnapshots = INTERCEPTION_SNAPSHOTS.length > 0;
 
   useEffect(() => {
+    if (!hasSnapshots) {
+      return;
+    }
+
     // Isolated mocked state makes the page easy to swap to a websocket/API store later.
     const intervalId = window.setInterval(() => {
       setSnapshotIndex((current) => (current + 1) % INTERCEPTION_SNAPSHOTS.length);
     }, SNAPSHOT_ROTATION_MS);
 
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [hasSnapshots]);
 
-  const snapshot = INTERCEPTION_SNAPSHOTS[snapshotIndex];
+  const snapshot = INTERCEPTION_SNAPSHOTS[snapshotIndex] ?? EMPTY_SNAPSHOT;
 
   const serviceTypeFilter = snapshot.filters.find((filter) => filter.id === "service_type");
   const availableServiceTypes = serviceTypeFilter?.allowedValues ?? ["voice", "sms", "ott"];

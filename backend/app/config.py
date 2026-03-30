@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_COOKIE_SAMESITE: str = "lax"
     ACCESS_TOKEN_COOKIE_SECURE: bool | None = None
     PASSWORD_RESET_TOKEN_TTL_MINUTES: int = 15
+    PASSWORD_RESET_EXPOSE_TOKEN_IN_DEV: bool | None = None
 
     # Database
     DATABASE_URL: str = Field(...)
@@ -81,9 +82,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def apply_security_defaults(self):
+        is_development = self.ENVIRONMENT.lower() == "development"
         if self.ACCESS_TOKEN_COOKIE_SECURE is None:
-            self.ACCESS_TOKEN_COOKIE_SECURE = self.ENVIRONMENT.lower() != "development"
-        if self.ENVIRONMENT.lower() != "development" and not self.REDIS_URL:
+            self.ACCESS_TOKEN_COOKIE_SECURE = not is_development
+        if self.PASSWORD_RESET_EXPOSE_TOKEN_IN_DEV is None:
+            self.PASSWORD_RESET_EXPOSE_TOKEN_IN_DEV = is_development
+        if not is_development and not self.REDIS_URL:
             raise ValueError("REDIS_URL must be configured outside development for secure token revocation")
         return self
 

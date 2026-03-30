@@ -165,6 +165,7 @@ export default function OperatorMapPage() {
   const [tcpRecentMessages, setTcpRecentMessages] = useState<TcpClientStatus["recent_messages"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
   const [simulationMode, setSimulationMode] = useState(false);
   const [simulationSnapshot, setSimulationSnapshot] = useState<DashboardSimulationSnapshot | null>(null);
 
@@ -180,13 +181,47 @@ export default function OperatorMapPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
+      const warnings: string[] = [];
       const [assetsRes, jammerProfilesRes, alertsRes, signalsRes, heatRes, tcpStatusRes] = await Promise.all([
         getAssets(),
-        getJammerProfiles(),
-        getAlerts(),
-        getRFSignals(),
-        getHeatMap(),
-        getTcpClientStatus().catch(() => null),
+        getJammerProfiles().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          if ((requestError as any)?.response?.status === 403) {
+            return { data: [] as JammerProfileRecord[] };
+          }
+          warnings.push(`jammers: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as JammerProfileRecord[] };
+        }),
+        getAlerts().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`alerts: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as AlertRecord[] };
+        }),
+        getRFSignals().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`rf/signals: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as RFSignal[] };
+        }),
+        getHeatMap().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`rf/heatmap: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as HeatCell[] };
+        }),
+        getTcpClientStatus().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`tcp-listener/client/status: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return null;
+        }),
       ]);
 
       const loadedAssets = assetsRes.data.filter((asset) => isOperatorAllowedAssetType(asset.type));
@@ -217,11 +252,13 @@ export default function OperatorMapPage() {
       setSignals(signalsRes.data);
       setHeatCells(heatRes.data);
       setTcpRecentMessages(tcpStatusRes?.data?.recent_messages ?? []);
+      setLoadWarnings(warnings);
     } catch (err: any) {
       if (err?.response?.status === 401) {
         // Interceptor will redirect; suppress the error banner
         return;
       }
+      setLoadWarnings([]);
       setError("Failed to load map data.");
     } finally {
       setLoading(false);
@@ -640,6 +677,22 @@ export default function OperatorMapPage() {
             fontWeight: 600
           }}>
             ERROR_REPORT: {error}
+          </div>
+        )}
+
+        {!error && loadWarnings.length > 0 && (
+          <div
+            style={{
+              padding: "8px 12px",
+              borderRadius: 6,
+              background: "rgba(245, 158, 11, 0.12)",
+              border: "1px solid #f59e0b",
+              color: "#f59e0b",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            DATA_WARNINGS: {loadWarnings.join(" | ")}
           </div>
         )}
 

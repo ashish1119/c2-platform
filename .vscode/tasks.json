@@ -49,6 +49,13 @@
 			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform'; Get-Content '.\\scripts\\platform_regression_test.py' | docker compose exec -T backend python -",
 			"isBackground": false,
 			"group": "test"
+		},
+		{
+			"label": "Build Frontend Once",
+			"type": "shell",
+			"command": "$env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User'); Set-Location 'c:\\Users\\AshishKumarJain\\c2-platform\\frontend'; npm run build",
+			"isBackground": false,
+			"group": "test"
 		}
 	]
 }

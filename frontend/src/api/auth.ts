@@ -34,8 +34,13 @@ export const getCurrentSession = () =>
 export const logoutRequest = () =>
   api.post<{ message: string }>("/auth/logout");
 
+export type PasswordResetRequestStartResponse = {
+  message: string;
+  reset_token?: string;
+};
+
 export const requestPasswordReset = (payload: PasswordResetRequestStart) =>
-  api.post<{ message: string }>("/auth/password-reset/request", payload);
+  api.post<PasswordResetRequestStartResponse>("/auth/password-reset/request", payload);
 
 export const confirmPasswordReset = (payload: PasswordResetConfirmRequest) =>
   api.post<{ message: string }>("/auth/password-reset/confirm", payload);

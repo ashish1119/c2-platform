@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Card from "../../components/ui/Card";
+import { getSmsDetections, type SmsDetectionRecord } from "../../api/operatorDashboard";
 
 type RFDataType = {
   id: number;
@@ -9,6 +10,8 @@ type RFDataType = {
   lat?: number;
   lon?: number;
   DOA: number;
+  source_node?: string;
+  sensor_id?: string;
 };
 
 const thStyle = {
@@ -104,7 +107,7 @@ function InterceptListTable({
           ) : (
             <tr>
               <td colSpan={12} style={{ padding: 10, textAlign: "center" }}>
-                Dummy Intercept Data
+                No Detection Data
               </td>
             </tr>
           )}
@@ -118,6 +121,7 @@ export default function CESMTableTabs() {
   const [activeSubTab, setActiveSubTab] = useState(0);
   const [rfData, setRfData] = useState<RFDataType[]>([]);
   const [highlightIds, setHighlightIds] = useState<number[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const subTabs = [
     "INTERCEPT LIST",
@@ -126,37 +130,49 @@ export default function CESMTableTabs() {
     "COMPASS DF",
   ];
 
+  // Fetch SMS detections for DF North Node 1
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const ws = new WebSocket(`${protocol}://${window.location.hostname}:8000/ws/rf-data`);
-
-    ws.onopen = () => console.log("WS Connected");
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (typeof message?.id !== "number" || typeof message?.freq !== "number") {
-        return;
+    const fetchDetections = async () => {
+      try {
+        setLoading(true);
+        const response = await getSmsDetections({
+          limit: 50,
+          source_node: "DF North Node 1",
+        });
+        
+        if (Array.isArray(response.data)) {
+          const converted = (response.data as SmsDetectionRecord[]).map((det, idx) => ({
+            id: idx + 1,
+            freq: det.frequency_hz || 0,
+            power: det.power_dbm || 0,
+            snr: det.snr || 0,
+            lat: det.latitude,
+            lon: det.longitude,
+            DOA: det.doa_azimuth_deg || 0,
+            source_node: "DF North Node 1",
+            sensor_id: "df-north-01",
+          }));
+          setRfData(converted);
+        }
+      } catch (error) {
+        console.error("Failed to fetch detections:", error);
+      } finally {
+        setLoading(false);
       }
-
-      setRfData((prev) => [message, ...prev].slice(0, 50));
-      setHighlightIds((prev) => [...prev, message.id]);
-
-      setTimeout(() => {
-        setHighlightIds((prev) => prev.filter((id) => id !== message.id));
-      }, 2000);
     };
 
-    ws.onerror = (err) => console.log("WS Error:", err);
-    ws.onclose = () => console.log("WS Closed");
-
-    return () => ws.close();
+    fetchDetections();
+    
+    // Poll every 5 seconds for updates
+    const interval = setInterval(fetchDetections, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
     <Card>
       <div style={{ marginTop: 16 }}>
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 16, alignItems: "center" }}>
           {subTabs.map((tab, idx) => (
             <button
               key={tab}
@@ -174,6 +190,7 @@ export default function CESMTableTabs() {
               {tab}
             </button>
           ))}
+          {loading && <span style={{ marginLeft: "auto", color: "#666" }}>Loading...</span>}
         </div>
 
         {activeSubTab === 0 && (
@@ -183,9 +200,9 @@ export default function CESMTableTabs() {
           />
         )}
 
-        {activeSubTab === 1 && <div>Target List (unchanged)</div>}
-        {activeSubTab === 2 && <div>Unidentified List (unchanged)</div>}
-        {activeSubTab === 3 && <div>Compass DF (unchanged)</div>}
+        {activeSubTab === 1 && <div style={{ padding: "20px", color: "#999" }}>Target List (unchanged)</div>}
+        {activeSubTab === 2 && <div style={{ padding: "20px", color: "#999" }}>Unidentified List (unchanged)</div>}
+        {activeSubTab === 3 && <div style={{ padding: "20px", color: "#999" }}>Compass DF (unchanged)</div>}
       </div>
     </Card>
   );
