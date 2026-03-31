@@ -33,17 +33,21 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+// function formatFrequencyHz(value: number): string {
+//   if (value >= 1_000_000_000) {
+//     return `${(value / 1_000_000_000).toFixed(6)} GHz`;
+//   }
+//   if (value >= 1_000_000) {
+//     return `${(value / 1_000_000).toFixed(6)} MHz`;
+//   }
+//   if (value >= 1_000) {
+//     return `${(value / 1_000).toFixed(3)} kHz`;
+//   }
+//   return `${value.toFixed(1)} Hz`;
+// }
+
 function formatFrequencyHz(value: number): string {
-  if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(6)} GHz`;
-  }
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(6)} MHz`;
-  }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(3)} kHz`;
-  }
-  return `${value.toFixed(1)} Hz`;
+  return `${(value / 1_000_000).toFixed(3)} MHz`;
 }
 
 function inferPowerFromDetections(detectionCount: number): number {
@@ -166,31 +170,169 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
   });
   const [traces, setTraces] = useState<AnalyzerTraces | null>(null);
 
-  const processedBins = useMemo<ProcessedBin[]>(() => {
-    const sorted = [...bins].sort((left, right) => left.frequency_hz - right.frequency_hz);
-    const mapped = sorted.map((bin) => ({
-      frequencyHz: bin.frequency_hz,
-      livePowerDbm:
-        typeof bin.max_power_dbm === "number" ? Number(bin.max_power_dbm.toFixed(2)) : inferPowerFromDetections(bin.detection_count),
-      detectionCount: bin.detection_count,
-    }));
-    return resampleBins(mapped, 360);
-  }, [bins]);
+  // const [wsBins, setWsBins] = useState<SmsSpectrumOccupancyBin[]>([]);
+  const [wsBins, setWsBins] = useState<Record<string, SmsSpectrumOccupancyBin[]>>({});
+
+  // const processedBins = useMemo<ProcessedBin[]>(() => {
+  //   const sorted = [...bins].sort((left, right) => left.frequency_hz - right.frequency_hz);
+  //   const mapped = sorted.map((bin) => ({
+  //     frequencyHz: bin.frequency_hz,
+  //     livePowerDbm:
+  //       typeof bin.max_power_dbm === "number" ? Number(bin.max_power_dbm.toFixed(2)) : inferPowerFromDetections(bin.detection_count),
+  //     detectionCount: bin.detection_count,
+  //   }));
+  //   return resampleBins(mapped, 360);
+  // }, [bins]);
+
+  // const inputBins = wsBins.length > 0 ? wsBins : bins;
+  const systemKeys = Object.keys(wsBins);
+
+  // const processedBins = useMemo<ProcessedBin[]>(() => {
+  //   const sorted = [...inputBins].sort((l, r) => l.frequency_hz - r.frequency_hz);
+
+  //   const mapped = sorted.map((bin) => ({
+  //     frequencyHz: bin.frequency_hz,
+  //     livePowerDbm:
+  //       typeof bin.max_power_dbm === "number"
+  //         ? Number(bin.max_power_dbm.toFixed(2))
+  //         : inferPowerFromDetections(bin.detection_count),
+  //     detectionCount: bin.detection_count,
+  //   }));
+
+  //   return resampleBins(mapped, 360);
+  // }, [inputBins]);
+
+  const processedSystems = useMemo(() => {
+    const result: Record<string, ProcessedBin[]> = {};
+
+    systemKeys.forEach((key) => {
+      const data = wsBins[key];
+
+      const sorted = [...data].sort((a, b) => a.frequency_hz - b.frequency_hz);
+
+      const mapped = sorted.map((bin) => ({
+        frequencyHz: bin.frequency_hz,
+        livePowerDbm: bin.max_power_dbm,
+        detectionCount: bin.detection_count,
+      }));
+
+      result[key] = resampleBins(mapped, 200);
+    });
+
+    return result;
+  }, [wsBins]);
+
+  // useEffect(() => {
+  //   if (processedBins.length === 0) {
+  //     if (!isHold) {
+  //       setTraces(null);
+  //     }
+  //     return;
+  //   }
+
+  //   if (isHold) {
+  //     return;
+  //   }
+
+  //   // setTraces((previous) => buildTraces(previous, processedBins));
+
+  //   const multiTraces = Object.entries(processedSystems).map(([key, bins]) => ({
+  //     key,
+  //     trace: buildTraces(null, bins),
+  //   }));
+
+  //   setTraces(multiTraces as any);
+  //   }, [processedSystems, isHold]);
 
   useEffect(() => {
-    if (processedBins.length === 0) {
+    if (systemKeys.length === 0) {
       if (!isHold) {
         setTraces(null);
       }
       return;
     }
 
-    if (isHold) {
-      return;
-    }
+    if (isHold) return;
 
-    setTraces((previous) => buildTraces(previous, processedBins));
-  }, [processedBins, isHold]);
+    const multiTraces = Object.entries(processedSystems).map(([key, bins]) => ({
+      key,
+      // trace: buildTraces(null, bins),
+      trace: buildTraces(
+        (traces as any[])?.find((t: any) => t.key === key)?.trace || null,
+        bins
+      ),
+    }));
+
+    setTraces(multiTraces as any);
+  }, [processedSystems, isHold]);
+
+
+  useEffect(() => {
+    const ws = new WebSocket(resolveRfWsUrl());
+
+    ws.onopen = () => console.log("✅ WS connected");
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        const rf = msg.data ? msg.data : msg;
+        if (!rf.freq) return;
+
+        const newBin: SmsSpectrumOccupancyBin = {
+          frequency_hz: rf.freq * 1_000_000,
+          max_power_dbm: rf.power,
+          detection_count: 1,
+        };
+
+        setWsBins((prev) => {
+          const systemId = rf.system_id || "unknown";
+
+          const existing = prev[systemId] || [];
+
+          const newBin: SmsSpectrumOccupancyBin = {
+            frequency_hz: rf.freq * 1_000_000,
+            max_power_dbm: rf.power,
+            detection_count: 1,
+          };
+
+          let updated = [...existing];
+
+          const index = updated.findIndex(
+            (b) => Math.abs(b.frequency_hz - newBin.frequency_hz) < 100000
+          );
+
+          if (index !== -1) {
+            updated[index] = {
+              ...updated[index],
+              max_power_dbm: Math.max(
+                updated[index].max_power_dbm,
+                newBin.max_power_dbm
+              ),
+              detection_count: updated[index].detection_count + 1,
+            };
+          } else {
+            updated.push(newBin);
+          }
+
+          if (updated.length > 200) {
+            updated = updated.slice(-200);
+          }
+
+          return {
+            ...prev,
+            [systemId]: updated,
+          };
+        });
+      } catch (e) {
+        console.error("WS error", e);
+      }
+    };
+
+  ws.onclose = () => console.log("❌ WS closed");
+
+  return () => ws.close();
+}, []);
 
   const clearTraceHolds = useCallback(() => {
     setTraces((current) => {
@@ -205,17 +347,40 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     });
   }, []);
 
-  const stats = useMemo(() => {
-    if (!traces || traces.frequencyHz.length === 0) {
-      return null;
-    }
+  // const stats = useMemo(() => {
+  //   if (!traces || traces.length === 0) {
+  //     return null;
+  //   }
 
-    const startHz = traces.frequencyHz[0];
-    const stopHz = traces.frequencyHz[traces.frequencyHz.length - 1];
+  //   const startHz = traces.frequencyHz[0];
+  //   const stopHz = traces.frequencyHz[traces.frequencyHz.length - 1];
+  //   const centerHz = startHz + (stopHz - startHz) / 2;
+  //   const peakIndex = traces.peakIndex;
+  //   const peakHz = traces.frequencyHz[peakIndex];
+  //   const peakDbm = traces.liveDbm[peakIndex];
+
+  //   return {
+  //     startHz,
+  //     stopHz,
+  //     centerHz,
+  //     spanHz: stopHz - startHz,
+  //     peakHz,
+  //     peakDbm,
+  //   };
+  // }, [traces]);
+
+  const stats = useMemo(() => {
+  if (!traces || traces.length === 0) return null;
+
+  const first = (traces as any[])[0]?.trace;
+    if (!first || first.frequencyHz.length === 0) return null;
+
+    const startHz = first.frequencyHz[0];
+    const stopHz = first.frequencyHz[first.frequencyHz.length - 1];
     const centerHz = startHz + (stopHz - startHz) / 2;
-    const peakIndex = traces.peakIndex;
-    const peakHz = traces.frequencyHz[peakIndex];
-    const peakDbm = traces.liveDbm[peakIndex];
+    const peakIndex = first.peakIndex;
+    const peakHz = first.frequencyHz[peakIndex];
+    const peakDbm = first.liveDbm[peakIndex];
 
     return {
       startHz,
@@ -287,7 +452,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
       context.stroke();
     }
 
-    if (!traces || traces.frequencyHz.length < 2) {
+    if (!traces || traces.length === 0) {
       context.fillStyle = "rgba(255,255,255,0.7)";
       context.font = "13px Consolas, monospace";
       context.textAlign = "center";
@@ -298,124 +463,335 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
       return;
     }
 
-    const startHz = traces.frequencyHz[0];
-    const stopHz = traces.frequencyHz[traces.frequencyHz.length - 1];
+    // const startHz = traces.frequencyHz[0];
+    // const stopHz = traces.frequencyHz[traces.frequencyHz.length - 1];
+    // const frequencyRangeHz = Math.max(1, stopHz - startHz);
+
+    const first = (traces as any[])[0]?.trace;
+    if (!first) return;
+
+    const startHz = first.frequencyHz[0];
+    const stopHz = first.frequencyHz[first.frequencyHz.length - 1];
     const frequencyRangeHz = Math.max(1, stopHz - startHz);
 
     let observedMax = -90;
     let observedMin = -155;
 
-    for (let index = 0; index < traces.liveDbm.length; index += 1) {
-      if (traceVisibility.live) {
-        observedMax = Math.max(observedMax, traces.liveDbm[index]);
-        observedMin = Math.min(observedMin, traces.liveDbm[index]);
+    // for (let index = 0; index < traces.liveDbm.length; index += 1) {
+    //   if (traceVisibility.live) {
+    //     observedMax = Math.max(observedMax, traces.liveDbm[index]);
+    //     observedMin = Math.min(observedMin, traces.liveDbm[index]);
+    //   }
+    //   if (traceVisibility.average) {
+    //     observedMax = Math.max(observedMax, traces.averageDbm[index]);
+    //     observedMin = Math.min(observedMin, traces.averageDbm[index]);
+    //   }
+    //   if (traceVisibility.maxHold) {
+    //     observedMax = Math.max(observedMax, traces.maxHoldDbm[index]);
+    //     observedMin = Math.min(observedMin, traces.maxHoldDbm[index]);
+    //   }
+    //   if (traceVisibility.minHold) {
+    //     observedMax = Math.max(observedMax, traces.minHoldDbm[index]);
+    //     observedMin = Math.min(observedMin, traces.minHoldDbm[index]);
+    //   }
+    // }
+
+    (traces as any[]).forEach((sys, index) => {
+      const t = sys.trace;
+
+          // const t = sys.trace;
+
+      const colorMap: Record<string, string> = {
+        "5507": "#ff3b3b",
+        "5508": "#00d4ff",
+        "5509": "#ffaa00",
+      };
+
+      const color = colorMap[sys.key] || "#ffffff";
+
+      // for (let i = 0; i < t.liveDbm.length; i++) {
+      //   if (traceVisibility.live) {
+      //     observedMax = Math.max(observedMax, t.liveDbm[i]);
+      //     observedMin = Math.min(observedMin, t.liveDbm[i]);
+      //   }
+      //   if (traceVisibility.average) {
+      //     observedMax = Math.max(observedMax, t.averageDbm[i]);
+      //     observedMin = Math.min(observedMin, t.averageDbm[i]);
+      //   }
+      //   if (traceVisibility.maxHold) {
+      //     observedMax = Math.max(observedMax, t.maxHoldDbm[i]);
+      //     observedMin = Math.min(observedMin, t.maxHoldDbm[i]);
+      //   }
+      //   if (traceVisibility.minHold) {
+      //     observedMax = Math.max(observedMax, t.minHoldDbm[i]);
+      //     observedMin = Math.min(observedMin, t.minHoldDbm[i]);
+      //   }
+      // }
+
+    //   if (traceVisibility.live) {
+    //     drawTrace(t.frequencyHz, t.liveDbm, color, 2.2);
+    //   }
+
+    //   // 👉 ONLY FIRST SYSTEM gets overlays
+    //   if (index === 0) {
+    //     if (traceVisibility.average) {
+    //       drawTrace(t.frequencyHz, t.averageDbm, "#ffffff", 1.2);
+    //     }
+
+    //     if (traceVisibility.maxHold) {
+    //       drawTrace(t.frequencyHz, t.maxHoldDbm, "#ff00ff", 1.2);
+    //     }
+
+    //     if (traceVisibility.minHold) {
+    //       drawTrace(t.frequencyHz, t.minHoldDbm, "#00ff88", 1.2, true);
+    //     }
+    //   }
+    // });
+      for (let i = 0; i < t.liveDbm.length; i++) {
+        if (traceVisibility.live) {
+          observedMax = Math.max(observedMax, t.liveDbm[i]);
+          observedMin = Math.min(observedMin, t.liveDbm[i]);
+        }
+        if (traceVisibility.average) {
+          observedMax = Math.max(observedMax, t.averageDbm[i]);
+          observedMin = Math.min(observedMin, t.averageDbm[i]);
+        }
+        if (traceVisibility.maxHold) {
+          observedMax = Math.max(observedMax, t.maxHoldDbm[i]);
+          observedMin = Math.min(observedMin, t.maxHoldDbm[i]);
+        }
+        if (traceVisibility.minHold) {
+          observedMax = Math.max(observedMax, t.minHoldDbm[i]);
+          observedMin = Math.min(observedMin, t.minHoldDbm[i]);
+        }
       }
-      if (traceVisibility.average) {
-        observedMax = Math.max(observedMax, traces.averageDbm[index]);
-        observedMin = Math.min(observedMin, traces.averageDbm[index]);
-      }
-      if (traceVisibility.maxHold) {
-        observedMax = Math.max(observedMax, traces.maxHoldDbm[index]);
-        observedMin = Math.min(observedMin, traces.maxHoldDbm[index]);
-      }
-      if (traceVisibility.minHold) {
-        observedMax = Math.max(observedMax, traces.minHoldDbm[index]);
-        observedMin = Math.min(observedMin, traces.minHoldDbm[index]);
-      }
-    }
+    });
 
     let dbmTop = autoScale ? Math.ceil((observedMax + 3) / 5) * 5 : -80;
     let dbmBottom = autoScale ? Math.floor((observedMin - 3) / 5) * 5 : -160;
 
-    if (dbmTop - dbmBottom < 35) {
-      dbmBottom = dbmTop - 35;
+    // if (dbmTop - dbmBottom < 35) {
+    //   dbmBottom = dbmTop - 35;
+    // }
+
+    dbmTop = Math.min(dbmTop, -40);
+    dbmBottom = Math.max(dbmBottom, -160);
+
+    if (dbmTop - dbmBottom < 40) {
+      dbmBottom = dbmTop - 40;
     }
 
     const powerSpan = Math.max(1, dbmTop - dbmBottom);
-    const maxDetectionCount = traces.detectionCount.reduce((maxValue, value) => Math.max(maxValue, value), 1);
+    // const maxDetectionCount = traces.detectionCount.reduce((maxValue, value) => Math.max(maxValue, value), 1);
+    let maxDetectionCount = 1;
+
+    (traces as any[]).forEach((sys) => {
+      const t = sys.trace;
+      t.detectionCount.forEach((v: number) => {
+        maxDetectionCount = Math.max(maxDetectionCount, v);
+      });
+    });
 
     const xForFrequency = (frequencyHz: number) =>
       margin.left + ((frequencyHz - startHz) / frequencyRangeHz) * plotWidth;
-    const yForPower = (dbm: number) => margin.top + ((dbmTop - dbm) / powerSpan) * plotHeight;
+    // const yForPower = (dbm: number) => margin.top + ((dbmTop - dbm) / powerSpan) * plotHeight;
 
-    context.fillStyle = "rgba(67, 157, 255, 0.17)";
-    for (let index = 0; index < traces.detectionCount.length; index += 1) {
-      const count = traces.detectionCount[index];
-      if (count <= 0) {
-        continue;
-      }
-      const x = xForFrequency(traces.frequencyHz[index]);
-      const barHeight = (count / maxDetectionCount) * 18;
-      context.fillRect(x, margin.top + plotHeight - barHeight, 1.2, barHeight);
-    }
-
-    const drawTrace = (series: number[], color: string, width: number, dashed = false): void => {
-      if (series.length < 2) {
-        return;
-      }
-      context.beginPath();
-      context.setLineDash(dashed ? [5, 4] : []);
-      for (let index = 0; index < series.length; index += 1) {
-        const x = xForFrequency(traces.frequencyHz[index]);
-        const y = yForPower(series[index]);
-        if (index === 0) {
-          context.moveTo(x, y);
-        } else {
-          context.lineTo(x, y);
-        }
-      }
-      context.strokeStyle = color;
-      context.lineWidth = width;
-      context.stroke();
-      context.setLineDash([]);
+    const yForPower = (dbm: number) => {
+      const clamped = Math.max(dbmBottom, Math.min(dbmTop, dbm));
+      return margin.top + ((dbmTop - clamped) / powerSpan) * plotHeight;
     };
 
-    if (traceVisibility.maxHold) {
-      drawTrace(traces.maxHoldDbm, "#f4f7ff", 1.6);
-    }
-    if (traceVisibility.average) {
-      drawTrace(traces.averageDbm, "#46d7ff", 1.4);
-    }
-    if (traceVisibility.live) {
-      drawTrace(traces.liveDbm, "#e9ea3b", 1.9);
-    }
-    if (traceVisibility.minHold) {
-      drawTrace(traces.minHoldDbm, "#57e38f", 1.4, true);
-    }
+    const drawTrace = (
+          freq: number[],
+          series: number[],
+          color: string,
+          width: number,
+          dashed = false
+        ): void => {
+          if (series.length < 2) return;
 
-    const peakIndex = traces.peakIndex;
-    const peakFrequencyHz = traces.frequencyHz[peakIndex];
-    const peakPowerDbm = traces.liveDbm[peakIndex];
-    const peakX = xForFrequency(peakFrequencyHz);
-    const peakY = yForPower(peakPowerDbm);
+          context.beginPath();
+          context.setLineDash(dashed ? [5, 4] : []);
 
-    context.strokeStyle = "rgba(255, 233, 64, 0.5)";
-    context.lineWidth = 1;
-    context.setLineDash([4, 4]);
-    context.beginPath();
-    context.moveTo(peakX, margin.top);
-    context.lineTo(peakX, margin.top + plotHeight);
-    context.stroke();
-    context.setLineDash([]);
+          for (let i = 0; i < series.length; i++) {
+            const x = xForFrequency(freq[i]);
+            const y = yForPower(series[i]);
 
-    context.fillStyle = "#f6e95b";
-    context.beginPath();
-    context.moveTo(peakX, peakY + 3);
-    context.lineTo(peakX - 5, peakY - 8);
-    context.lineTo(peakX + 5, peakY - 8);
-    context.closePath();
-    context.fill();
+            if (i === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          }
 
-    context.fillStyle = "rgba(255,255,255,0.75)";
-    context.font = "11px Consolas, monospace";
-    context.textAlign = "right";
-    context.textBaseline = "middle";
+          context.strokeStyle = color;
+          context.lineWidth = width;
+          context.stroke();
+          context.setLineDash([]);
+        };
 
-    for (let index = 0; index <= horizontalGridCount; index += 1) {
-      const dbmValue = dbmTop - (index / horizontalGridCount) * powerSpan;
-      const y = margin.top + (index / horizontalGridCount) * plotHeight;
-      context.fillText(`${dbmValue.toFixed(0)}`, margin.left - 8, y);
-    }
+
+    context.fillStyle = "rgba(67, 157, 255, 0.17)";
+    // for (let index = 0; index < traces.detectionCount.length; index += 1) {
+    //   const count = traces.detectionCount[index];
+    //   if (count <= 0) {
+    //     continue;
+    //   }
+    //   const x = xForFrequency(traces.frequencyHz[index]);
+    //   const barHeight = (count / maxDetectionCount) * 18;
+    //   context.fillRect(x, margin.top + plotHeight - barHeight, 1.2, barHeight);
+    // }
+
+          
+    (traces as any[]).forEach((sys) => {
+      const t = sys.trace;
+
+      for (let i = 0; i < t.detectionCount.length; i++) {
+        const count = t.detectionCount[i];
+        if (count <= 0) continue;
+
+        const x = xForFrequency(t.frequencyHz[i]);
+
+        // const drawTrace = (
+        //   freq: number[],
+        //   series: number[],
+        //   color: string,
+        //   width: number,
+        //   dashed = false
+        // ): void => {
+        //   if (series.length < 2) return;
+
+        //   context.beginPath();
+        //   context.setLineDash(dashed ? [5, 4] : []);
+
+        //   for (let i = 0; i < series.length; i++) {
+        //     const x = xForFrequency(freq[i]);
+        //     const y = yForPower(series[i]);
+
+        //     if (i === 0) context.moveTo(x, y);
+        //     else context.lineTo(x, y);
+        //   }
+
+        //   context.strokeStyle = color;
+        //   context.lineWidth = width;
+        //   context.stroke();
+        //   context.setLineDash([]);
+        // };
+
+
+        const barHeight = (count / maxDetectionCount) * 18;
+
+        context.fillRect(x, margin.top + plotHeight - barHeight, 1.2, barHeight);
+      }
+    });
+
+    // const drawTrace = (series: number[], color: string, width: number, dashed = false): void => {
+    //   if (series.length < 2) {
+    //     return;
+    //   }
+    //   context.beginPath();
+    //   context.setLineDash(dashed ? [5, 4] : []);
+    //   for (let index = 0; index < series.length; index += 1) {
+    //     const x = xForFrequency(traces.frequencyHz[index]);
+    //     const y = yForPower(series[index]);
+    //     if (index === 0) {
+    //       context.moveTo(x, y);
+    //     } else {
+    //       context.lineTo(x, y);
+    //     }
+    //   }
+    //   context.strokeStyle = color;
+    //   context.lineWidth = width;
+    //   context.stroke();
+    //   context.setLineDash([]);
+    // };
+
+    // if (traceVisibility.maxHold) {
+    //   drawTrace(traces.maxHoldDbm, "#f4f7ff", 1.6);
+    // }
+    // if (traceVisibility.average) {
+    //   drawTrace(traces.averageDbm, "#46d7ff", 1.4);
+    // }
+    // // if (traceVisibility.live) {
+    // //   drawTrace(traces.liveDbm, "#e9ea3b", 1.9);
+    // // }
+    // const colors: Record<string, string> = {
+    //   "5507": "#e9ea3b", // yellow
+    //   "5508": "#46d7ff", // blue
+    //   "5509": "#57e38f", // green
+    // };
+
+    // (traces as any[]).forEach((sys) => {
+    //   const t = sys.trace;
+    //   const color = colors[sys.key] || "#ffffff";
+
+    //   drawTrace(t.liveDbm, color, 1.8);
+    // });
+    // if (traceVisibility.minHold) {
+    //   drawTrace(traces.minHoldDbm, "#57e38f", 1.4, true);
+    // }
+
+    (traces as any[]).forEach((sys) => {
+      const t = sys.trace;
+      const colorMap: Record<string, string> = {
+        // "5507": "#e9ea3b",
+        // "5508": "#46d7ff",
+        // "5509": "#57e38f",
+        "5507": "#ff3b3b", // 🔴 RED
+        "5508": "#00d4ff", // 🔵 CYAN
+        "5509": "#00ff88", // 🟢 GREEN
+        
+      };
+
+      const color = colorMap[sys.key] || "#ffffff";
+
+      if (traceVisibility.live) {
+        drawTrace(t.frequencyHz, t.liveDbm, color, 2.2);
+      }
+
+      if (traceVisibility.average) {
+        drawTrace(t.frequencyHz, t.averageDbm, "#46d7ff", 1.2);
+      }
+
+      if (traceVisibility.maxHold) {
+        drawTrace(t.frequencyHz, t.maxHoldDbm, "#ffffff", 1.2);
+      }
+
+      if (traceVisibility.minHold) {
+        drawTrace(t.frequencyHz, t.minHoldDbm, "#57e38f", 1.2, true);
+      }
+    });
+
+    // const peakIndex = traces.peakIndex;
+    // const peakFrequencyHz = traces.frequencyHz[peakIndex];
+    // const peakPowerDbm = traces.liveDbm[peakIndex];
+    // const peakX = xForFrequency(peakFrequencyHz);
+    // const peakY = yForPower(peakPowerDbm);
+
+    // context.strokeStyle = "rgba(255, 233, 64, 0.5)";
+    // context.lineWidth = 1;
+    // context.setLineDash([4, 4]);
+    // context.beginPath();
+    // context.moveTo(peakX, margin.top);
+    // context.lineTo(peakX, margin.top + plotHeight);
+    // context.stroke();
+    // context.setLineDash([]);
+
+    // context.fillStyle = "#f6e95b";
+    // context.beginPath();
+    // context.moveTo(peakX, peakY + 3);
+    // context.lineTo(peakX - 5, peakY - 8);
+    // context.lineTo(peakX + 5, peakY - 8);
+    // context.closePath();
+    // context.fill();
+
+    // context.fillStyle = "rgba(255,255,255,0.75)";
+    // context.font = "11px Consolas, monospace";
+    // context.textAlign = "right";
+    // context.textBaseline = "middle";
+
+    // for (let index = 0; index <= horizontalGridCount; index += 1) {
+    //   const dbmValue = dbmTop - (index / horizontalGridCount) * powerSpan;
+    //   const y = margin.top + (index / horizontalGridCount) * plotHeight;
+    //   context.fillText(`${dbmValue.toFixed(0)}`, margin.left - 8, y);
+    // }
 
     context.textAlign = "center";
     context.textBaseline = "top";
@@ -441,7 +817,8 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     context.font = "bold 12px Consolas, monospace";
     context.textAlign = "left";
     context.textBaseline = "top";
-    const peakLabel = `${formatFrequencyHz(peakFrequencyHz)}  ${peakPowerDbm.toFixed(1)} dBm`;
+    // const peakLabel = `${formatFrequencyHz(peakFrequencyHz)}  ${peakPowerDbm.toFixed(1)} dBm`;
+    const peakLabel = "Multi-system RF signals";
     context.fillText(peakLabel, margin.left + 8, margin.top + 8);
 
     context.fillStyle = "rgba(255,255,255,0.78)";
@@ -652,7 +1029,8 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
             </div>
           </div>
           <div style={{ color: theme.colors.textSecondary, fontSize: theme.typography.body.fontSize }}>
-            {loading ? "Refreshing..." : `Bins: ${processedBins.length}`}
+            {/* {loading ? "Refreshing..." : `Bins: ${processedBins.length}`} */}
+            {loading ? "Refreshing..." : `Bins: ${Object.keys(wsBins).length}`}
           </div>
         </div>
 
@@ -756,3 +1134,5 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     </Card>
   );
 }
+
+

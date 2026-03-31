@@ -166,6 +166,46 @@ export default function OperatorUnifiedDashboardPage() {
   const [triangulations, setTriangulations] = useState<TriangulationResult[]>([]);
   const [lastTelemetryUpdate, setLastTelemetryUpdate] = useState<string | null>(null);
 
+  const updateSpectrumBinsWithDetection = useCallback((d: { freq?: number | null; power?: number | null }) => {
+    if (typeof d.freq !== "number" || Number.isNaN(d.freq)) {
+      return;
+    }
+
+    const incomingHz = Math.round(d.freq * 1_000_000);
+    if (!Number.isFinite(incomingHz) || incomingHz <= 0) {
+      return;
+    }
+
+    const incomingPower = typeof d.power === "number" && Number.isFinite(d.power) ? d.power : undefined;
+
+    setSpectrumBins((previous) => {
+      const freqTolerance = 500_000; // 0.5 MHz tolerance to match nearby bins
+      const binIndex = previous.findIndex((bin) => Math.abs(bin.frequency_hz - incomingHz) <= freqTolerance);
+
+      if (binIndex === -1) {
+        const newBin = {
+          frequency_hz: incomingHz,
+          detection_count: 1,
+          max_power_dbm: incomingPower ?? null,
+        };
+        return [...previous, newBin].sort((a, b) => a.frequency_hz - b.frequency_hz).slice(-800);
+      }
+
+      const currentBin = previous[binIndex];
+      const nextBin = {
+        ...currentBin,
+        detection_count: currentBin.detection_count + 1,
+        max_power_dbm: incomingPower !== undefined
+          ? Math.max(currentBin.max_power_dbm ?? Number.NEGATIVE_INFINITY, incomingPower)
+          : currentBin.max_power_dbm,
+      };
+
+      const next = [...previous];
+      next[binIndex] = nextBin;
+      return next;
+    });
+  }, []);
+
   const [status, setStatus] = useState<DashboardStatus>({
     mode: "idle",
     sourceNode: "",
@@ -546,6 +586,8 @@ export default function OperatorUnifiedDashboardPage() {
 
           if (payload.data && typeof payload.data === "object") {
             const d = payload.data as any;
+
+            updateSpectrumBinsWithDetection(d);
 
             const newDetection = {
               id: d.id ?? `sms-${Date.now()}`,

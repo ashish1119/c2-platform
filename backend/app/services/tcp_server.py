@@ -386,6 +386,7 @@ def handle_client(conn, addr):
                     # ✅ ADD ID + TIMESTAMP (IMPORTANT FOR UI)
                     enriched_raw = {
                         "id": int(uuid.uuid4().int % 1000000),
+                        "system_id": raw.get("system_id"),
                         "freq": raw.get("freq"),
                         "power": raw.get("power"),
                         "snr": raw.get("snr", 0),
