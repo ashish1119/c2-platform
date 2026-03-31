@@ -79,6 +79,15 @@ function resampleBins(points: ProcessedBin[], targetCount: number): ProcessedBin
   return resampled;
 }
 
+
+const resolveRfWsUrl = () => {
+  if (typeof window === "undefined") {
+    return "ws://localhost:8000/ws/rf";
+  }
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.hostname}:8000/ws/rf`;
+};
+
 function isCompatibleTrace(previous: AnalyzerTraces, next: ProcessedBin[]): boolean {
   if (previous.frequencyHz.length !== next.length) {
     return false;
