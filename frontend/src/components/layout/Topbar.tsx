@@ -371,7 +371,7 @@ export default function Topbar({}: TopbarProps) {
     if (pathname === "/operator/dashboard") return "Operator Dashboard";
     if (pathname === "/operator/simulation") return "Operator Dashboard";
     if (pathname === "/operator/map") return "Tactical Map";
-    if (pathname === "/operator/tcp-client") return "Sensor Network";
+    if (pathname === "/operator/tcp-client") return "Decodio RED Integration";
     if (pathname === "/planning") return "Reporting Center";
     if (pathname === "/reports") return "Reporting Center";
     if (pathname === "/crfs/live") return "CRFS Live";

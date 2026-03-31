@@ -242,7 +242,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
             {navItem("/operator/dashboard", "Operator Dashboard", Radio)}
             {navItem("/operator/map", "Tactical Map", Map)}
             {navItem("/operator/sms", "SMS", AlertTriangle)}
-            {navItem("/operator/tcp-client", "Sensor Network", Terminal)}
+            {navItem("/operator/tcp-client", "Decodio RED", Terminal)}
             {navItem("/reports", "Reporting Center", FileText)}
           </>
         )}
