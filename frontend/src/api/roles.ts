@@ -34,3 +34,9 @@ export const grantDecodioReadToOperator = () =>
 	api.post<{ status: string; role: string; granted: string; removed_write_assignments: number }>(
 		"/roles/workflows/decodio-read-operator"
 	);
+
+export const removePermissionFromRole = (
+  roleId: number,
+  permissionId: number
+) =>
+  api.delete(`/roles/${roleId}/permissions/${permissionId}`);
