@@ -37,6 +37,10 @@ export interface ExtendedKPIs {
   suspiciousPct: string;
   uniqueLocations: number;
   nightActivityCount: number;
+  peakHour: number | null;
+  peakHourCount: number;
+  mostContactedNumber: string;
+  mostContactedCount: number;
 }
 
 function modeOf(arr: string[]): string {
@@ -128,6 +132,26 @@ export function useTelecomAnalytics(filteredData: TelecomRecord[]) {
       return h >= 0 && h < 5;
     }).length;
 
+    // Peak hour
+    const hourMap: Record<number, number> = {};
+    filteredData.forEach((r) => {
+      const h = new Date(r.startTime || r.dateTime || "").getHours();
+      if (!isNaN(h)) hourMap[h] = (hourMap[h] ?? 0) + 1;
+    });
+    const peakHour = Object.keys(hourMap).length
+      ? Number(Object.entries(hourMap).sort((a, b) => b[1] - a[1])[0][0])
+      : null;
+    const peakHourCount = peakHour !== null ? (hourMap[peakHour] ?? 0) : 0;
+
+    // Most contacted
+    const targetFreq: Record<string, number> = {};
+    filteredData.forEach((r) => {
+      if (r.target) targetFreq[r.target] = (targetFreq[r.target] ?? 0) + 1;
+    });
+    const mostContactedEntry = Object.entries(targetFreq).sort((a, b) => b[1] - a[1])[0];
+    const mostContactedNumber = mostContactedEntry?.[0] ?? "—";
+    const mostContactedCount = mostContactedEntry?.[1] ?? 0;
+
     return {
       avgDurationSec: Math.round(totalDur / total),
       mostActiveOperator: modeOf(filteredData.map((r) => r.operator).filter(Boolean)),
@@ -135,6 +159,10 @@ export function useTelecomAnalytics(filteredData: TelecomRecord[]) {
       suspiciousPct: ((suspicious / total) * 100).toFixed(1),
       uniqueLocations: locations,
       nightActivityCount: nightCount,
+      peakHour,
+      peakHourCount,
+      mostContactedNumber,
+      mostContactedCount,
     };
   }, [filteredData]);
 

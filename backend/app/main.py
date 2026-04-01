@@ -20,6 +20,7 @@ from app.routers import (
     assets_router,
     audit_router,
     auth_router,
+    cdr_router,
     crfs_router,
     decodio_router,
     direction_finder_router,
@@ -30,6 +31,7 @@ from app.routers import (
     reports_router,
     rf_router,
     roles_router,
+    signal_router,
     sms_router,
     telecom_router,
     tcp_listener_router,
@@ -72,6 +74,8 @@ app.include_router(tcp_listener_router.router)
 app.include_router(geospatial_router.router)
 app.include_router(crfs_router.router)
 app.include_router(websocket_router)
+app.include_router(cdr_router.router)
+app.include_router(signal_router.router)
 
 
 @app.get("/healthz")

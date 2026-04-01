@@ -2,18 +2,19 @@ export const darkTheme = {
   mode: "dark",
 
   colors: {
-    background: "#0F172A",
-    surface: "#1E293B",
-    surfaceAlt: "#334155",
+    // Deep navy intelligence background
+    background: "#080E1A",
+    surface: "#0F1A2E",
+    surfaceAlt: "#162035",
 
-    border: "#334155",
+    border: "#1E3050",
 
-    textPrimary: "#F8FAFC",
-    textSecondary: "#CBD5E1",
-    textMuted: "#64748B",
+    textPrimary: "#F0F6FF",
+    textSecondary: "#94A3B8",
+    textMuted: "#4A6080",
 
-    primary: "#3B82F6",
-    primaryHover: "#60A5FA",
+    primary: "#11C1CA",
+    primaryHover: "#2DD4DC",
 
     success: "#22C55E",
     warning: "#FBBF24",

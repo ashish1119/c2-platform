@@ -34,6 +34,8 @@ function presetRange(preset: TelecomFilters["datePreset"]): { from: string; to: 
 // Default: show ALL demo data (no date restriction, no MSISDN restriction)
 const DEFAULT_FILTERS: TelecomFilters = {
   msisdn: "",
+  imsi: "",
+  imei: "",
   dateFrom: "",
   dateTo: "",
   datePreset: "all",
@@ -44,6 +46,8 @@ const DEFAULT_FILTERS: TelecomFilters = {
   mode: "All",
   fake: "All",
   silentCallType: "All",
+  threatLevel: "All",
+  targetGroup: "All",
   tableSearch: "",
 };
 
@@ -58,14 +62,14 @@ function resolveWsUrl(): string {
 // ── Core filter function (pure, used by useMemo) ──────────────────────────────
 function applyFilters(records: TelecomRecord[], filters: TelecomFilters): TelecomRecord[] {
   return records.filter((r) => {
-    // MSISDN — partial match on caller OR target
     if (filters.msisdn) {
       const q = filters.msisdn.toLowerCase().trim();
       const inCaller = r.msisdn.toLowerCase().includes(q);
       const inTarget = (r.target ?? "").toLowerCase().includes(q);
       if (!inCaller && !inTarget) return false;
     }
-    // Date range
+    if (filters.imsi && !r.imsi?.toLowerCase().includes(filters.imsi.toLowerCase())) return false;
+    if (filters.imei && !r.imei?.toLowerCase().includes(filters.imei.toLowerCase())) return false;
     if (filters.dateFrom || filters.dateTo) {
       const recDate = (r.startTime || r.dateTime || "").slice(0, 10);
       if (filters.dateFrom && recDate < filters.dateFrom) return false;
@@ -79,6 +83,8 @@ function applyFilters(records: TelecomRecord[], filters: TelecomFilters): Teleco
     if (filters.fake === "Yes" && !r.fake) return false;
     if (filters.fake === "No" && r.fake) return false;
     if (filters.silentCallType !== "All" && r.silentCallType !== filters.silentCallType) return false;
+    if (filters.threatLevel !== "All" && r.threatLevel !== filters.threatLevel) return false;
+    if (filters.targetGroup !== "All" && r.targetGroup !== filters.targetGroup) return false;
     return true;
   });
 }
@@ -258,11 +264,12 @@ export function useTelecomIntelligence() {
 
   // ── Unique dropdown values — from rawData so dropdowns stay populated ─────
   const uniqueValues = useMemo(() => ({
-    operators: [...new Set(rawData.map((r) => r.operator).filter(Boolean))],
-    networks:  [...new Set(rawData.map((r) => r.network).filter(Boolean))],
-    bands:     [...new Set(rawData.map((r) => r.band).filter(Boolean))],
-    modes:     [...new Set(rawData.map((r) => r.mode).filter(Boolean))],
-    msisdns:   [...new Set(rawData.map((r) => r.msisdn).filter(Boolean))],
+    operators:    [...new Set(rawData.map((r) => r.operator).filter(Boolean))],
+    networks:     [...new Set(rawData.map((r) => r.network).filter(Boolean))],
+    bands:        [...new Set(rawData.map((r) => r.band).filter(Boolean))],
+    modes:        [...new Set(rawData.map((r) => r.mode).filter(Boolean))],
+    msisdns:      [...new Set(rawData.map((r) => r.msisdn).filter(Boolean))],
+    targetGroups: [...new Set(rawData.map((r) => r.targetGroup).filter(Boolean))],
   }), [rawData]);
 
   // ── Selected record — from filteredData ───────────────────────────────────
