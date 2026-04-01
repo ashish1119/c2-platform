@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import axios from "axios";
+import axios from "../../api/axios";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
@@ -12,6 +12,7 @@ import DeviceIdentificationPanel from "../../components/operator-dashboard/Devic
 import RssiMonitorPanel from "../../components/operator-dashboard/RssiMonitorPanel";
 import RfGeolocationPanel from "../../components/operator-dashboard/RfGeolocationPanel";
 import AlertsEventPanel from "../../components/operator-dashboard/AlertsEventPanel";
+import DFMonitoringConsole from "../../components/operator-dashboard/DFMonitoringConsole";
 import HistoricalAnalyticsPanel from "../../components/operator-dashboard/HistoricalAnalyticsPanel";
 import DirectionFinderPanel from "../../components/operator-dashboard/DirectionFinderPanel";
 import StatusPanel, { type DashboardStatus } from "../../components/operator-dashboard/StatusPanel";
@@ -1061,6 +1062,20 @@ export default function OperatorUnifiedDashboardPage() {
                     <AlertsEventPanel alerts={alerts} detections={detections} />
                     <HistoricalAnalyticsPanel detections={detections} />
                   </div>
+
+                  <div
+  style={{
+    display: "grid",
+    gap: theme.spacing.lg,
+    gridTemplateColumns: "1fr",
+  }}
+>
+  <Card title="DF Monitoring Console">
+    <div style={{ height: "500px" }}>
+      <DFMonitoringConsole />
+    </div>
+  </Card>
+</div>
 
                   <Card>
                     <div style={{ display: "grid", gap: theme.spacing.md }}>
