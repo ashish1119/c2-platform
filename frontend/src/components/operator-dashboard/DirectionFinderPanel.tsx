@@ -95,11 +95,22 @@ export default function DirectionFinderPanel({
   const { theme } = useTheme();
   const [wsDetections, setWsDetections] = useState<Record<string, LatestBearingDetection>>({});
 
+  const [selectedSystems, setSelectedSystems] = useState<string[]>([]);
+
   const [showSensors, setShowSensors] = useState(true);
   const [showBearings, setShowBearings] = useState(true);
   const [showIntersections, setShowIntersections] = useState(true);
   const [showCentroid, setShowCentroid] = useState(true);
   const [showEllipse, setShowEllipse] = useState(true);
+
+  const toggleSystem = (systemId: string) => {
+    setSelectedSystems((prev) => {
+      if (prev.includes(systemId)) {
+        return prev.filter((id) => id !== systemId);
+      }
+      return [...prev, systemId];
+    });
+  };
 
   // const latestBearingDetections = useMemo(() => {
   //   const latestBySensor = new Map<string, LatestBearingDetection>();
@@ -117,15 +128,47 @@ export default function DirectionFinderPanel({
   //   return Array.from(latestBySensor.values());
   // }, [detections]);
 
+  //byaditya
+  // const latestBearingDetections = useMemo(() => {
+  //   const wsValues = Object.values(wsDetections);
+
+  //   // If WS is active → use it
+  //   if (wsValues.length > 0) {
+  //     return wsValues;
+  //   }
+
+  //   // fallback to API
+  //   const latestBySensor = new Map<string, LatestBearingDetection>();
+
+  //   const sortedDetections = [...detections]
+  //     .filter(isBearingDetection)
+  //     .sort((left, right) => Date.parse(right.timestamp_utc) - Date.parse(left.timestamp_utc));
+
+  //   for (const detection of sortedDetections) {
+  //     const sensorId = resolveSensorId(detection);
+  //     if (!latestBySensor.has(sensorId)) {
+  //       latestBySensor.set(sensorId, detection);
+  //     }
+  //   }
+
+  //   return Array.from(latestBySensor.values());
+  // }, [detections, wsDetections]);
+
   const latestBearingDetections = useMemo(() => {
     const wsValues = Object.values(wsDetections);
 
-    // If WS is active → use it
+    // ✅ CASE 1: WebSocket data
     if (wsValues.length > 0) {
-      return wsValues;
+
+      // 👉 APPLY FILTER HERE
+      if (selectedSystems.length === 0) return wsValues;
+
+      return wsValues.filter((d) =>
+        selectedSystems.includes(d.source_node)
+      );
     }
 
-    // fallback to API
+    // ✅ CASE 2: fallback to API
     const latestBySensor = new Map<string, LatestBearingDetection>();
 
     const sortedDetections = [...detections]
@@ -139,8 +182,17 @@ export default function DirectionFinderPanel({
       }
     }
 
-    return Array.from(latestBySensor.values());
-  }, [detections, wsDetections]);
+    const apiValues = Array.from(latestBySensor.values());
+
+    // 👉 APPLY FILTER HERE ALSO
+    if (selectedSystems.length === 0) return apiValues;
+
+    return apiValues.filter((d) =>
+      selectedSystems.includes(d.source_node)
+    );
+
+  }, [detections, wsDetections, selectedSystems]);
+
 
   console.log("DETECTIONS:", latestBearingDetections);
 
@@ -415,6 +467,26 @@ export default function DirectionFinderPanel({
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: theme.spacing.sm }}>
+                      {["5507", "5508", "5509"].map((id) => {
+              const active = selectedSystems.includes(id);
+
+              return (
+                <button
+                  key={id}
+                  onClick={() => toggleSystem(id)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    cursor: "pointer",
+                    background: active ? "#22c55e" : "#334155",
+                    color: "white",
+                  }}
+                >
+                  {id}
+                </button>
+              );
+            })}
           <button type="button" onClick={() => setShowSensors((value) => !value)} style={toggleButtonStyle(showSensors)}>Sensors</button>
           <button type="button" onClick={() => setShowBearings((value) => !value)} style={toggleButtonStyle(showBearings)}>Bearings</button>
           <button type="button" onClick={() => setShowIntersections((value) => !value)} style={toggleButtonStyle(showIntersections)}>Intersections</button>
