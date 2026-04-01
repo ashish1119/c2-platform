@@ -91,8 +91,8 @@ INSERT INTO users (username, email, hashed_password, role_id)
 VALUES (
     'admin',
     'admin@c2.local',
-    -- '$2b$12$C6UzMDM.H6dfI/f/IKcEeO7nZ9YjRzCQXDpUe1koRaSPo6e7iT730', -- password: password
-    '$2b$12$3DOLmptNUulIYVMN7F50Ju5hQGEDuqy0mKXNhHLC3Pp5ED0kk0SEG',
+    '$2b$12$C6UzMDM.H6dfI/f/IKcEeO7nZ9YjRzCQXDpUe1koRaSPo6e7iT730', -- password: password
+    --'$2b$12$3DOLmptNUulIYVMN7F50Ju5hQGEDuqy0mKXNhHLC3Pp5ED0kk0SEG',
     1
 );
 

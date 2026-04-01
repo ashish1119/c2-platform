@@ -269,7 +269,7 @@ def make_circle_polygon_xy(center_xy: Tuple[float, float], radius_m: float, num_
 
 def candidate_database_urls() -> List[str]:
     configured = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/c2_db")
-    urls = [configured]
+    urls = [configured]                        
     if "@postgres:" in configured:
         urls.append(configured.replace("@postgres:", "@localhost:"))
     return urls

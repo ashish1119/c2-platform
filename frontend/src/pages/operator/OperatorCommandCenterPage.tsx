@@ -116,12 +116,12 @@ function MissionOverview() {
 
         <Card>
           <div style={{ display: "grid", gap: theme.spacing.sm }}>
-            <div style={{ fontWeight: 700 }}>Network Sensor Link</div>
+            <div style={{ fontWeight: 700 }}>Signal Analyzer</div>
             <div style={{ color: theme.colors.textSecondary }}>
-              Validate listener health and TCP upstream connectivity for ingest reliability.
+              Advanced signal analysis and protocol decoding for RF intelligence operations.
             </div>
             <Link to="/operator/tcp-client" style={{ color: theme.colors.primary, fontWeight: 600 }}>
-              Open TCP Control
+              Open Signal Analyzer
             </Link>
           </div>
         </Card>

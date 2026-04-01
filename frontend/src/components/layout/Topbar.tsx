@@ -355,7 +355,7 @@ export default function Topbar({}: TopbarProps) {
     if (p === "/admin/assets") return "Assets";
     if (p === "/operator/map") return "Map";
     if (p === "/operator/alerts") return "Alerts";
-    if (p === "/operator/tcp-client") return "TCP Client";
+    if (p === "/operator/tcp-client") return "Signal Analyzer";
     if (p === "/reports") return "Reports";
     if (p === "/crfs/live") return "CRFS Live";
     if (p === "/jammer/control") return "Jammer Control";
@@ -371,7 +371,7 @@ export default function Topbar({}: TopbarProps) {
     if (pathname === "/operator/dashboard") return "Operator Dashboard";
     if (pathname === "/operator/simulation") return "Operator Dashboard";
     if (pathname === "/operator/map") return "Tactical Map";
-    if (pathname === "/operator/tcp-client") return "Decodio RED Integration";
+    if (pathname === "/operator/tcp-client") return "Signal Analyzer";
     if (pathname === "/planning") return "Reporting Center";
     if (pathname === "/reports") return "Reporting Center";
     if (pathname === "/crfs/live") return "CRFS Live";
