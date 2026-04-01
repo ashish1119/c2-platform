@@ -520,3 +520,60 @@ class AuditLog(Base):
     timestamp = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="audit_logs")
+
+
+class CdrRecord(Base):
+    """Call Detail Record — one row per call/SMS/data session."""
+    __tablename__ = "cdr_records"
+    __table_args__ = (
+        Index("ix_cdr_records_msisdn", "msisdn"),
+        Index("ix_cdr_records_start_time", "start_time"),
+        Index("ix_cdr_records_network", "network"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    msisdn = Column(String, nullable=False)
+    imsi = Column(String)
+    imei = Column(String)
+    target = Column(String)
+    call_type = Column(String, nullable=False)   # Voice / SMS / Data
+    operator = Column(String)
+    network = Column(String)                     # 5G / 4G / LTE / 3G
+    band = Column(String)
+    ran = Column(String)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    start_time = Column(TIMESTAMP(timezone=True), nullable=False)
+    end_time = Column(TIMESTAMP(timezone=True))
+    duration_sec = Column(Integer, default=0)
+    is_fake = Column(Boolean, default=False)
+    silent_call_type = Column(String, default="None")
+    place = Column(String)
+    country = Column(String)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+
+class SignalLog(Base):
+    """Signal capture log — one row per detected device scan event."""
+    __tablename__ = "signal_logs"
+    __table_args__ = (
+        Index("ix_signal_logs_imsi", "imsi"),
+        Index("ix_signal_logs_detected_at", "detected_at"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    imsi = Column(String, nullable=False)
+    imei = Column(String)
+    msisdn = Column(String)
+    operator = Column(String)
+    network = Column(String)
+    band = Column(String)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    signal_dbm = Column(Float)                   # e.g. -85.0
+    signal_strength = Column(String)             # Strong / Medium / Weak
+    status = Column(String, default="Active")    # Active / Idle
+    is_intercepted = Column(Boolean, default=False)
+    is_fake = Column(Boolean, default=False)
+    detected_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
