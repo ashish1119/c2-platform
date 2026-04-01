@@ -87,15 +87,30 @@ JOIN permissions p
     )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
+--INSERT INTO users (username, email, hashed_password, role_id)
+--VALUES (
+--    'admin',
+--    'admin@c2.local',
+    --'$2b$12$C6UzMDM.H6dfI/f/IKcEeO7nZ9YjRzCQXDpUe1koRaSPo6e7iT730', -- password: password
+--    '$2b$12$3DOLmptNUulIYVMN7F50Ju5hQGEDuqy0mKXNhHLC3Pp5ED0kk0SEG',
+--    1
+--);
+
+---------default login------------------------
+-- =========================
+-- USERS (FIXED)
+-- =========================
+
 INSERT INTO users (username, email, hashed_password, role_id)
 VALUES (
     'admin',
     'admin@c2.local',
-    -- '$2b$12$C6UzMDM.H6dfI/f/IKcEeO7nZ9YjRzCQXDpUe1koRaSPo6e7iT730', -- password: password
-    '$2b$12$3DOLmptNUulIYVMN7F50Ju5hQGEDuqy0mKXNhHLC3Pp5ED0kk0SEG',
+    '$2b$12$436MuiKwWAE.b/Z/l17BoeZ4ifdNft.g4zk5ugR.7M1SMHVrNFEgu',  --Password: admin123
     1
-);
-
+)
+ON CONFLICT (username) DO UPDATE
+SET hashed_password = EXCLUDED.hashed_password;
+-------------------end----
 INSERT INTO assets (name, type, status, location)
 VALUES
     (
