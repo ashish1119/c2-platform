@@ -237,6 +237,15 @@ export default function App() {
               }
             />
 
+            <Route
+              path="/operator/decodio/device-selector"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <DeviceSelectorPage />
+                </ProtectedRoute>
+              }
+            />
+
             <Route path="*" element={<FallbackRedirect />} />
           </Routes>
         </Suspense>

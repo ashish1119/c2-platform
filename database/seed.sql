@@ -105,11 +105,12 @@ INSERT INTO users (username, email, hashed_password, role_id)
 VALUES (
     'admin',
     'admin@c2.local',
-    '$2b$12$436MuiKwWAE.b/Z/l17BoeZ4ifdNft.g4zk5ugR.7M1SMHVrNFEgu',  --Password: admin123
+    '$2b$12$mpHBDug1vRnQuceN7s7zzOHorkb9s/ZrGM9Cxwa3ctAElL6Sk6i/C',  --Password: admin123
     1
 )
 ON CONFLICT (username) DO UPDATE
 SET hashed_password = EXCLUDED.hashed_password;
+
 -------------------end----
 INSERT INTO assets (name, type, status, location)
 VALUES

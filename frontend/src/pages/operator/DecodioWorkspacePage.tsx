@@ -1,17 +1,14 @@
-// DecodioWorkspacePage.tsx
-//
-// Pure content component — no routing imports, no useNavigate.
-// Can be used in two ways:
-//   1. Inline inside OperatorDecodioPage (conditional rendering via local state)
-//   2. As a standalone route element in App.tsx (existing /operator/decodio/workspace)
-//
-// Layout strategy:
-//   • width: 100%  / height: 100%  → fills whatever container it is placed in
-//   • overflow: hidden             → never bleeds outside parent bounds
-//   • NO position:fixed / 100dvh   → respects the parent's box model
-//
-// The parent (OperatorDecodioPage's content div, or the route's full-viewport
-// container) provides the actual dimensions. This component just fills them.
+import { useState } from "react";
+import DeviceSelectorPage from "./DeviceSelectorPage";
+import SpectrumAnalyzer from "./SpectrumAnalyzer";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Props
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface DecodioWorkspacePageProps {
+  onBack?: () => void;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Static data
@@ -27,119 +24,180 @@ const MENU_ITEMS = [
   "Info",
 ] as const;
 
-// Toolbar groups — each group is separated by a thin vertical divider.
-// Symbols approximate the icons visible in the screenshot.
-// Replace with <img>/<svg> assets in production.
-interface ToolbarItem { symbol: string; title: string }
+interface ToolbarItem  { symbol: string; title: string }
 interface ToolbarGroup { items: ToolbarItem[] }
 
 const TOOLBAR_GROUPS: ToolbarGroup[] = [
   {
     items: [
-      { symbol: "🗋",  title: "New" },
-      { symbol: "📂", title: "Open" },
+      { symbol: "☐",  title: "New" },
+      { symbol: "📁", title: "Open" },
       { symbol: "💾", title: "Save" },
-      { symbol: "🖫",  title: "Save As" },
+      { symbol: "⬒",  title: "Save As" },
     ],
   },
   {
     items: [
-      { symbol: "📡", title: "Device" },
+      { symbol: "⤴",  title: "Device" },
     ],
   },
   {
     items: [
       { symbol: "▶",  title: "Start" },
-      { symbol: "⏹", title: "Stop" },
+      { symbol: "■",  title: "Stop" },
     ],
   },
   {
     items: [
-      { symbol: "⊞", title: "Grid" },
-      { symbol: "〰", title: "Spectrum" },
-      { symbol: "🔧", title: "Tools" },
-      { symbol: "🔗", title: "Link" },
+      { symbol: "⊞",  title: "Grid" },
+      { symbol: "∿",  title: "Spectrum" },
+      { symbol: "↰",  title: "Tools" },
+      { symbol: "⛓",  title: "Link" },
     ],
   },
   {
     items: [
-      { symbol: "⬆", title: "Up" },
-      { symbol: "≡", title: "List" },
-      { symbol: "↩", title: "Export" },
+      { symbol: "ℹ",  title: "Info" },
+      { symbol: "☰",  title: "List" },
+      { symbol: "⮐",  title: "Export" },
     ],
   },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Design tokens — light theme matching the screenshot
+// Design tokens
 // ─────────────────────────────────────────────────────────────────────────────
 
 const T = {
-  chromeBg:    "#f0f0f0",   // title bar, menu bar, toolbar background
-  workspaceBg: "#e8e8e8",   // large empty content area (matches screenshot exactly)
-  border:      "#d4d4d4",   // separator lines between chrome sections
-  text:        "#1a1a1a",   // menu item and title text
-  iconSize:    28,           // toolbar button px size
+  chromeBg:     "#f0f0f0",
+  workspaceBg:  "#e8e8e8",
+  border:       "#d4d4d4",
+  text:         "#1a1a1a",
+  hoverBg:      "#d0dce8",
+  hoverBorder:  "#a8c0d8",
+
+  titleBarH:    32,
+  titleFontSz:  14,
+  badgeSize:    18,
+  badgeFontSz:  10,
+
+  menuBarH:     32,
+  menuFontSz:   15,
+
+  toolbarH:     42,
+  iconBtnSize:  36,
+  iconFontSz:   18,
+
+  sepH:         24,
+  gripH:        28,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal sub-components (file-private)
+// Device dropdown menu (inline, appears below the "Device" menu item)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function MenuItem({ label }: { label: string }) {
+const DEVICE_MENU_ITEMS = [
+  { label: "New Device",      shortcut: ""             },
+  { label: "Start Selected",  shortcut: "Ctrl+R"       },
+  { label: "Stop Selected",   shortcut: "Ctrl+T"       },
+  { label: "Start All",       shortcut: "Ctrl+Shift+R" },
+  { label: "Stop All",        shortcut: "Ctrl+Shift+T" },
+];
+
+function DeviceDropdown({
+  onClose,
+  onNewDevice,
+}: {
+  onClose: () => void;
+  onNewDevice: () => void;
+}) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
   return (
-    <button
+    <div
       style={{
-        background:    "transparent",
-        border:        "none",
-        padding:       "3px 10px",
-        fontSize:      13,
-        color:         T.text,
-        cursor:        "pointer",
-        borderRadius:  2,
-        lineHeight:    "1.5",
-        fontFamily:    "inherit",
+        position:   "absolute",
+        top:        "100%",
+        left:       0,
+        background: "#fff",
+        border:     `1px solid ${T.border}`,
+        borderRadius: 4,
+        boxShadow:  "0 4px 12px rgba(0,0,0,0.12)",
+        minWidth:   220,
+        zIndex:     1000,
+        padding:    "4px 0",
       }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.background = "#d0dce8";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-      }}
+      onMouseLeave={onClose}
     >
-      {label}
-    </button>
+      {DEVICE_MENU_ITEMS.map((item, idx) => (
+        <button
+          key={item.label}
+          style={{
+            display:     "flex",
+            alignItems:  "center",
+            width:       "100%",
+            padding:     "8px 16px",
+            background:  hovered === idx ? "#c6def6" : "transparent",
+            border:      "none",
+            fontSize:    14,
+            color:       "#222",
+            cursor:      "pointer",
+            textAlign:   "left",
+          }}
+          onClick={() => {
+            if (item.label === "New Device") {
+              onNewDevice();
+            }
+            onClose();
+          }}
+          onMouseEnter={() => setHovered(idx)}
+          onMouseLeave={() => setHovered(null)}
+        >
+          <span style={{ flex: 1 }}>{item.label}</span>
+          {item.shortcut && (
+            <span style={{ color: "#888", fontSize: 12, marginLeft: 16 }}>
+              {item.shortcut}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Toolbar sub-components
+// ─────────────────────────────────────────────────────────────────────────────
 
 function ToolbarBtn({ symbol, title }: ToolbarItem) {
   return (
     <button
       title={title}
       style={{
-        width:          T.iconSize,
-        height:         T.iconSize,
+        width:          T.iconBtnSize,
+        height:         T.iconBtnSize,
         border:         "1px solid transparent",
         borderRadius:   3,
         background:     "transparent",
         cursor:         "pointer",
-        fontSize:       14,
+        fontSize:       T.iconFontSz,
         display:        "flex",
         alignItems:     "center",
         justifyContent: "center",
         padding:        0,
         flexShrink:     0,
         fontFamily:     "inherit",
+        lineHeight:     1,
       }}
       onMouseEnter={(e) => {
         const el = e.currentTarget as HTMLButtonElement;
-        el.style.background   = "#d0dce8";
-        el.style.borderColor  = "#a8c0d8";
+        el.style.background  = T.hoverBg;
+        el.style.borderColor = T.hoverBorder;
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget as HTMLButtonElement;
-        el.style.background   = "transparent";
-        el.style.borderColor  = "transparent";
+        el.style.background  = "transparent";
+        el.style.borderColor = "transparent";
       }}
     >
       {symbol}
@@ -152,32 +210,67 @@ function ToolbarSep() {
     <div
       style={{
         width:      1,
-        height:     20,
+        height:     T.sepH,
         background: T.border,
-        margin:     "0 3px",
+        margin:     "0 4px",
         flexShrink: 0,
       }}
     />
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main export — pure presentational, no routing
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function DecodioWorkspacePage() {
+function BackButton({ onBack }: { onBack: () => void }) {
   return (
-    /*
-      Root container:
-        width: 100%    → fills the parent's horizontal space exactly
-        height: 100%   → fills the parent's vertical space exactly
-        overflow:hidden → clips children; nothing escapes the parent box
-        flex column    → chrome rows stack top-to-bottom; workspace takes the rest
+    <button
+      onClick={onBack}
+      title="Back to Decodio launch options"
+      style={{
+        marginLeft:     "auto",
+        marginRight:    4,
+        height:         T.iconBtnSize,
+        padding:        "0 14px",
+        border:         `1px solid ${T.border}`,
+        borderRadius:   3,
+        background:     "transparent",
+        color:          T.text,
+        fontSize:       T.menuFontSz,
+        fontFamily:     "inherit",
+        cursor:         "pointer",
+        display:        "flex",
+        alignItems:     "center",
+        gap:            6,
+        flexShrink:     0,
+        whiteSpace:     "nowrap",
+        lineHeight:     1,
+      }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.background  = T.hoverBg;
+        el.style.borderColor = T.hoverBorder;
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget as HTMLButtonElement;
+        el.style.background  = "transparent";
+        el.style.borderColor = T.border;
+      }}
+    >
+      <span style={{ fontSize: T.iconFontSz, lineHeight: 1 }}>‹</span>
+      Back
+    </button>
+  );
+}
 
-      When used inside OperatorDecodioPage the parent is the content <div>
-      which already has a defined height via minHeight + flex. When used as a
-      standalone route it is given height:100dvh by the route wrapper.
-    */
+// ─────────────────────────────────────────────────────────────────────────────
+// Main export
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function DecodioWorkspacePage({ onBack }: DecodioWorkspacePageProps = {}) {
+  const [showDeviceDropdown, setShowDeviceDropdown] = useState(false);
+  const [hoveredMenu, setHoveredMenu]               = useState<string | null>(null);
+  const [showDeviceSelector, setShowDeviceSelector] = useState(false);
+  const [showFrequencyImage, setShowFrequencyImage] = useState(false);
+
+  return (
     <div
       style={{
         width:         "100%",
@@ -190,37 +283,33 @@ export default function DecodioWorkspacePage() {
         boxSizing:     "border-box",
       }}
     >
-      {/* ── Title bar ─────────────────────────────────────────────────────
-          Red "D" badge + "Local mode - Unsaved project - Decodio"
-          Matches the browser tab title and the first content row in the screenshot.
-      */}
+      {/* ── Title bar ──────────────────────────────────────────────────── */}
       <div
         style={{
-          height:        26,
-          display:       "flex",
-          alignItems:    "center",
-          paddingLeft:   6,
-          borderBottom:  `1px solid ${T.border}`,
-          background:    T.chromeBg,
-          flexShrink:    0,
-          fontSize:      12,
-          color:         T.text,
-          userSelect:    "none",
-          gap:           6,
+          height:       T.titleBarH,
+          display:      "flex",
+          alignItems:   "center",
+          paddingLeft:  8,
+          borderBottom: `1px solid ${T.border}`,
+          background:   T.chromeBg,
+          flexShrink:   0,
+          fontSize:     T.titleFontSz,
+          color:        T.text,
+          userSelect:   "none",
+          gap:          7,
         }}
       >
-        {/* Decodio favicon approximation */}
         <span
           style={{
             display:        "inline-flex",
             alignItems:     "center",
             justifyContent: "center",
-            width:          14,
-            height:         14,
+            width:          T.badgeSize,
+            height:         T.badgeSize,
             borderRadius:   "50%",
             background:     "#c0392b",
             color:          "#fff",
-            fontSize:       9,
+            fontSize:       T.badgeFontSz,
             fontWeight:     700,
             flexShrink:     0,
           }}
@@ -230,12 +319,10 @@ export default function DecodioWorkspacePage() {
         Local mode - Unsaved project - Decodio
       </div>
 
-      {/* ── Menu bar ──────────────────────────────────────────────────────
-          Horizontal row of text menu items: Project Device Protocols …
-      */}
+      {/* ── Menu bar ───────────────────────────────────────────────────── */}
       <div
         style={{
-          height:       26,
+          height:       T.menuBarH,
           display:      "flex",
           alignItems:   "center",
           padding:      "0 2px",
@@ -244,18 +331,49 @@ export default function DecodioWorkspacePage() {
           flexShrink:   0,
         }}
       >
-        {MENU_ITEMS.map((label) => (
-          <MenuItem key={label} label={label} />
+        {MENU_ITEMS.map((item) => (
+          <button
+            key={item}
+            style={{
+              background:   hoveredMenu === item ? T.hoverBg : "transparent",
+              border:       "none",
+              fontSize:     T.menuFontSz,
+              fontWeight:   500,
+              color:        T.text,
+              padding:      "4px 11px",
+              cursor:       "pointer",
+              position:     "relative",
+              borderRadius: 2,
+              flexShrink:   0,
+              fontFamily:   "inherit",
+            }}
+            onClick={
+              item === "Device"
+                ? () => setShowDeviceDropdown((v) => !v)
+                : undefined
+            }
+            onMouseEnter={() => setHoveredMenu(item)}
+            onMouseLeave={() => setHoveredMenu(null)}
+          >
+            {item}
+            {/* Device dropdown — only renders under the "Device" button */}
+            {item === "Device" && showDeviceDropdown && (
+              <DeviceDropdown
+                onClose={() => setShowDeviceDropdown(false)}
+                onNewDevice={() => {
+                  setShowDeviceSelector(true);
+                  setShowDeviceDropdown(false);
+                }}
+              />
+            )}
+          </button>
         ))}
       </div>
 
-      {/* ── Toolbar ───────────────────────────────────────────────────────
-          Icon button groups with thin vertical separators between groups.
-          The leading dotted grip strip matches the screenshot's left edge detail.
-      */}
+      {/* ── Toolbar ────────────────────────────────────────────────────── */}
       <div
         style={{
-          height:       34,
+          height:       T.toolbarH,
           display:      "flex",
           alignItems:   "center",
           padding:      "0 4px",
@@ -265,42 +383,69 @@ export default function DecodioWorkspacePage() {
           gap:          1,
         }}
       >
-        {/* Toolbar grip handle */}
+        {/* Grip handle */}
         <div
           style={{
             width:       4,
-            height:      24,
+            height:      T.gripH,
             borderLeft:  `2px dotted ${T.border}`,
-            marginRight: 3,
+            marginRight: 4,
             flexShrink:  0,
           }}
         />
 
         {TOOLBAR_GROUPS.map((group, idx) => (
-          <div
-            key={idx}
-            style={{ display: "flex", alignItems: "center", gap: 1 }}
-          >
+          <div key={idx} style={{ display: "flex", alignItems: "center", gap: 1 }}>
             {idx > 0 && <ToolbarSep />}
             {group.items.map((item) => (
               <ToolbarBtn key={item.title} {...item} />
             ))}
           </div>
         ))}
+
+        {onBack && <BackButton onBack={onBack} />}
       </div>
 
-      {/* ── Workspace canvas ──────────────────────────────────────────────
-          Empty content area. flex:1 consumes all remaining vertical space.
-          overflow:hidden ensures it never pushes past the parent container.
-      */}
+      {/* ── Workspace canvas ───────────────────────────────────────────── */}
       <div
         style={{
-          flex:      1,
+          flex:       1,
           background: T.workspaceBg,
-          overflow:  "hidden",
-          minHeight: 0,   // ← critical: allows flex child to shrink below content size
+          overflow:   "hidden",
+          minHeight:  0,
+          position:   "relative",
         }}
-      />
+      >
+        {showFrequencyImage && <SpectrumAnalyzer onClose={() => setShowFrequencyImage(false)} />}
+      </div>
+
+      {/* ── Device Selector modal overlay ──────────────────────────────── */}
+      {showDeviceSelector && (
+        <div
+          style={{
+            position:       "fixed",
+            inset:          0,
+            background:     "rgba(0,0,0,0.20)",
+            zIndex:         2000,
+            display:        "flex",
+            alignItems:     "center",
+            justifyContent: "center",
+          }}
+          // Clicking the backdrop closes the modal
+          onClick={() => setShowDeviceSelector(false)}
+        >
+          {/* Stop click from bubbling through the modal box itself */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <DeviceSelectorPage
+              onClose={() => setShowDeviceSelector(false)}
+              onOpen={() => {
+                setShowDeviceSelector(false);
+                setShowFrequencyImage(true);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
