@@ -1,7 +1,7 @@
 import asyncio
 import threading
 
-from fastapi import FastAPI, HTTPException , WebSocket
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.extension import _rate_limit_exceeded_handler
@@ -130,16 +130,3 @@ async def startup_services() -> None:
 @app.on_event("shutdown")
 async def shutdown_services() -> None:
     await shutdown_runtime_services(app)
-
-
-# ===============================
-# 🔥 NEW WEBSOCKET: RF STREAM
-# ===============================
-@app.websocket("/ws/rf")
-async def websocket_rf(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except:
-        manager.disconnect(websocket)

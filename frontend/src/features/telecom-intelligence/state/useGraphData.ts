@@ -39,7 +39,7 @@ export function buildGraphFromRecords(
   });
 
   if (!callerRecords.length) {
-    return { nodes: [], links: [], center_msisdn: msisdn, total_records: 0 };
+    return { nodes: [], links: [], center_msisdn: msisdn, total_records: 0, central_node_id: null };
   }
 
   // Centre node

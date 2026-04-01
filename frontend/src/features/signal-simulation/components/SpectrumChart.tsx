@@ -43,9 +43,9 @@ export default function SpectrumChart({ bins }: SpectrumChartProps) {
               borderRadius: theme.radius.sm,
               color: theme.colors.textPrimary,
             }}
-            formatter={(value: unknown, name: string) => {
+            formatter={(value: unknown, name?: string | number) => {
               if (typeof value !== "number") {
-                return [String(value), name];
+                return [String(value), String(name ?? "")];
               }
               return [`${value.toFixed(2)} dBm`, "Power"];
             }}

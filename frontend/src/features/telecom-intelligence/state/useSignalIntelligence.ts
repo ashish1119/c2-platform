@@ -290,8 +290,19 @@ export function useSignalIntelligence(cdrRecords: TelecomRecord[]) {
   const release = useCallback((imsi: string) => {
     setDevices((prev) => prev.map((d) => (d.id === imsi ? { ...d, isIntercepted: false } : d)));
     setTargets((prev) => { const next = new Map(prev); next.delete(imsi); return next; });
+    const releaseEntry: DetectionLogEntry = {
+      id: uid(),
+      ts: now(),
+      imsi,
+      imei: "",
+      latitude: 0,
+      longitude: 0,
+      network: "",
+      status: "Idle",
+      event: "Released",
+    };
     setLog((l) => [
-      { id: uid(), ts: now(), imsi, imei: "", latitude: 0, longitude: 0, network: "", status: "Idle", event: "Released" },
+      releaseEntry,
       ...l,
     ].slice(0, 500));
   }, []);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isAxiosError } from "axios";
 import axios from "../../api/axios";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "../../components/layout/AppLayout";
@@ -85,7 +86,7 @@ const FALLBACK_SENSORS: DfSensorConfig[] = [
 ];
 
 function parseApiErrorMessage(error: unknown, fallback: string): string {
-  if (axios.isAxiosError(error)) {
+  if (isAxiosError(error)) {
     const detail = error.response?.data?.detail;
     if (typeof detail === "string" && detail.trim().length > 0) {
       return detail;
@@ -1093,7 +1094,7 @@ useEffect(() => {
                     }}
                   >
                     <SpectrumViewer bins={spectrumBins} loading={telemetryLoading} lastUpdatedAt={lastTelemetryUpdate} />
-                    <WaterfallHistoryView detections={detections} spectrumBins={spectrumBins} loading={telemetryLoading} />
+                    <WaterfallHistoryView loading={telemetryLoading} />
                   </div>
 
                   <div
@@ -1148,7 +1149,8 @@ useEffect(() => {
     gridTemplateColumns: "1fr",
   }}
 >
-  <Card title="DF Monitoring Console">
+  <Card>
+    <h3 style={{ marginTop: 0 }}>DF Monitoring Console</h3>
     <div style={{ height: "500px" }}>
       <DFMonitoringConsole />
     </div>

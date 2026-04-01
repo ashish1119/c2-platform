@@ -419,15 +419,21 @@ export default function OperatorDashboardPage() {
   // 🔥 NEW: PUSH TCP DATA INTO UI
   // ============================================
   if (payload.data) {
-    const d = payload.data;
+    const d = payload.data as Partial<{
+      id: string;
+      freq: number;
+      power: number;
+      DOA: number;
+      timestamp: string;
+    }>;
 
     const newDetection = {
-      id: d.id,
+      id: d.id ?? `${Date.now()}`,
       source_node: sourceNode || "tcp_node_01",
-      frequency_hz: d.freq,
-      power_dbm: d.power,
-      doa_azimuth_deg: d.DOA,
-      timestamp_utc: d.timestamp,
+      frequency_hz: d.freq ?? 0,
+      power_dbm: d.power ?? null,
+      doa_azimuth_deg: d.DOA ?? null,
+      timestamp_utc: d.timestamp ?? new Date().toISOString(),
     };
 
     setDetections((prev) => [newDetection, ...prev].slice(0, 200));
@@ -790,7 +796,7 @@ export default function OperatorDashboardPage() {
                 }}
               >
                 <SpectrumViewer bins={spectrumBins} loading={telemetryLoading} lastUpdatedAt={lastTelemetryUpdate} />
-                <WaterfallHistoryView detections={detections} spectrumBins={spectrumBins} loading={telemetryLoading} />
+                <WaterfallHistoryView loading={telemetryLoading} />
               </div>
 
               <div

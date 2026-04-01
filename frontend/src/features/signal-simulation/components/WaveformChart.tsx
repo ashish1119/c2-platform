@@ -35,9 +35,9 @@ export default function WaveformChart({ points }: WaveformChartProps) {
               borderRadius: theme.radius.sm,
               color: theme.colors.textPrimary,
             }}
-            formatter={(value: unknown, name: string) => {
+            formatter={(value: unknown, name?: string | number) => {
               if (typeof value !== "number") {
-                return [String(value), name];
+                return [String(value), String(name ?? "")];
               }
               return [value.toFixed(3), "Amplitude"];
             }}

@@ -557,7 +557,9 @@ export default function RssiMonitorPanel({ detections }: RssiMonitorPanelProps) 
         const data = JSON.parse(event.data);
 
         const newDetection: SmsDetectionRecord = {
+          id: String(data.id ?? `${Date.now()}`),
           source_node: data.source_node || "DF Node",
+          frequency_hz: typeof data.frequency_hz === "number" ? data.frequency_hz : typeof data.freq === "number" ? data.freq : 0,
           power_dbm: data.power_dbm ?? data.powerDbm ?? -80,
           latitude: data.latitude ?? null,
           longitude: data.longitude ?? null,
@@ -715,10 +717,10 @@ export default function RssiMonitorPanel({ detections }: RssiMonitorPanelProps) 
                     border: `1px solid ${theme.colors.border}`,
                     borderRadius: theme.radius.sm,
                   }}
-                  formatter={(value: any, name: string) =>
+                  formatter={(value: unknown, name?: string | number) =>
                     typeof value === "number"
-                      ? [`${value.toFixed(2)} dBm`, name]
-                      : ["-", name]
+                      ? [`${value.toFixed(2)} dBm`, String(name ?? "")]
+                      : ["-", String(name ?? "")]
                   }
                 />
 

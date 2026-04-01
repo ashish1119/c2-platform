@@ -485,7 +485,7 @@ function NetworkMapFit({ data }: { data: NetworkMapData | null }) {
     const pts: [number, number][] = [
       [data.main_user.latitude, data.main_user.longitude],
       ...data.targets.map((t): [number, number] => [t.latitude, t.longitude]),
-    ].filter(([la, ln]) => la !== 0 && ln !== 0);
+    ].filter((point): point is [number, number] => point[0] !== 0 && point[1] !== 0);
     const bounds = L.latLngBounds(pts);
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13, animate: true });
   }, [data, map]);

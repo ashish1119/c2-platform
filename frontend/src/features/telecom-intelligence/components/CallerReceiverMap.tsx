@@ -245,7 +245,7 @@ function MapFit({ data }: { data: CallMapResponse | null }) {
     const pts: [number, number][] = [
       [data.caller.lat, data.caller.lng],
       ...data.receivers.map((r): [number, number] => [r.lat, r.lng]),
-    ].filter(([la, ln]) => la !== 0 && ln !== 0);
+    ].filter((point): point is [number, number] => point[0] !== 0 && point[1] !== 0);
     const bounds = L.latLngBounds(pts);
     if (bounds.isValid()) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14, animate: true });
   }, [data, map]);

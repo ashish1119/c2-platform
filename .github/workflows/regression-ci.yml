@@ -70,6 +70,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Typecheck frontend (non-blocking, staged rollout)
+        working-directory: frontend
+        continue-on-error: true
+        run: npm run typecheck
+
       - name: Build frontend
         working-directory: frontend
-        run: npm run build
+        run: npm run build:ci
+
+      - name: Strict frontend gate command (reference)
+        if: always()
+        run: echo "When ready to enforce, replace Build frontend step with: npm run build:ci"

@@ -18,6 +18,8 @@ const CrfsLivePage = lazy(() => import("./pages/CrfsLivePage"));
 const JammerControlPage = lazy(() => import("./pages/JammerControlPage"));
 const GeospatialSourcesPage = lazy(() => import("./pages/admin/GeospatialSourcesPage"));
 const TelecomIntelligencePage = lazy(() => import("./pages/TelecomIntelligencePage"));
+const DeviceSelectorPage = lazy(() => import("./pages/operator/DeviceSelectorPage"));
+const ForbiddenPage = lazy(() => import("./pages/ForbiddenPage"));
 
 function RouteFallback() {
   return <div style={{ minHeight: "100vh", background: "#071120" }} />;
@@ -42,6 +44,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forbidden" element={<ForbiddenPage />} />
 
             <Route
               path="/admin"

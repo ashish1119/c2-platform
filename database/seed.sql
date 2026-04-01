@@ -96,22 +96,8 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 --    1
 --);
 
----------default login------------------------
--- =========================
--- USERS (FIXED)
--- =========================
-
-INSERT INTO users (username, email, hashed_password, role_id)
-VALUES (
-    'admin',
-    'admin@c2.local',
-    '$2b$12$mpHBDug1vRnQuceN7s7zzOHorkb9s/ZrGM9Cxwa3ctAElL6Sk6i/C',  --Password: admin123
-    1
-)
-ON CONFLICT (username) DO UPDATE
-SET hashed_password = EXCLUDED.hashed_password;
-
--------------------end----
+-- Admin bootstrap is now handled by backend startup using
+-- ADMIN_BOOTSTRAP_USERNAME / ADMIN_BOOTSTRAP_PASSWORD / ADMIN_BOOTSTRAP_EMAIL.
 INSERT INTO assets (name, type, status, location)
 VALUES
     (

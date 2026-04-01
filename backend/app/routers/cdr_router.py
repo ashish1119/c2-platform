@@ -1,15 +1,20 @@
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from app.database import get_db
+from app.database import get_db_sync
+from app.deps import require_permission
 from app.models import CdrRecord
 import math, uuid
-from datetime import datetime, date
+from datetime import datetime, date, time
 from typing import Any
 
 print("CDR Router Loaded")
 
-router = APIRouter(prefix="/cdr", tags=["CDR"])
+router = APIRouter(
+    prefix="/cdr",
+    tags=["CDR"],
+    dependencies=[Depends(require_permission("telecom", "read"))],
+)
 
 # ── Coverage / colour maps ────────────────────────────────────────────────────
 
@@ -132,8 +137,12 @@ class NetworkMapResponse(BaseModel):
 def get_cdr():
     return {"message": "CDR router working"}
 
-@router.post("/ingest", status_code=201)
-def ingest_cdr(payload: CdrBatchIngest, db: Session = Depends(get_db)):
+@router.post(
+    "/ingest",
+    status_code=201,
+    dependencies=[Depends(require_permission("telecom", "write"))],
+)
+def ingest_cdr(payload: CdrBatchIngest, db: Session = Depends(get_db_sync)):
     rows = [CdrRecord(
         id=uuid.uuid4(), msisdn=r.msisdn, imsi=r.imsi, imei=r.imei,
         target=r.target, call_type=r.call_type, operator=r.operator,
@@ -152,7 +161,7 @@ def get_towers(
     msisdn: str | None = Query(None),
     network: str | None = Query(None),
     limit: int = Query(500, ge=1, le=2000),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     q = db.query(CdrRecord)
     if msisdn: q = q.filter(CdrRecord.msisdn.ilike(f"%{msisdn}%"))
@@ -189,7 +198,7 @@ def get_towers(
     return TowerAggregationResponse(towers=towers, total_records=len(records), total_towers=len(towers))
 
 @router.get("/heatmap")
-def get_tower_heatmap(msisdn: str | None = Query(None), db: Session = Depends(get_db)):
+def get_tower_heatmap(msisdn: str | None = Query(None), db: Session = Depends(get_db_sync)):
     q = db.query(CdrRecord)
     if msisdn: q = q.filter(CdrRecord.msisdn.ilike(f"%{msisdn}%"))
     cells: dict[str, dict] = {}
@@ -203,9 +212,9 @@ def get_tower_heatmap(msisdn: str | None = Query(None), db: Session = Depends(ge
 @router.get("/network-map", response_model=NetworkMapResponse)
 def get_network_map(
     msisdn: str = Query(..., description="Main user MSISDN"),
-    start_date: str | None = Query(None, description="ISO date YYYY-MM-DD"),
-    end_date: str | None = Query(None, description="ISO date YYYY-MM-DD"),
-    db: Session = Depends(get_db),
+    start_date: date | None = Query(None, description="ISO date YYYY-MM-DD"),
+    end_date: date | None = Query(None, description="ISO date YYYY-MM-DD"),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Returns full network map for a given MSISDN:
@@ -216,9 +225,9 @@ def get_network_map(
     """
     q = db.query(CdrRecord).filter(CdrRecord.msisdn == msisdn)
     if start_date:
-        q = q.filter(CdrRecord.start_time >= datetime.fromisoformat(start_date))
+        q = q.filter(CdrRecord.start_time >= datetime.combine(start_date, time.min))
     if end_date:
-        q = q.filter(CdrRecord.start_time <= datetime.fromisoformat(end_date + "T23:59:59"))
+        q = q.filter(CdrRecord.start_time <= datetime.combine(end_date, time.max))
     records = q.limit(2000).all()
 
     if not records:
@@ -399,7 +408,7 @@ def get_call_map(
     msisdn: str = Query(..., description="Caller MSISDN"),
     start_date: str | None = Query(None, description="YYYY-MM-DD"),
     end_date: str | None = Query(None, description="YYYY-MM-DD"),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Caller ↔ Receiver geo map for a given MSISDN.
@@ -584,8 +593,12 @@ async def _broadcast_cdr(event: dict) -> None:
         if ws in _cdr_subscribers:
             _cdr_subscribers.remove(ws)
 
-@router.post("/live", status_code=201)
-async def ingest_live_cdr(payload: LiveCdrBatch, db: Session = Depends(get_db)):
+@router.post(
+    "/live",
+    status_code=201,
+    dependencies=[Depends(require_permission("telecom", "write"))],
+)
+async def ingest_live_cdr(payload: LiveCdrBatch, db: Session = Depends(get_db_sync)):
     """
     Live CDR ingestion endpoint.
     - Validates and stores each record in the database
@@ -664,7 +677,7 @@ async def cdr_live_ws(websocket: WebSocket):
             _cdr_subscribers.remove(websocket)
 
 @router.get("/live/recent")
-def get_recent_live(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
+def get_recent_live(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db_sync)):
     """Return the most recently ingested CDR records for timeline playback."""
     rows = (
         db.query(CdrRecord)
@@ -714,7 +727,7 @@ def get_connections(
     msisdn: str = Query(..., description="Caller MSISDN"),
     start: str | None = Query(None, description="ISO date YYYY-MM-DD"),
     end: str | None = Query(None, description="ISO date YYYY-MM-DD"),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Per-call connection list for a given MSISDN.
@@ -806,7 +819,7 @@ def get_network_graph(
     operator: str | None = Query(None),
     network: str | None = Query(None),
     fake_only: bool = Query(False),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Build a call relationship graph centred on a given MSISDN.
@@ -924,7 +937,7 @@ def get_signal_stats(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     limit: int = Query(200, ge=1, le=1000),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Signal intelligence statistics for a given MSISDN (or all records).
@@ -1021,7 +1034,7 @@ def get_analytics_summary(
     end_date: str | None = Query(None),
     operator: str | None = Query(None),
     network: str | None = Query(None),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
 ):
     """
     Aggregated analytics summary for the dashboard KPI cards.
@@ -1099,3 +1112,4 @@ def get_analytics_summary(
         top_operator=top_operator,
         top_network=top_network,
     )
+

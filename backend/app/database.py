@@ -91,3 +91,11 @@ Base = declarative_base()
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
+
+
+def get_db_sync():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

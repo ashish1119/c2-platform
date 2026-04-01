@@ -638,7 +638,7 @@ export default function CESMTableTabs() {
           JSON.parse(line)
         );
 
-        const converted = parsedData.map((det: any) => ({
+        const converted: RFDataType[] = parsedData.map((det: any): RFDataType => ({
           id: det.id,
           freq: det.freq || 0,
           power: det.power || 0,
@@ -653,7 +653,7 @@ export default function CESMTableTabs() {
         setRfData((prev) => {
           let updated = [...prev];
 
-          converted.forEach((item) => {
+          converted.forEach((item: RFDataType) => {
             const index = updated.findIndex(
               (d) => d.id === item.id
             );
@@ -670,8 +670,8 @@ export default function CESMTableTabs() {
           updated = updated.slice(0, 50);
 
           const newIds = converted
-            .filter((d) => d.status === "NEW")
-            .map((d) => d.id);
+            .filter((d: RFDataType) => d.status === "NEW")
+            .map((d: RFDataType) => d.id);
 
           setHighlightIds(newIds);
 

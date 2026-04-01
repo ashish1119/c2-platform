@@ -1,6 +1,8 @@
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.config import settings
+from app.core.security import hash_password
 from app.database import Base
 
 
@@ -66,8 +68,55 @@ SCHEMA_PATCH_STATEMENTS = [
 async def bootstrap_database(conn: AsyncConnection) -> None:
     await conn.run_sync(Base.metadata.create_all)
     await _apply_schema_patches(conn)
+    await _bootstrap_admin_user(conn)
 
 
 async def _apply_schema_patches(conn: AsyncConnection) -> None:
     for statement in SCHEMA_PATCH_STATEMENTS:
         await conn.execute(text(statement))
+
+
+async def _bootstrap_admin_user(conn: AsyncConnection) -> None:
+    username = (settings.ADMIN_BOOTSTRAP_USERNAME or "").strip()
+    password = settings.ADMIN_BOOTSTRAP_PASSWORD or ""
+    email = (settings.ADMIN_BOOTSTRAP_EMAIL or "").strip()
+
+    if not username or not password:
+        return
+
+    if not email:
+        email = f"{username}@c2.local"
+
+    admin_role_row = await conn.execute(text("SELECT id FROM roles WHERE name = 'ADMIN' LIMIT 1"))
+    admin_role_id = admin_role_row.scalar_one_or_none()
+    if admin_role_id is None:
+        return
+
+    existing_user_row = await conn.execute(
+        text(
+            """
+            SELECT id
+            FROM users
+            WHERE username = :username OR email = :email
+            LIMIT 1
+            """
+        ),
+        {"username": username, "email": email},
+    )
+    if existing_user_row.scalar_one_or_none() is not None:
+        return
+
+    await conn.execute(
+        text(
+            """
+            INSERT INTO users (username, email, hashed_password, role_id)
+            VALUES (:username, :email, :hashed_password, :role_id)
+            """
+        ),
+        {
+            "username": username,
+            "email": email,
+            "hashed_password": hash_password(password),
+            "role_id": admin_role_id,
+        },
+    )

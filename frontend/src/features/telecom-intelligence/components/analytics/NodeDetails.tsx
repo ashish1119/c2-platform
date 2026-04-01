@@ -18,7 +18,7 @@ function Row({ label, value, color }: { label: string; value: string | number | 
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: `1px solid ${theme.colors.border}` }}>
       <span style={{ fontSize: 11, color: theme.colors.textSecondary }}>{label}</span>
-      <span style={{ fontSize: 12, fontWeight: 600, color: color ?? theme.colors.text, textAlign: "right", maxWidth: "60%", wordBreak: "break-all" }}>{value}</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: color ?? theme.colors.textPrimary, textAlign: "right", maxWidth: "60%", wordBreak: "break-all" }}>{value}</span>
     </div>
   );
 }

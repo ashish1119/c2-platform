@@ -14,7 +14,8 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db_sync
+from app.deps import require_permission
 from app.models import SignalLog
 
 router = APIRouter(prefix="/signal", tags=["signal"])
@@ -68,7 +69,8 @@ class SignalIngestRequest(BaseModel):
 @router.get("/detected", response_model=list[SignalLogRead])
 def get_detected(
     limit: int = Query(200, ge=1, le=1000),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db_sync),
+    _claims: dict = Depends(require_permission("telecom", "read")),
 ):
     """Return recently detected devices, newest first."""
     rows = (
@@ -81,7 +83,10 @@ def get_detected(
 
 
 @router.get("/targets", response_model=list[SignalLogRead])
-def get_targets(db: Session = Depends(get_db)):
+def get_targets(
+    db: Session = Depends(get_db_sync),
+    _claims: dict = Depends(require_permission("telecom", "read")),
+):
     """Return all currently intercepted targets."""
     rows = (
         db.query(SignalLog)
@@ -93,7 +98,11 @@ def get_targets(db: Session = Depends(get_db)):
 
 
 @router.post("/intercept")
-def intercept_device(payload: InterceptRequest, db: Session = Depends(get_db)):
+def intercept_device(
+    payload: InterceptRequest,
+    db: Session = Depends(get_db_sync),
+    _claims: dict = Depends(require_permission("telecom", "write")),
+):
     """Toggle intercept status for a device identified by IMSI."""
     row = db.query(SignalLog).filter(SignalLog.imsi == payload.imsi).first()
     if not row:
@@ -104,7 +113,11 @@ def intercept_device(payload: InterceptRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/ingest", status_code=201)
-def ingest_signal(payload: SignalIngestRequest, db: Session = Depends(get_db)):
+def ingest_signal(
+    payload: SignalIngestRequest,
+    db: Session = Depends(get_db_sync),
+    _claims: dict = Depends(require_permission("telecom", "write")),
+):
     """Ingest a single signal detection event (used by scanner / simulator)."""
     existing = db.query(SignalLog).filter(SignalLog.imsi == payload.imsi).first()
     if existing:

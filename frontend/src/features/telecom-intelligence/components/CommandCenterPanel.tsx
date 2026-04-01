@@ -90,7 +90,7 @@ function StatRow({ label, value, color }: { label: string; value: string | numbe
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", borderBottom: `1px solid ${theme.colors.border}` }}>
       <span style={{ fontSize: 11, color: theme.colors.textSecondary }}>{label}</span>
-      <span style={{ fontSize: 12, fontWeight: 700, color: color ?? theme.colors.text }}>{value}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: color ?? theme.colors.textPrimary }}>{value}</span>
     </div>
   );
 }
@@ -166,7 +166,7 @@ function DeviceIntelPanel({ records }: { records: TelecomRecord[] }) {
         <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search IMEI / IMSI / MSISDN / Model..."
-            style={{ flex: 1, padding: "5px 10px", borderRadius: 6, border: `1px solid ${theme.colors.border}`, background: isDark ? "#1e293b" : "#fff", color: theme.colors.text, fontSize: 12, outline: "none" }}
+            style={{ flex: 1, padding: "5px 10px", borderRadius: 6, border: `1px solid ${theme.colors.border}`, background: isDark ? "#1e293b" : "#fff", color: theme.colors.textPrimary, fontSize: 12, outline: "none" }}
           />
           <Badge label={`${simSwapCount} SIM Swap`} color="#f59e0b" bg="#f59e0b18" />
           <Badge label={`${criticalCount} High Risk`} color="#ef4444" bg="#ef444418" />
@@ -349,7 +349,7 @@ function SecurityPanel({ records }: { records: TelecomRecord[] }) {
               </div>
               <span style={{ fontSize: 10, color: theme.colors.textMuted }}>{e.ts ? new Date(e.ts).toLocaleString() : "—"}</span>
             </div>
-            <div style={{ fontSize: 11, color: theme.colors.text }}>{e.detail}</div>
+            <div style={{ fontSize: 11, color: theme.colors.textPrimary }}>{e.detail}</div>
             <div style={{ fontSize: 10, color: theme.colors.textSecondary, marginTop: 3, display: "flex", gap: 10 }}>
               <span>MSISDN: {e.msisdn}</span>
               <span>IMSI: {e.imsi}</span>
@@ -591,9 +591,9 @@ function TargetIntelPanel({ records }: { records: TelecomRecord[] }) {
             <span style={{ fontSize: 10, color: theme.colors.textMuted }}>{t.records.length} records</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "3px 12px", fontSize: 11 }}>
-            <span style={{ color: theme.colors.textSecondary }}>Contacts: <b style={{ color: theme.colors.text }}>{t.contacts.length}</b></span>
-            <span style={{ color: theme.colors.textSecondary }}>Duration: <b style={{ color: theme.colors.text }}>{fmtDur(t.totalDur)}</b></span>
-            <span style={{ color: theme.colors.textSecondary }}>Locations: <b style={{ color: theme.colors.text }}>{t.locs.length}</b></span>
+            <span style={{ color: theme.colors.textSecondary }}>Contacts: <b style={{ color: theme.colors.textPrimary }}>{t.contacts.length}</b></span>
+            <span style={{ color: theme.colors.textSecondary }}>Duration: <b style={{ color: theme.colors.textPrimary }}>{fmtDur(t.totalDur)}</b></span>
+            <span style={{ color: theme.colors.textSecondary }}>Locations: <b style={{ color: theme.colors.textPrimary }}>{t.locs.length}</b></span>
           </div>
           {t.contacts.length > 0 && (
             <div style={{ marginTop: 5, fontSize: 11, color: theme.colors.textSecondary }}>
@@ -631,7 +631,14 @@ function ReportsPanel({ records }: { records: TelecomRecord[] }) {
       uniqueDevices: new Set(records.map((r) => r.imei).filter(Boolean)).size,
       uniqueIMSI: new Set(records.map((r) => r.imsi).filter(Boolean)).size,
       uniqueLocations: new Set(records.map((r) => `${r.latitude?.toFixed(2)},${r.longitude?.toFixed(2)}`).filter(Boolean)).size,
-      dateRange: records.length ? `${records.map((r) => r.startTime || r.dateTime).sort()[0]?.slice(0, 10)} → ${records.map((r) => r.startTime || r.dateTime).sort().at(-1)?.slice(0, 10)}` : "—",
+      dateRange: records.length
+        ? (() => {
+            const sortedDates = records.map((r) => r.startTime || r.dateTime).sort();
+            const first = sortedDates[0]?.slice(0, 10);
+            const last = sortedDates[sortedDates.length - 1]?.slice(0, 10);
+            return `${first} → ${last}`;
+          })()
+        : "—",
     };
   }, [records]);
 
@@ -752,7 +759,7 @@ function SimulationPanel({ records }: { records: TelecomRecord[] }) {
         {feed.map((f) => (
           <div key={f.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "4px 8px", borderRadius: 5, background: f.level !== "NONE" ? `${threatColor(f.level)}10` : "transparent", borderLeft: `3px solid ${threatColor(f.level)}` }}>
             <span style={{ fontSize: 10, color: theme.colors.textMuted, minWidth: 60 }}>{f.ts}</span>
-            <span style={{ fontSize: 11, color: theme.colors.text }}>{f.msg}</span>
+            <span style={{ fontSize: 11, color: theme.colors.textPrimary }}>{f.msg}</span>
             {f.level !== "NONE" && <ThreatBadge level={f.level} />}
           </div>
         ))}

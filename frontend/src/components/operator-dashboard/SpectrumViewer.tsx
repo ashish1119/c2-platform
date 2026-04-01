@@ -27,6 +27,11 @@ type AnalyzerTraces = {
   peakIndex: number;
 };
 
+type SystemTrace = {
+  key: string;
+  trace: AnalyzerTraces;
+};
+
 const CHART_HEIGHT_PX = 350;
 
 function clamp(value: number, min: number, max: number): number {
@@ -168,7 +173,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     maxHold: true,
     minHold: false,
   });
-  const [traces, setTraces] = useState<AnalyzerTraces | null>(null);
+  const [traces, setTraces] = useState<SystemTrace[] | null>(null);
 
   // const [wsBins, setWsBins] = useState<SmsSpectrumOccupancyBin[]>([]);
   const [wsBins, setWsBins] = useState<Record<string, SmsSpectrumOccupancyBin[]>>({});
@@ -212,7 +217,10 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
 
       const mapped = sorted.map((bin) => ({
         frequencyHz: bin.frequency_hz,
-        livePowerDbm: bin.max_power_dbm,
+        livePowerDbm:
+          typeof bin.max_power_dbm === "number"
+            ? Number(bin.max_power_dbm.toFixed(2))
+            : inferPowerFromDetections(bin.detection_count),
         detectionCount: bin.detection_count,
       }));
 
@@ -257,14 +265,11 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     const multiTraces = Object.entries(processedSystems).map(([key, bins]) => ({
       key,
       // trace: buildTraces(null, bins),
-      trace: buildTraces(
-        (traces as any[])?.find((t: any) => t.key === key)?.trace || null,
-        bins
-      ),
+      trace: buildTraces(traces?.find((t) => t.key === key)?.trace ?? null, bins),
     }));
 
-    setTraces(multiTraces as any);
-  }, [processedSystems, isHold]);
+    setTraces(multiTraces);
+  }, [processedSystems, isHold, traces]);
 
 
   useEffect(() => {
@@ -306,8 +311,8 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
             updated[index] = {
               ...updated[index],
               max_power_dbm: Math.max(
-                updated[index].max_power_dbm,
-                newBin.max_power_dbm
+                updated[index].max_power_dbm ?? -110,
+                newBin.max_power_dbm ?? -110
               ),
               detection_count: updated[index].detection_count + 1,
             };
@@ -339,11 +344,14 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
       if (!current) {
         return current;
       }
-      return {
-        ...current,
-        maxHoldDbm: [...current.liveDbm],
-        minHoldDbm: [...current.liveDbm],
-      };
+      return current.map((system) => ({
+        ...system,
+        trace: {
+          ...system.trace,
+          maxHoldDbm: [...system.trace.liveDbm],
+          minHoldDbm: [...system.trace.liveDbm],
+        },
+      }));
     });
   }, []);
 
@@ -372,7 +380,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
   const stats = useMemo(() => {
   if (!traces || traces.length === 0) return null;
 
-  const first = (traces as any[])[0]?.trace;
+  const first = traces[0]?.trace;
     if (!first || first.frequencyHz.length === 0) return null;
 
     const startHz = first.frequencyHz[0];
@@ -467,7 +475,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     // const stopHz = traces.frequencyHz[traces.frequencyHz.length - 1];
     // const frequencyRangeHz = Math.max(1, stopHz - startHz);
 
-    const first = (traces as any[])[0]?.trace;
+    const first = traces[0]?.trace;
     if (!first) return;
 
     const startHz = first.frequencyHz[0];
@@ -496,7 +504,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     //   }
     // }
 
-    (traces as any[]).forEach((sys, index) => {
+    traces.forEach((sys) => {
       const t = sys.trace;
 
           // const t = sys.trace;
@@ -585,7 +593,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     // const maxDetectionCount = traces.detectionCount.reduce((maxValue, value) => Math.max(maxValue, value), 1);
     let maxDetectionCount = 1;
 
-    (traces as any[]).forEach((sys) => {
+    traces.forEach((sys) => {
       const t = sys.trace;
       t.detectionCount.forEach((v: number) => {
         maxDetectionCount = Math.max(maxDetectionCount, v);
@@ -640,7 +648,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     // }
 
           
-    (traces as any[]).forEach((sys) => {
+    traces.forEach((sys) => {
       const t = sys.trace;
 
       for (let i = 0; i < t.detectionCount.length; i++) {
@@ -728,7 +736,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
     //   drawTrace(traces.minHoldDbm, "#57e38f", 1.4, true);
     // }
 
-    (traces as any[]).forEach((sys) => {
+    traces.forEach((sys) => {
       const t = sys.trace;
       const colorMap: Record<string, string> = {
         // "5507": "#e9ea3b",

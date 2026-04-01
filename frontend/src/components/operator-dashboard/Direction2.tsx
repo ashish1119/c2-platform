@@ -140,9 +140,9 @@ export default function DirectionFinderPanel({
       bearingDeg: d.doa_azimuth_deg,
       confidence: 1,
       positions: [
-        [d.latitude, d.longitude],
+        [d.latitude, d.longitude] as [number, number],
         destinationPoint(d.latitude, d.longitude, d.doa_azimuth_deg, 8000),
-      ],
+      ] as [number, number][],
     }));
   }, [latestBearingDetections]);
 

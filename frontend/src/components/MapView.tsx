@@ -1490,7 +1490,7 @@ export default function MapView({
     border: "1px solid rgba(56, 189, 248, 0.3)"
   }}>
     {/* Header Section */}
-    <div style={{ marginBottom: "10px", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", pb: "8px" }}>
+    <div style={{ marginBottom: "10px", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", paddingBottom: "8px" }}>
       <strong style={{ 
         color: "#38bdf8", 
         fontSize: "15px", 

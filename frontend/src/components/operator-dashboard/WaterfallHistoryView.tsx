@@ -240,10 +240,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../ui/Card";
 import { useTheme } from "../../context/ThemeContext";
-import type { SmsSpectrumOccupancyBin } from "../../api/operatorDashboard";
+import type { SmsDetectionRecord, SmsSpectrumOccupancyBin } from "../../api/operatorDashboard";
 import CanvasWaterfall, { type WaterfallBin } from "./CanvasWaterfall";
 
 type WaterfallHistoryViewProps = {
+  detections?: SmsDetectionRecord[];
+  spectrumBins?: SmsSpectrumOccupancyBin[];
   loading?: boolean;
 };
 
@@ -300,8 +302,8 @@ export default function WaterfallHistoryView({ loading = false }: WaterfallHisto
             updated[index] = {
               ...updated[index],
               max_power_dbm: Math.max(
-                updated[index].max_power_dbm,
-                newBin.max_power_dbm
+                updated[index].max_power_dbm ?? -110,
+                newBin.max_power_dbm ?? -110
               ),
               detection_count: updated[index].detection_count + 1,
             };
