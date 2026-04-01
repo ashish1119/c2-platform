@@ -103,6 +103,21 @@ async def list_permissions(db: AsyncSession):
 	return result.scalars().all()
 
 
+async def remove_permission_from_role(
+    role_id: int,
+    permission_id: int,
+    db: AsyncSession
+):
+    await db.execute(
+        delete(role_permissions).where(
+            role_permissions.c.role_id == role_id,
+            role_permissions.c.permission_id == permission_id
+        )
+    )
+
+    await db.commit()
+
+
 async def assign_permission_to_role(role_id: int, permission_id: int, db: AsyncSession):
 	await db.execute(
 		pg_insert(role_permissions)

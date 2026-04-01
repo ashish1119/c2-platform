@@ -12,6 +12,7 @@ from app.services.role_service import (
     add_role_inheritance,
     get_effective_permissions,
     grant_decodio_read_to_operator,
+    remove_permission_from_role
 )
 
 router = APIRouter(prefix="/roles", tags=["roles"])
@@ -61,3 +62,12 @@ async def grant_decodio_read_operator_workflow(
     claims: dict = Depends(require_admin_role),
 ):
     return await grant_decodio_read_to_operator(db, actor_user_id=claims.get("sub"))
+
+@router.delete("/{role_id}/permissions/{permission_id}")
+async def remove_permission(
+    role_id: int,
+    permission_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    await remove_permission_from_role(role_id, permission_id, db)
+    return {"status": "ok"}

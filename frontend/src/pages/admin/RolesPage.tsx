@@ -237,9 +237,8 @@
 // }
 
 
-
-  //by Pallavi
-  import { useEffect, useState } from "react";
+//by Pallavi
+import { useEffect, useState } from "react";
 import {
   createRole,
   deleteRole,
@@ -249,6 +248,7 @@ import {
 } from "../../api/roles";
 import { useTheme } from "../../context/ThemeContext";
 import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes } from "react-icons/fa";
+import PermissionMatrix from "../../components/roles/PermissionMatrix";
 
 export default function RolesPage() {
   const { theme } = useTheme();
@@ -260,6 +260,9 @@ export default function RolesPage() {
   const [editingName, setEditingName] = useState("");
   const [editingLevel, setEditingLevel] = useState(1);
   const [loading, setLoading] = useState(true);
+
+  // ✅ success message
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     loadRoles();
@@ -300,10 +303,15 @@ export default function RolesPage() {
   });
 
   // 🚀 Actions
+
   const handleCreate = async () => {
     if (!name.trim()) return;
 
     await createRole({ name: name.trim(), level });
+
+    setMessage(`Role "${name.trim()}" saved successfully ✅`);
+    setTimeout(() => setMessage(""), 3000);
+
     setName("");
     setLevel(1);
     loadRoles();
@@ -314,17 +322,43 @@ export default function RolesPage() {
       name: editingName,
       level: editingLevel,
     });
+
+    setMessage(`Role "${editingName}" updated successfully ✅`);
+    setTimeout(() => setMessage(""), 3000);
+
     setEditingRoleId(null);
     loadRoles();
   };
 
   const handleDelete = async (id: number) => {
+    const roleName = roles.find(r => r.id === id)?.name;
+
     await deleteRole(id);
+
+    setMessage(`Role "${roleName}" deleted successfully 🗑️`);
+    setTimeout(() => setMessage(""), 3000);
+
     loadRoles();
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+      {/* ✅ SUCCESS MESSAGE */}
+      {message && (
+        <div
+          style={{
+            padding: 10,
+            borderRadius: 8,
+            background: theme.colors.surfaceAlt,
+            border: `1px solid ${theme.colors.primary}`,
+            color: theme.colors.textPrimary,
+            fontSize: 13
+          }}
+        >
+          {message}
+        </div>
+      )}
 
       {/* 🔥 CREATE ROLE */}
       <div
@@ -491,6 +525,9 @@ export default function RolesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* 🔐 PERMISSION MATRIX */}
+      <PermissionMatrix roles={roles} />
     </div>
   );
 }
