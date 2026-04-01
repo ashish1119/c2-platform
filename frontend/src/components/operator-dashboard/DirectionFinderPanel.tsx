@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState , useEffect } from "react";
 import { CircleMarker, MapContainer, Polygon, Polyline, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import Card from "../ui/Card";
@@ -31,6 +31,9 @@ type BearingLine = {
 
 const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946];
 const SENSOR_COLORS = ["#ef4444", "#0ea5e9", "#22c55e", "#f59e0b", "#e11d48", "#8b5cf6", "#14b8a6"];
+
+// const [wsDetections, setWsDetections] = useState<Record<string, LatestBearingDetection>>({});
+
 
 function destinationPoint(
   latitude: number,
@@ -90,6 +93,7 @@ export default function DirectionFinderPanel({
   triangulations = [],
 }: DirectionFinderPanelProps) {
   const { theme } = useTheme();
+  const [wsDetections, setWsDetections] = useState<Record<string, LatestBearingDetection>>({});
 
   const [showSensors, setShowSensors] = useState(true);
   const [showBearings, setShowBearings] = useState(true);
@@ -97,8 +101,33 @@ export default function DirectionFinderPanel({
   const [showCentroid, setShowCentroid] = useState(true);
   const [showEllipse, setShowEllipse] = useState(true);
 
+  // const latestBearingDetections = useMemo(() => {
+  //   const latestBySensor = new Map<string, LatestBearingDetection>();
+  //   const sortedDetections = [...detections]
+  //     .filter(isBearingDetection)
+  //     .sort((left, right) => Date.parse(right.timestamp_utc) - Date.parse(left.timestamp_utc));
+
+  //   for (const detection of sortedDetections) {
+  //     const sensorId = resolveSensorId(detection);
+  //     if (!latestBySensor.has(sensorId)) {
+  //       latestBySensor.set(sensorId, detection);
+  //     }
+  //   }
+
+  //   return Array.from(latestBySensor.values());
+  // }, [detections]);
+
   const latestBearingDetections = useMemo(() => {
+    const wsValues = Object.values(wsDetections);
+
+    // If WS is active → use it
+    if (wsValues.length > 0) {
+      return wsValues;
+    }
+
+    // fallback to API
     const latestBySensor = new Map<string, LatestBearingDetection>();
+
     const sortedDetections = [...detections]
       .filter(isBearingDetection)
       .sort((left, right) => Date.parse(right.timestamp_utc) - Date.parse(left.timestamp_utc));
@@ -111,7 +140,9 @@ export default function DirectionFinderPanel({
     }
 
     return Array.from(latestBySensor.values());
-  }, [detections]);
+  }, [detections, wsDetections]);
+
+  console.log("DETECTIONS:", latestBearingDetections);
 
   const strongestLatestDetection = useMemo(() => {
     return [...latestBearingDetections].sort(
@@ -194,13 +225,88 @@ export default function DirectionFinderPanel({
     return map;
   }, [sensorRegistry]);
 
+  // const bearingLines = useMemo<BearingLine[]>(() => {
+  //   const allRays = activeTriangulations.flatMap((entry) => entry.rays ?? []);
+  //   if (allRays.length > 0) {
+  //     return allRays.map((ray, index) => ({
+  //       key: `ray-${ray.source_id}-${index}`,
+  //       sensorId: ray.source_id,
+  //       sensorLabel: sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ?? ray.source_id,
+  //       bearingDeg: ray.bearing_deg,
+  //       confidence: ray.confidence,
+  //       positions: [
+  //         [ray.source_latitude, ray.source_longitude],
+  //         [ray.end_latitude, ray.end_longitude],
+  //       ],
+  //     }));
+  //   }
+
+  //   if (triangulation?.rays && triangulation.rays.length > 0) {
+  //     return triangulation.rays.map((ray, index) => ({
+  //       key: `ray-${ray.source_id}-${index}`,
+  //       sensorId: ray.source_id,
+  //       sensorLabel: sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ?? ray.source_id,
+  //       bearingDeg: ray.bearing_deg,
+  //       confidence: ray.confidence,
+  //       positions: [
+  //         [ray.source_latitude, ray.source_longitude],
+  //         [ray.end_latitude, ray.end_longitude],
+  //       ],
+  //     }));
+  //   }
+
+  //   return latestBearingDetections.map((detection) => {
+  //     const sensorId = resolveSensorId(detection);
+  //     return {
+  //       key: detection.id,
+  //       sensorId,
+  //       sensorLabel: detection.source_node,
+  //       bearingDeg: detection.doa_azimuth_deg,
+  //       confidence: detection.confidence ?? 0.8,
+  //       positions: [
+  //         [detection.latitude, detection.longitude],
+  //         destinationPoint(detection.latitude, detection.longitude, detection.doa_azimuth_deg, 8_000),
+  //       ],
+  //     };
+  //   });
+  // }, [activeTriangulations, latestBearingDetections, triangulation, sensorRegistry]);
+
   const bearingLines = useMemo<BearingLine[]>(() => {
+
+    // ✅ PRIORITY 1: WebSocket data
+    if (latestBearingDetections.length > 0) {
+      return latestBearingDetections.map((detection) => {
+        const sensorId = resolveSensorId(detection);
+
+        return {
+          // key: detection.id,
+          // key: `${detection.id}-${detection.doa_azimuth_deg}`,
+          key: `${detection.id}-${detection.doa_azimuth_deg}-${Date.now()}`,
+          sensorId,
+          sensorLabel: detection.source_node,
+          bearingDeg: detection.doa_azimuth_deg,
+          confidence: detection.confidence ?? 0.9,
+          positions: [
+            [detection.latitude, detection.longitude],
+            destinationPoint(
+              detection.latitude,
+              detection.longitude,
+              detection.doa_azimuth_deg,
+              8000
+            //  50000
+            ),
+          ],
+        };
+      });
+    }
+
+    // ✅ fallback to triangulation (OLD behavior)
     const allRays = activeTriangulations.flatMap((entry) => entry.rays ?? []);
     if (allRays.length > 0) {
       return allRays.map((ray, index) => ({
         key: `ray-${ray.source_id}-${index}`,
         sensorId: ray.source_id,
-        sensorLabel: sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ?? ray.source_id,
+        sensorLabel: ray.source_id,
         bearingDeg: ray.bearing_deg,
         confidence: ray.confidence,
         positions: [
@@ -210,35 +316,9 @@ export default function DirectionFinderPanel({
       }));
     }
 
-    if (triangulation?.rays && triangulation.rays.length > 0) {
-      return triangulation.rays.map((ray, index) => ({
-        key: `ray-${ray.source_id}-${index}`,
-        sensorId: ray.source_id,
-        sensorLabel: sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ?? ray.source_id,
-        bearingDeg: ray.bearing_deg,
-        confidence: ray.confidence,
-        positions: [
-          [ray.source_latitude, ray.source_longitude],
-          [ray.end_latitude, ray.end_longitude],
-        ],
-      }));
-    }
+    return [];
+  }, [latestBearingDetections, activeTriangulations]);
 
-    return latestBearingDetections.map((detection) => {
-      const sensorId = resolveSensorId(detection);
-      return {
-        key: detection.id,
-        sensorId,
-        sensorLabel: detection.source_node,
-        bearingDeg: detection.doa_azimuth_deg,
-        confidence: detection.confidence ?? 0.8,
-        positions: [
-          [detection.latitude, detection.longitude],
-          destinationPoint(detection.latitude, detection.longitude, detection.doa_azimuth_deg, 8_000),
-        ],
-      };
-    });
-  }, [activeTriangulations, latestBearingDetections, triangulation, sensorRegistry]);
 
   const ellipsePolygons = useMemo(
     () =>
@@ -286,6 +366,43 @@ export default function DirectionFinderPanel({
     fontSize: 12,
     fontWeight: 600,
   });
+
+  useEffect(() => {
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${wsProtocol}//${window.location.hostname}:8000/ws/rf`);
+  
+
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      const rf = msg.data ? msg.data : msg;
+
+      if (!rf.freq || rf.DOA == null) return;
+
+      const detection: LatestBearingDetection = {
+        ...rf,
+        id: String(rf.id),
+        source_node: rf.system_id,
+        latitude: rf.lat,
+        longitude: rf.lon,
+        doa_azimuth_deg: rf.DOA,
+        power_dbm: rf.power,
+        timestamp_utc: rf.timestamp,
+      };
+
+      console.log("WS DATA:", rf);
+
+      setWsDetections((prev) => ({
+        ...prev,
+        [rf.system_id]: detection, // latest per system
+      }));
+    } catch (e) {
+      console.error("WS error", e);
+    }
+  };
+
+  return () => ws.close();
+}, []);
 
   return (
     <Card>
@@ -431,6 +548,7 @@ export default function DirectionFinderPanel({
 
           <div style={{ borderRadius: theme.radius.md, overflow: "hidden", border: `1px solid ${theme.colors.border}` }}>
             <MapContainer
+              // key={latestBearingDetections.map(d => d.id).join("-")}
               center={mapCenter}
               zoom={12}
               scrollWheelZoom={true}
@@ -462,21 +580,26 @@ export default function DirectionFinderPanel({
               })}
 
               {showBearings && bearingLines.map((line) => {
+                console.log("LINES:", bearingLines);
                 const color = sensorColorById.get(line.sensorId) ?? theme.colors.danger;
                 return (
                   <Polyline
                     key={line.key}
                     positions={line.positions}
                     pathOptions={{ color, weight: 3, dashArray: "9 6", opacity: 0.9 }}
+                    // pathOptions={{ color, weight: 5, opacity: 1 }}
                   >
                     <Popup>
                       <div>
                         <div style={{ fontWeight: 600 }}>{line.sensorLabel}</div>
                         <div>Bearing: {normalizeBearing(line.bearingDeg).toFixed(1)} deg</div>
                         <div>Confidence: {(line.confidence * 100).toFixed(1)}%</div>
+                        
                       </div>
+                      {/* console.log("LINES:", bearingLines); */}
                     </Popup>
                   </Polyline>
+                  
                 );
               })}
 
@@ -528,10 +651,11 @@ export default function DirectionFinderPanel({
                   pathOptions={{ color: theme.colors.success, weight: 2.5, dashArray: "11 7", fillOpacity: 0.16 }}
                 />
               ))}
-            </MapContainer>
+            </MapContainer >
           </div>
         </div>
       </div>
     </Card>
   );
 }
+

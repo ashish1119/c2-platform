@@ -392,7 +392,7 @@ def handle_client(conn, addr):
                         "snr": raw.get("snr", 0),
                         "lat": raw.get("lat", 0),
                         "lon": raw.get("lon", 0),
-                        "DOA": raw.get("DOA"),
+                        "DOA": raw.get("doa"),
                         "timestamp": datetime.utcnow().isoformat()
                     }
 
