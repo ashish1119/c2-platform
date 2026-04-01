@@ -643,10 +643,88 @@ export default function OperatorUnifiedDashboardPage() {
     };
   }, [canReadSms, simulationMode, refreshTelemetry]);
 
-  useEffect(() => {
-    if (!canReadSms || wsConnected || simulationMode) {
-      return;
+  // ✅ EXISTING WS (DO NOT TOUCH)
+// useEffect(() => {
+//   if (!canReadSms || simulationMode) {
+//     return;
+//   }
+
+//   const connectLiveSocket = () => {
+//     ...
+//   };
+
+//   connectLiveSocket();
+
+//   return () => {
+//     ...
+//   };
+// }, [canReadSms, simulationMode, refreshTelemetry]);
+
+
+// 🔥🔥 ADD YOUR NEW WEBSOCKET HERE 🔥🔥
+useEffect(() => {
+  const ws = new WebSocket("ws://localhost:8000/ws/rf");
+
+  ws.onopen = () => {
+    console.log("✅ RF WebSocket Connected");
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const lines = event.data.split("\n").filter(Boolean);
+      const parsed = lines.map((line: string) => JSON.parse(line));
+
+      setDetections((prev) => {
+        let updated = [...prev];
+
+        parsed.forEach((d: any) => {
+          const newDetection = {
+            id: d.id,
+            source_node: "DF Node",
+            frequency_hz: d.freq * 1_000_000,
+            power_dbm: d.power,
+            doa_azimuth_deg: d.doa,
+            timestamp_utc: d.timestamp,
+          };
+
+          const index = updated.findIndex((p) => p.id === d.id);
+
+          if (d.status === "OBSOLETE") {
+            updated = updated.filter((p) => p.id !== d.id);
+          } else if (index !== -1) {
+            updated[index] = newDetection;
+          } else {
+            updated.unshift(newDetection);
+          }
+        });
+
+        return updated.slice(0, 200);
+      });
+
+    } catch (err) {
+      console.error("❌ RF WS parse error:", err);
     }
+  };
+
+  ws.onerror = (err) => {
+    console.error("❌ RF WS error:", err);
+  };
+
+  ws.onclose = () => {
+    console.log("🔌 RF WS disconnected");
+  };
+
+  return () => {
+    ws.close();
+  };
+}, []);
+
+
+// ✅ EXISTING FALLBACK (leave as it is)
+useEffect(() => {
+  if (!canReadSms || wsConnected || simulationMode) {
+    return;
+  }
 
     const timer = window.setInterval(() => {
       void refreshTelemetry(true);
