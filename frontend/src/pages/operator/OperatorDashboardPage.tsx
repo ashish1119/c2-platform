@@ -739,14 +739,14 @@ export default function OperatorDashboardPage() {
               gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
             }}
           >
-            <RFUploader
+            {/* <RFUploader
               sourceNode={fileSourceNode}
               uploading={uploadingFile}
               disabled={!canWriteSms || simulationMode}
               lastUploadedFile={status.fileName ?? null}
               onSourceNodeChange={setFileSourceNode}
               onUpload={handleUpload}
-            />
+            /> */}
 
             <StreamInput
               streamUrl={streamUrl}

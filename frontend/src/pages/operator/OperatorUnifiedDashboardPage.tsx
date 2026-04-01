@@ -963,16 +963,16 @@ export default function OperatorUnifiedDashboardPage() {
                   gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
                 }}
               >
-                <RFUploader
+                {/* <RFUploader
                   sourceNode={fileSourceNode}
                   uploading={uploadingFile}
                   disabled={!canWriteSms || simulationMode}
                   lastUploadedFile={status.fileName ?? null}
                   onSourceNodeChange={setFileSourceNode}
                   onUpload={handleUpload}
-                />
+                /> */}
 
-                <StreamInput
+                {/* <StreamInput
                   streamUrl={streamUrl}
                   sourceNode={streamSourceNode}
                   active={streamActive}
@@ -984,7 +984,7 @@ export default function OperatorUnifiedDashboardPage() {
                   onDisconnect={handleDisconnectStream}
                 />
 
-                <StatusPanel status={{ ...status, streamActive }} />
+                <StatusPanel status={{ ...status, streamActive }} /> */}
               </div>
 
               {telemetryError && (
@@ -1035,14 +1035,14 @@ export default function OperatorUnifiedDashboardPage() {
                       gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
                     }}
                   >
-                    <RfGeolocationPanel
+                    {/* <RfGeolocationPanel
                       detections={detections}
                       alerts={alerts}
                       directionFinderAssets={dfAssets}
                       heatCells={heatCells}
                       triangulation={triangulation}
                       triangulations={triangulations}
-                    />
+                    /> */}
                     <DirectionFinderPanel
                       directionFinderAssets={dfAssets}
                       detections={detections}
