@@ -307,10 +307,12 @@ export default function DirectionFinderPanel({
 
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(240px, 280px) minmax(0, 1fr)",
-            gap: theme.spacing.md,
-            alignItems: "stretch",
+          display: "grid",
+    gridTemplateColumns: "minmax(240px, 280px) minmax(0, 1fr)",
+    gap: theme.spacing.md,
+    alignItems: "stretch",
+    height: "100%",        // ✅ ADD THIS
+    minHeight: 400, 
           }}
         >
           <div
@@ -429,12 +431,21 @@ export default function DirectionFinderPanel({
             </div>
           </div>
 
-          <div style={{ borderRadius: theme.radius.md, overflow: "hidden", border: `1px solid ${theme.colors.border}` }}>
-            <MapContainer
+<div
+  style={{
+    borderRadius: theme.radius.md,
+    overflow: "hidden",
+    border: `1px solid ${theme.colors.border}`,
+    height: "100%",     // ✅ IMPORTANT
+    display: "flex",    // ✅ IMPORTANT
+  }}
+>            <MapContainer
               center={mapCenter}
               zoom={12}
               scrollWheelZoom={true}
-              style={{ height: 320, width: "100%", background: theme.colors.surfaceAlt }}
+              style={{ height: "100%",        
+  width: "100%",
+  background: theme.colors.surfaceAlt,}}
             >
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
