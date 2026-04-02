@@ -38,7 +38,9 @@ from app.routers import (
     users_router,
 )
 from app.routers.websocket_router import router as websocket_router
-from app.services.tcp_server import start_tcp_server
+from app.services.tcp_server import  start_tcp_server
+
+from app.services import tcp_server
 
 
 app = FastAPI(title="C2 Platform")
@@ -125,6 +127,21 @@ async def startup_services() -> None:
 
     await initialize_runtime_services(app)
     threading.Thread(target=start_tcp_server, daemon=True).start()
+
+# @app.on_event("startup")
+# async def startup_services() -> None:
+#     manager.loop = asyncio.get_running_loop()
+
+#     async with engine.begin() as conn:
+#         await bootstrap_database(conn)
+
+#     await initialize_runtime_services(app)
+
+#     # 🔥 START DB WORKER (MANDATORY)
+#     asyncio.create_task(db_worker())
+
+#     # 🔥 START TCP SERVER
+#     threading.Thread(target=start_tcp_server, daemon=True).start()
 
 
 @app.on_event("shutdown")
