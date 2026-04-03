@@ -143,7 +143,7 @@ export default function LoginPage() {
     try {
       const user = await login(username, password);
       if (user.role === "ADMIN") navigate("/admin");
-      else if (user.role === "OPERATOR") navigate("/operator");
+      else if (user.role === "OPERATOR") navigate("/operator/dashboard");
     } catch (error) {
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 401) { setLoginError("Invalid credentials"); return; }

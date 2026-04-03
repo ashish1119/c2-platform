@@ -295,7 +295,7 @@ export default function TelecomIntelligenceDashboard() {
             <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-0.3px",
               background: "linear-gradient(90deg, #11C1CA, #3B82F6)",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              Cellular Interception
+              Cellular Interception Dashboard
             </h2>
           </div>
           <div style={{ fontSize: 11, color: theme.colors.textSecondary, marginTop: 3, letterSpacing: "0.5px" }}>

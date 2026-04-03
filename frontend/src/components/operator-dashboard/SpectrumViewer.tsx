@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Card from "../ui/Card";
 import { useTheme } from "../../context/ThemeContext";
+import { resolveBackendWsUrl } from "../../api/ws";
 import type { SmsSpectrumOccupancyBin } from "../../api/operatorDashboard";
 
 type SpectrumViewerProps = {
@@ -87,16 +88,6 @@ function resampleBins(points: ProcessedBin[], targetCount: number): ProcessedBin
 
   return resampled;
 }
-
-
-const resolveRfWsUrl = () => {
-  if (typeof window === "undefined") {
-    return "ws://localhost:8000/ws/rf";
-  }
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${wsProtocol}//${window.location.hostname}:8000/ws/rf`;
-};
-
 function isCompatibleTrace(previous: AnalyzerTraces, next: ProcessedBin[]): boolean {
   if (previous.frequencyHz.length !== next.length) {
     return false;
@@ -273,7 +264,7 @@ export default function SpectrumViewer({ bins, loading = false, lastUpdatedAt }:
 
 
   useEffect(() => {
-    const ws = new WebSocket(resolveRfWsUrl());
+    const ws = new WebSocket(resolveBackendWsUrl("/ws/rf"));
 
     ws.onopen = () => console.log("✅ WS connected");
 

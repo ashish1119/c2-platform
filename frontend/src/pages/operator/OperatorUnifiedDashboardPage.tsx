@@ -39,6 +39,7 @@ import {
   type SmsSpectrumOccupancyBin,
   type SmsStreamSession,
 } from "../../api/operatorDashboard";
+import { resolveBackendWsUrl } from "../../api/ws";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -665,7 +666,7 @@ export default function OperatorUnifiedDashboardPage() {
 
 // 🔥🔥 ADD YOUR NEW WEBSOCKET HERE 🔥🔥
 useEffect(() => {
-  const ws = new WebSocket("ws://localhost:8000/ws/rf");
+  const ws = new WebSocket(resolveBackendWsUrl("/ws/rf"));
 
   ws.onopen = () => {
     console.log("✅ RF WebSocket Connected");

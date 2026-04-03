@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { resolveBackendWsUrl } from "../../api/ws";
 
 // ── Types (unchanged from original) ──────────────────────────────────────────
 type RFDataType = {
@@ -133,7 +134,7 @@ export default function CESMTableTabs() {
 
   // ── WebSocket logic unchanged from original ───────────────────────────────
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/rf");
+    const ws = new WebSocket(resolveBackendWsUrl("/ws/rf"));
 
     ws.onopen = () => { setWsStatus("live"); };
 

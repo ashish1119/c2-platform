@@ -240,6 +240,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../ui/Card";
 import { useTheme } from "../../context/ThemeContext";
+import { resolveBackendWsUrl } from "../../api/ws";
 import type { SmsDetectionRecord, SmsSpectrumOccupancyBin } from "../../api/operatorDashboard";
 import CanvasWaterfall, { type WaterfallBin } from "./CanvasWaterfall";
 
@@ -247,14 +248,6 @@ type WaterfallHistoryViewProps = {
   detections?: SmsDetectionRecord[];
   spectrumBins?: SmsSpectrumOccupancyBin[];
   loading?: boolean;
-};
-
-const resolveRfWsUrl = () => {
-  if (typeof window === "undefined") {
-    return "ws://localhost:8000/ws/rf";
-  }
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${wsProtocol}//${window.location.hostname}:8000/ws/rf`;
 };
 
 export default function WaterfallHistoryView({ loading = false }: WaterfallHistoryViewProps) {
@@ -270,7 +263,7 @@ export default function WaterfallHistoryView({ loading = false }: WaterfallHisto
   // 📡 WEBSOCKET CONNECTION
   // -------------------------------
   useEffect(() => {
-    const ws = new WebSocket(resolveRfWsUrl());
+    const ws = new WebSocket(resolveBackendWsUrl("/ws/rf"));
 
     ws.onopen = () => console.log("✅ Waterfall WS connected");
 

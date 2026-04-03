@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 
 export default function ForbiddenPage() {
   const { user } = useAuth();
-  const fallbackPath = user?.role === "ADMIN" ? "/admin/command-center" : "/operator/command-center";
+  const fallbackPath = user?.role === "ADMIN" ? "/admin/command-center" : "/operator/dashboard";
 
   return (
     <main
@@ -43,7 +43,7 @@ export default function ForbiddenPage() {
               fontWeight: 600,
             }}
           >
-            Go to Command Center
+            Go to Dashboard
           </Link>
           <Link
             to="/login"

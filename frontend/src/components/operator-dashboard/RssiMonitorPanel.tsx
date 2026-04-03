@@ -531,6 +531,7 @@ import {
 } from "recharts";
 import Card from "../ui/Card";
 import { useTheme } from "../../context/ThemeContext";
+import { resolveBackendWsUrl } from "../../api/ws";
 import type { SmsDetectionRecord } from "../../api/operatorDashboard";
 
 type RssiMonitorPanelProps = {
@@ -546,7 +547,7 @@ export default function RssiMonitorPanel({ detections }: RssiMonitorPanelProps) 
   const [liveDetections, setLiveDetections] = useState<SmsDetectionRecord[]>([]);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/rf");
+    const ws = new WebSocket(resolveBackendWsUrl("/ws/rf"));
 
     ws.onopen = () => {
       console.log("✅ WebSocket connected");

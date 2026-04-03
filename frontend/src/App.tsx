@@ -7,7 +7,7 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminCommandCenterPage = lazy(() => import("./pages/admin/AdminCommandCenterPage"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AssetsManagementPage = lazy(() => import("./pages/admin/AssetsManagementPage"));
-const OperatorUnifiedDashboardPage = lazy(() => import("./pages/operator/OperatorUnifiedDashboardPage"));
+const OperatorDashboardPage = lazy(() => import("./pages/operator/OperatorDashboardPage"));
 const OperatorCommandCenterPage = lazy(() => import("./pages/operator/OperatorCommandCenterPage"));
 const OperatorMapPage = lazy(() => import("./pages/operator/OperatorMapPage"));
 const OperatorAlertsPage = lazy(() => import("./pages/operator/OperatorAlertsPage"));
@@ -33,7 +33,7 @@ function FallbackRedirect() {
     return <Navigate to="/login" replace />;
   }
 
-  return <Navigate to={user.role === "ADMIN" ? "/admin" : "/operator/command-center"} replace />;
+  return <Navigate to={user.role === "ADMIN" ? "/admin" : "/operator/dashboard"} replace />;
 }
 
 export default function App() {
@@ -102,7 +102,7 @@ export default function App() {
               path="/operator"
               element={
                 <ProtectedRoute requiredRole="OPERATOR">
-                  <Navigate to="/operator/command-center" replace />
+                  <Navigate to="/operator/dashboard" replace />
                 </ProtectedRoute>
               }
             />
@@ -120,7 +120,7 @@ export default function App() {
               path="/operator/dashboard"
               element={
                 <ProtectedRoute requiredRole="OPERATOR">
-                  <OperatorUnifiedDashboardPage />
+                  <OperatorDashboardPage />
                 </ProtectedRoute>
               }
             />
@@ -128,7 +128,7 @@ export default function App() {
               path="/operator/simulation"
               element={
                 <ProtectedRoute requiredRole="OPERATOR">
-                  <OperatorUnifiedDashboardPage />
+                  <OperatorDashboardPage />
                 </ProtectedRoute>
               }
             />
