@@ -310,12 +310,156 @@
 #             print("❌ Error processing message:", e)
 
 
+# import socket
+# import threading
+# import json
+# import asyncio
+# from datetime import datetime
+# import uuid
+
+# from app.database import AsyncSessionLocal
+# from app.schemas import RFSignalCreate
+# from app.services.rf_service import ingest_signal
+# from app.core.websocket_manager import manager
+
+# HOST = "0.0.0.0"
+# PORT = 5000
+
+
+# # ✅ helper to safely run async tasks from threads
+# def run_async_task(coro):
+#     try:
+#         loop = asyncio.get_event_loop()
+#     except RuntimeError:
+#         loop = asyncio.new_event_loop()
+#         asyncio.set_event_loop(loop)
+
+#     loop.create_task(coro)
+
+
+# def start_tcp_server():
+#     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+#     server.bind((HOST, PORT))
+#     server.listen(5)
+
+#     print(f"🚀 TCP Server listening on {HOST}:{PORT}")
+
+#     while True:
+#         conn, addr = server.accept()
+#         print(f"✅ Connected by {addr}")
+
+#         client_thread = threading.Thread(
+#             target=handle_client,
+#             args=(conn, addr),
+#             daemon=True
+#         )
+#         client_thread.start()
+
+
+# def handle_client(conn, addr):
+#     buffer = ""
+
+#     try:
+#         while True:
+#             data = conn.recv(1024)
+
+#             if not data:
+#                 print(f"❌ Client disconnected: {addr}")
+#                 break
+
+#             buffer += data.decode(errors="ignore")
+
+#             while "\n" in buffer:
+#                 line, buffer = buffer.split("\n", 1)
+
+#                 line = line.strip()
+#                 if not line:
+#                     continue
+
+#                 print("📩 Received:", line)
+
+#                 try:
+#                     raw = json.loads(line)
+
+#                     # ✅ ADD ID + TIMESTAMP (IMPORTANT FOR UI)
+#                     enriched_raw = {
+#                         "id": int(uuid.uuid4().int % 1000000),
+#                         "system_id": raw.get("system_id"),
+#                         "freq": raw.get("freq"),
+#                         "power": raw.get("power"),
+#                         "snr": raw.get("snr", 0),
+#                         "lat": raw.get("lat", 0),
+#                         "lon": raw.get("lon", 0),
+#                         "DOA": raw.get("doa"),
+#                         "timestamp": datetime.utcnow().isoformat()
+#                     }
+
+#                     # 🔥 MAP incoming → backend DB schema
+#                     mapped_data = {
+#                         "frequency": enriched_raw["freq"],
+#                         "power_level": enriched_raw["power"],
+#                         "confidence": min(enriched_raw["snr"] / 30, 1),
+#                         "latitude": enriched_raw["lat"],
+#                         "longitude": enriched_raw["lon"],
+#                         "doa_deg": enriched_raw["DOA"],
+#                         "detected_at": enriched_raw["timestamp"]
+#                     }
+
+#                     # ================================
+#                     # ✅ 1. SEND RAW → CESM TABLE
+#                     # ================================
+#                     manager.send_from_thread(enriched_raw)
+
+#                     # ================================
+#                     # ✅ 2. SEND SMS FORMAT → DASHBOARD
+#                     # ================================
+#                     manager.send_from_thread({
+#                         "type": "sms_ingest",
+#                         "source_node": "tcp_node_01",
+#                         "accepted": 1,
+#                         "rejected": 0,
+#                         "data": enriched_raw
+#                     })
+
+#                     # ================================
+#                     # ✅ 3. SAVE TO DATABASE (ASYNC)
+#                     # ================================
+#                     run_async_task(process_message_async(mapped_data))
+
+#                 except json.JSONDecodeError:
+#                     print("❌ Invalid JSON:", line)
+
+#                 except Exception as e:
+#                     print("❌ Error:", e)
+
+#     except Exception as e:
+#         print(f"⚠️ Error with {addr}: {e}")
+
+#     finally:
+#         conn.close()
+
+
+# async def process_message_async(data_dict: dict):
+#     async with AsyncSessionLocal() as db:
+#         try:
+#             rf_data = RFSignalCreate(**data_dict)
+#             await ingest_signal(rf_data, db)
+#             print("✅ Saved")
+
+#         except Exception as e:
+#             print("❌ Error processing message:", e)
+
+
+
 import socket
 import threading
 import json
 import asyncio
 from datetime import datetime
 import uuid
+from zoneinfo import ZoneInfo   # ✅ ADD THIS
 
 from app.database import AsyncSessionLocal
 from app.schemas import RFSignalCreate
@@ -383,7 +527,9 @@ def handle_client(conn, addr):
                 try:
                     raw = json.loads(line)
 
-                    # ✅ ADD ID + TIMESTAMP (IMPORTANT FOR UI)
+                    # ✅ IST TIME
+                    ist_time = datetime.now(ZoneInfo("Asia/Kolkata")).isoformat()
+
                     enriched_raw = {
                         "id": int(uuid.uuid4().int % 1000000),
                         "system_id": raw.get("system_id"),
@@ -393,8 +539,11 @@ def handle_client(conn, addr):
                         "lat": raw.get("lat", 0),
                         "lon": raw.get("lon", 0),
                         "DOA": raw.get("doa"),
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": ist_time   # ✅ IST applied
                     }
+
+                    # 🔥 UNIQUE SOURCE PER SIMULATOR
+                    source_node = f"DF_{enriched_raw['system_id']}"
 
                     # 🔥 MAP incoming → backend DB schema
                     mapped_data = {
@@ -404,23 +553,39 @@ def handle_client(conn, addr):
                         "latitude": enriched_raw["lat"],
                         "longitude": enriched_raw["lon"],
                         "doa_deg": enriched_raw["DOA"],
-                        "detected_at": enriched_raw["timestamp"]
+                        "detected_at": ist_time   # ✅ IST applied
                     }
 
                     # ================================
-                    # ✅ 1. SEND RAW → CESM TABLE
+                    # ✅ 1. SEND CLEAN DATA → WEBSOCKET
                     # ================================
-                    manager.send_from_thread(enriched_raw)
+                    manager.send_from_thread({
+                        "id": enriched_raw["id"],
+                        "source_node": source_node,
+                        "frequency_hz": enriched_raw["freq"],
+                        "power_dbm": enriched_raw["power"],
+                        "latitude": enriched_raw["lat"],
+                        "longitude": enriched_raw["lon"],
+                        "timestamp": ist_time,   # ✅ IST
+                    })
 
                     # ================================
                     # ✅ 2. SEND SMS FORMAT → DASHBOARD
                     # ================================
                     manager.send_from_thread({
                         "type": "sms_ingest",
-                        "source_node": "tcp_node_01",
+                        "source_node": source_node,
                         "accepted": 1,
                         "rejected": 0,
-                        "data": enriched_raw
+                        "data": {
+                            "id": enriched_raw["id"],
+                            "source_node": source_node,
+                            "frequency_hz": enriched_raw["freq"],
+                            "power_dbm": enriched_raw["power"],
+                            "latitude": enriched_raw["lat"],
+                            "longitude": enriched_raw["lon"],
+                            "timestamp": ist_time,   # ✅ IST
+                        }
                     })
 
                     # ================================
