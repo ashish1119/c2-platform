@@ -56,40 +56,66 @@ function buildCallMapFromRecords(
   records: TelecomRecord[],
   msisdn: string,
 ): CallMapResponse | null {
-  const filtered = records.filter(
-    (r) => r.msisdn === msisdn || r.msisdn.includes(msisdn)
-  );
+  const trimmed = msisdn.trim();
+  if (!trimmed) return null;
+
+  // Match records where this MSISDN is the CALLER or the RECEIVER
+  // This is critical for the map to work after node-expansion changes the center
+  const asCallerRecords = records.filter((r) => {
+    const caller = r.msisdn || r.originator || "";
+    return caller === trimmed || caller.includes(trimmed);
+  });
+
+  const asReceiverRecords = records.filter((r) => {
+    const recv = r.recipient || r.target || r.smsReceiver || "";
+    return recv === trimmed;
+  });
+
+  // Deduplicate
+  const seen = new Set<string>();
+  const filtered: TelecomRecord[] = [];
+  for (const r of [...asCallerRecords, ...asReceiverRecords]) {
+    if (!seen.has(r.id)) { seen.add(r.id); filtered.push(r); }
+  }
+
   if (!filtered.length) return null;
 
-  const callerLat = filtered.reduce((s, r) => s + r.latitude, 0) / filtered.length;
-  const callerLng = filtered.reduce((s, r) => s + r.longitude, 0) / filtered.length;
+  // Caller location: average of all records where this MSISDN is the caller
+  // Fall back to all records if no caller records exist
+  const locSource = asCallerRecords.length ? asCallerRecords : filtered;
+  const callerLat = locSource.reduce((s, r) => s + (r.latitude || 0), 0) / locSource.length;
+  const callerLng = locSource.reduce((s, r) => s + (r.longitude || 0), 0) / locSource.length;
 
+  const refRecord = asCallerRecords[0] ?? filtered[0];
   const caller: CallerInfo = {
-    msisdn,
-    imsi: filtered[0].imsi || null,
-    imei: filtered[0].imei || null,
-    operator: filtered[0].operator || null,
-    network: filtered[0].network || null,
+    msisdn: trimmed,
+    imsi: refRecord.imsi || null,
+    imei: refRecord.imei || null,
+    operator: refRecord.operator || null,
+    network: refRecord.network || null,
     lat: callerLat,
     lng: callerLng,
     total_calls: filtered.length,
     total_duration_sec: filtered.reduce((s, r) => s + (r.duration || 0), 0),
   };
 
-  // Aggregate receivers
+  // Aggregate receivers from BOTH directions:
+  //   - When msisdn is caller  → receivers are target/recipient
+  //   - When msisdn is receiver → the "other side" (caller) becomes a receiver node
   const recvMap = new Map<string, {
     lat: number; lng: number; city: string; operator: string;
     callCount: number; durSum: number; lastTs: string; types: Set<string>;
   }>();
 
-  filtered.forEach((r) => {
-    const tgt = r.recipient || r.target;
-    if (!tgt) return;
-    // Receiver location: prefer receiverLatitude/Longitude, then gpsLatitude, then offset
-    const rLat = r.receiverLatitude ?? r.gpsLatitude ?? (r.latitude + 0.03 + (tgt.charCodeAt(tgt.length - 1) % 10) * 0.006);
-    const rLng = r.receiverLongitude ?? r.gpsLongitude ?? (r.longitude + 0.03 + (tgt.charCodeAt(0) % 10) * 0.006);
+  const addReceiver = (tgt: string, rLat: number, rLng: number, r: TelecomRecord) => {
+    if (!tgt || tgt === trimmed) return;
     if (!recvMap.has(tgt)) {
-      recvMap.set(tgt, { lat: rLat, lng: rLng, city: r.gpsCity || r.place || "", operator: r.operator || "", callCount: 0, durSum: 0, lastTs: "", types: new Set() });
+      recvMap.set(tgt, {
+        lat: rLat, lng: rLng,
+        city: r.gpsCity || r.place || "",
+        operator: r.operator || "",
+        callCount: 0, durSum: 0, lastTs: "", types: new Set(),
+      });
     }
     const rv = recvMap.get(tgt)!;
     rv.callCount++;
@@ -97,7 +123,44 @@ function buildCallMapFromRecords(
     const ts = r.startTime || r.dateTime || "";
     if (ts > rv.lastTs) rv.lastTs = ts;
     if (r.callType) rv.types.add(r.callType);
-  });
+  };
+
+  // Records where this MSISDN is the caller → receivers are the targets
+  for (const r of asCallerRecords) {
+    const tgt = r.recipient || r.target || r.smsReceiver || "";
+    if (!tgt) continue;
+
+    // Receiver location priority:
+    // 1. Explicit receiverLatitude/Longitude fields
+    // 2. GPS fields from the record
+    // 3. Deterministic offset based on target string hash (spreads receivers visually)
+    let rLat: number, rLng: number;
+    if (r.receiverLatitude && r.receiverLongitude) {
+      rLat = r.receiverLatitude;
+      rLng = r.receiverLongitude;
+    } else if (r.gpsLatitude && r.gpsLongitude) {
+      rLat = r.gpsLatitude;
+      rLng = r.gpsLongitude;
+    } else {
+      // Deterministic spread: hash the target string to get a unique offset
+      const hash = [...tgt].reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xffff, 0);
+      const angle = (hash / 0xffff) * Math.PI * 2;
+      const dist = 0.04 + (hash % 100) * 0.001; // 0.04–0.14 degrees
+      rLat = r.latitude + dist * Math.cos(angle);
+      rLng = r.longitude + dist * Math.sin(angle);
+    }
+    addReceiver(tgt, rLat, rLng, r);
+  }
+
+  // Records where this MSISDN is the receiver → the callers become receiver nodes
+  for (const r of asReceiverRecords) {
+    const callerMsisdn = r.msisdn || r.originator || "";
+    if (!callerMsisdn || callerMsisdn === trimmed) continue;
+    // Use the record's lat/lng as the "other side" location
+    addReceiver(callerMsisdn, r.latitude, r.longitude, r);
+  }
+
+  if (!recvMap.size) return null;
 
   const maxCalls = Math.max(1, ...[...recvMap.values()].map((v) => v.callCount));
   const mostFreqEntry = [...recvMap.entries()].sort((a, b) => b[1].callCount - a[1].callCount)[0];
@@ -113,7 +176,7 @@ function buildCallMapFromRecords(
       is_most_frequent: tgt === mostFreqEntry?.[0],
     });
     connections.push({
-      from_msisdn: msisdn, to_msisdn: tgt,
+      from_msisdn: trimmed, to_msisdn: tgt,
       lat1: callerLat, lng1: callerLng, lat2: rv.lat, lng2: rv.lng,
       count: rv.callCount, total_duration_sec: rv.durSum,
       weight: rv.callCount / maxCalls,
@@ -290,7 +353,9 @@ export default function CallerReceiverMap({
     [records, msisdnFilter]
   );
 
-  const data: CallMapResponse | null = callMapData ?? clientData;
+  // Use backend data if it has actual connections; otherwise fall back to client-side
+  const data: CallMapResponse | null =
+    (callMapData && callMapData.connections.length > 0) ? callMapData : clientData;
 
   const tileUrl = isDark
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

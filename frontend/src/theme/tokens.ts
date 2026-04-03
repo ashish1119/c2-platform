@@ -15,27 +15,15 @@ export const radius = {
 };
 
 export const shadows = {
-  sm: "0 1px 2px rgba(0,0,0,0.05)",
-  md: "0 4px 12px rgba(0,0,0,0.08)",
-  lg: "0 10px 30px rgba(0,0,0,0.12)",
+  sm: "0 1px 3px rgba(0,0,0,0.08)",
+  md: "0 4px 16px rgba(0,0,0,0.12)",
+  lg: "0 10px 32px rgba(0,0,0,0.18)",
 };
 
 export const typography = {
-  fontFamily: `"Inter", sans-serif`,
-  h1: {
-    fontSize: "32px",
-    fontWeight: 700,
-  },
-  h2: {
-    fontSize: "24px",
-    fontWeight: 600,
-  },
-  h3: {
-    fontSize: "18px",
-    fontWeight: 600,
-  },
-  body: {
-    fontSize: "14px",
-    fontWeight: 400,
-  },
+  fontFamily: `"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`,
+  h1: { fontSize: "32px", fontWeight: 700 },
+  h2: { fontSize: "24px", fontWeight: 600 },
+  h3: { fontSize: "18px", fontWeight: 600 },
+  body: { fontSize: "14px", fontWeight: 400 },
 };

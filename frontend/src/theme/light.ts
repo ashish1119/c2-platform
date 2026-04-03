@@ -2,22 +2,22 @@ export const lightTheme = {
   mode: "light",
 
   colors: {
-    background: "#F8FAFC",
+    background: "#F0F4FA",
     surface: "#FFFFFF",
-    surfaceAlt: "#F1F5F9",
+    surfaceAlt: "#EBF0F8",
 
-    border: "#E2E8F0",
+    border: "#D1DCF0",
 
-    textPrimary: "#0F172A",
-    textSecondary: "#475569",
-    textMuted: "#94A3B8",
+    textPrimary: "#0A1628",
+    textSecondary: "#3D5470",
+    textMuted: "#8BA3C0",
 
-    primary: "#2563EB",
-    primaryHover: "#1D4ED8",
+    primary: "#0070F3",
+    primaryHover: "#005CC5",
 
     success: "#16A34A",
-    warning: "#F59E0B",
+    warning: "#D97706",
     danger: "#DC2626",
-    info: "#0EA5E9",
+    info: "#0284C7",
   },
 };

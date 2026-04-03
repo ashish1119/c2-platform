@@ -376,7 +376,7 @@ export default function Topbar({}: TopbarProps) {
     if (pathname === "/reports") return "Reporting Center";
     if (pathname === "/crfs/live") return "CRFS Live";
     if (pathname === "/jammer/control") return "Jammer Control";
-    if (pathname === "/telecom/intelligence") return "Telecom Intelligence";
+    if (pathname === "/telecom/intelligence") return "Cellular Interception";
     return "";
   })();
 

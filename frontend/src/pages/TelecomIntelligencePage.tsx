@@ -5,7 +5,7 @@ import TelecomIntelligenceDashboard from "../features/telecom-intelligence/compo
 export default function TelecomIntelligencePage() {
   return (
     <AppLayout>
-      <PageContainer title="Telecom Intelligence">
+      <PageContainer title="Cellular Interception">
         <TelecomIntelligenceDashboard />
       </PageContainer>
     </AppLayout>

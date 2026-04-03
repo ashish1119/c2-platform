@@ -252,7 +252,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           navItem("/crfs/live", "CRFS Live", Radio)}
 
         {hasPermission("crfs:read") &&
-          navItem("/telecom/intelligence", "Telecom Intelligence", Signal)}
+          navItem("/telecom/intelligence", "Cellular Interception", Signal)}
 
         {hasPermission("jammer:write") &&
           navItem("/jammer/control", "Jammer Control", Zap)}

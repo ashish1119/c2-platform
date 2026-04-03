@@ -32,57 +32,81 @@ export function buildGraphFromRecords(
   records: TelecomRecord[],
   msisdn: string,
 ): GraphData {
-  // Normalise caller field
-  const callerRecords = records.filter((r) => {
+  // Match records where this MSISDN is the CALLER or the RECEIVER
+  // This ensures expanding a contact node shows its full network
+  const asCallerRecords = records.filter((r) => {
     const caller = r.msisdn || r.originator || "";
     return caller === msisdn || caller.includes(msisdn);
   });
 
-  if (!callerRecords.length) {
+  const asReceiverRecords = records.filter((r) => {
+    const receiver = r.recipient || r.target || r.smsReceiver || "";
+    return receiver === msisdn;
+  });
+
+  // Merge both sets, deduplicate by record id
+  const seen = new Set<string>();
+  const allRecords: TelecomRecord[] = [];
+  for (const r of [...asCallerRecords, ...asReceiverRecords]) {
+    if (!seen.has(r.id)) { seen.add(r.id); allRecords.push(r); }
+  }
+
+  if (!allRecords.length) {
     return { nodes: [], links: [], center_msisdn: msisdn, total_records: 0, central_node_id: null };
   }
 
+  // Use first available record for centre node metadata
+  const refRecord = asCallerRecords[0] ?? asReceiverRecords[0];
+
   // Centre node
-  const fakeCount = callerRecords.filter((r) => r.fake).length;
-  const silentCount = callerRecords.filter((r) => r.silentCallType !== "None").length;
+  const fakeCount   = allRecords.filter((r) => r.fake).length;
+  const silentCount = allRecords.filter((r) => r.silentCallType !== "None").length;
   const centre: GraphNode = {
     id: msisdn, label: msisdn, type: "main",
-    total_calls: callerRecords.length,
-    total_duration: callerRecords.reduce((s, r) => s + (r.duration || 0), 0),
-    operator: callerRecords[0].operator || null,
-    network: callerRecords[0].network || null,
-    device: callerRecords[0].deviceModel || null,
-    location: callerRecords[0].gpsCity || callerRecords[0].place || null,
-    imsi: callerRecords[0].imsi || null,
-    imei: callerRecords[0].imei || null,
+    total_calls: allRecords.length,
+    total_duration: allRecords.reduce((s, r) => s + (r.duration || 0), 0),
+    operator: refRecord.operator || null,
+    network:  refRecord.network  || null,
+    device:   refRecord.deviceModel || null,
+    location: refRecord.gpsCity || refRecord.place || null,
+    imsi: refRecord.imsi || null,
+    imei: refRecord.imei || null,
     suspicious: fakeCount > 0 || silentCount > 0,
     fake_count: fakeCount,
     silent_count: silentCount,
   };
 
-  // Aggregate contacts — normalise receiver field
+  // Aggregate contacts from BOTH directions:
+  //   - When msisdn is caller  → contacts are the receivers
+  //   - When msisdn is receiver → contacts are the callers
   const contactMap = new Map<string, {
     callCount: number; durSum: number; fakeCount: number; silentCount: number;
     callTypes: Set<string>; operator: string; network: string; location: string;
   }>();
 
-  for (const r of callerRecords) {
-    const receiver = r.recipient || r.target || r.smsReceiver || "";
-    if (!receiver) continue;
-    if (!contactMap.has(receiver)) {
-      contactMap.set(receiver, {
+  const addContact = (contactId: string, r: TelecomRecord) => {
+    if (!contactId || contactId === msisdn) return;
+    if (!contactMap.has(contactId)) {
+      contactMap.set(contactId, {
         callCount: 0, durSum: 0, fakeCount: 0, silentCount: 0,
         callTypes: new Set(),
         operator: r.operator || "", network: r.network || "",
         location: r.gpsCity || r.place || "",
       });
     }
-    const c = contactMap.get(receiver)!;
+    const c = contactMap.get(contactId)!;
     c.callCount++;
     c.durSum += r.duration || 0;
     if (r.fake) c.fakeCount++;
     if (r.silentCallType !== "None") c.silentCount++;
     if (r.callType) c.callTypes.add(r.callType);
+  };
+
+  for (const r of asCallerRecords) {
+    addContact(r.recipient || r.target || r.smsReceiver || "", r);
+  }
+  for (const r of asReceiverRecords) {
+    addContact(r.msisdn || r.originator || "", r);
   }
 
   const maxCalls = Math.max(1, ...[...contactMap.values()].map((v) => v.callCount));
@@ -113,7 +137,7 @@ export function buildGraphFromRecords(
     });
   }
 
-  return { nodes, links, center_msisdn: msisdn, total_records: callerRecords.length, central_node_id: sorted[0]?.[0] ?? null };
+  return { nodes, links, center_msisdn: msisdn, total_records: allRecords.length, central_node_id: sorted[0]?.[0] ?? null };
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────

@@ -406,10 +406,13 @@ export default function TelecomChartsPanel({
         />
         <div style={{ height: 12 }} />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
-          <ChartCard title="DURATION TREND" subtitle="Call duration in minutes over time"
+          <ChartCard title="DURATION TREND" subtitle="Total call duration per time bucket (aggregated)"
             icon={<TrendingUp size={12} />} accent="#F59E0B">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={durationTrend.slice(-50)} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <LineChart
+                data={durationTrend}
+                margin={{ top: 4, right: 8, left: -20, bottom: durationTrend.length > 20 ? 28 : 4 }}
+              >
                 <defs>
                   <linearGradient id="durGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#11C1CA" stopOpacity={0.2} />
@@ -417,22 +420,44 @@ export default function TelecomChartsPanel({
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridLine} />
-                <XAxis dataKey="time" tick={{ ...axisStyle, fontSize: 9 }} interval="preserveStartEnd" />
+                <XAxis
+                  dataKey="time"
+                  tick={{
+                    ...axisStyle,
+                    fontSize: 9,
+                    // rotate labels when there are many buckets to avoid overlap
+                    ...(durationTrend.length > 20 ? { angle: -45, textAnchor: "end" } : {}),
+                  }}
+                  interval={durationTrend.length > 40 ? Math.floor(durationTrend.length / 20) : "preserveStartEnd"}
+                />
                 <YAxis tick={axisStyle} unit="m" />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip
+                  content={<CustomTooltip />}
+                  formatter={(value: any) => [`${value}m`, "Total Duration"]}
+                />
                 {avgDuration > 0 && (
                   <ReferenceLine y={avgDuration} stroke="#F59E0B" strokeDasharray="4 4"
                     label={{ value: `avg ${avgDuration}m`, fill: "#F59E0B", fontSize: 10 }} />
                 )}
-                <Line type="monotone" dataKey="duration" name="Duration (min)"
-                  stroke="#11C1CA" strokeWidth={2}
+                <Line
+                  type="monotone"
+                  dataKey="duration"
+                  name="Duration (min)"
+                  stroke="#11C1CA"
+                  strokeWidth={2}
+                  connectNulls
                   dot={(props: any) => {
                     const { cx, cy, payload } = props;
+                    // Only render dots when there are few points — skip for dense data
+                    if (durationTrend.length > 30) return <g key={`dot-${cx}-${cy}`} />;
                     return (
-                      <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy}
+                      <circle
+                        key={`dot-${cx}-${cy}`}
+                        cx={cx} cy={cy}
                         r={payload.suspicious ? 5 : 3}
                         fill={payload.suspicious ? "#EF4444" : "#11C1CA"}
-                        stroke="none" />
+                        stroke="none"
+                      />
                     );
                   }}
                   activeDot={{ r: 6, fill: "#11C1CA" }}

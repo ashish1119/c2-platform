@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { useTheme } from "../../../context/ThemeContext";
 import type { ExtendedKPIs, InsightItem } from "../state/useTelecomAnalytics";
-import { TrendingUp, Wifi, Shield, Clock, MapPin, Moon, Brain, Phone, Activity } from "lucide-react";
+import { TrendingUp, Wifi, Shield, Clock, MapPin, Moon, Brain, Phone, Activity, ChevronDown, ChevronUp } from "lucide-react";
+
+const MOVEMENT_BATCH = 6;
 
 function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -151,8 +153,28 @@ export default function TelecomAIInsights({ insights, extKPIs, totalRecords }: P
   const { theme } = useTheme();
   const isDark = theme.mode === "dark";
 
+  // ── Split insights: movement vs everything else ───────────────────────────
+  const movementItems = useMemo(
+    () => insights.filter((i) => i.id.startsWith("move-")),
+    [insights]
+  );
+  const otherItems = useMemo(
+    () => insights.filter((i) => !i.id.startsWith("move-")),
+    [insights]
+  );
+
+  const [visibleCount, setVisibleCount] = useState(MOVEMENT_BATCH);
+
+  const visibleMovement = useMemo(
+    () => movementItems.slice(0, visibleCount),
+    [movementItems, visibleCount]
+  );
+
+  const hasMore = visibleCount < movementItems.length;
+  const isExpanded = visibleCount > MOVEMENT_BATCH;
+
   const criticalCount = insights.filter((i) => i.level === "critical").length;
-  const warningCount = insights.filter((i) => i.level === "warning").length;
+  const warningCount  = insights.filter((i) => i.level === "warning").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -221,16 +243,107 @@ export default function TelecomAIInsights({ insights, extKPIs, totalRecords }: P
         <ExtKPICard icon={<Phone size={16} />}      label="Most Contacted"     value={extKPIs.mostContactedNumber !== "—" ? `${extKPIs.mostContactedNumber.slice(-8)} (${extKPIs.mostContactedCount})` : "—"} accent="#EC4899" />
       </div>
 
-      {/* ── Insight cards ── */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-        gap: 8,
-      }}>
-        {insights.map((item) => (
-          <InsightCard key={item.id} item={item} />
-        ))}
-      </div>
+      {/* ── Non-movement insight cards (always fully visible) ── */}
+      {otherItems.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          gap: 8,
+        }}>
+          {otherItems.map((item) => (
+            <InsightCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+
+      {/* ── Device Movement Detected — paginated ── */}
+      {movementItems.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+          {/* Sub-header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 3, height: 16, background: "linear-gradient(to bottom, #F59E0B, #F97316)", borderRadius: 2 }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: theme.colors.textSecondary, letterSpacing: "0.5px" }}>
+              DEVICE MOVEMENT DETECTED
+            </span>
+            <span style={{
+              fontSize: 10, fontWeight: 700,
+              color: "#F59E0B",
+              background: "rgba(245,158,11,0.12)",
+              border: "1px solid rgba(245,158,11,0.3)",
+              borderRadius: 10, padding: "1px 8px",
+            }}>
+              {visibleMovement.length} / {movementItems.length}
+            </span>
+          </div>
+
+          {/* Cards grid */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: 8,
+          }}>
+            {visibleMovement.map((item) => (
+              <InsightCard key={item.id} item={item} />
+            ))}
+          </div>
+
+          {/* View More / Show Less button */}
+          {movementItems.length > MOVEMENT_BATCH && (
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 4 }}>
+              {hasMore ? (
+                <button
+                  onClick={() => setVisibleCount((prev) => prev + MOVEMENT_BATCH)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "8px 20px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(245,158,11,0.35)",
+                    background: "rgba(245,158,11,0.08)",
+                    color: "#F59E0B",
+                    fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.16)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 0 12px rgba(245,158,11,0.2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(245,158,11,0.08)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "none";
+                  }}
+                >
+                  <ChevronDown size={14} />
+                  View More ({Math.min(MOVEMENT_BATCH, movementItems.length - visibleCount)} more)
+                </button>
+              ) : (
+                <button
+                  onClick={() => setVisibleCount(MOVEMENT_BATCH)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "8px 20px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(100,116,139,0.35)",
+                    background: "rgba(100,116,139,0.08)",
+                    color: theme.colors.textSecondary,
+                    fontSize: 12, fontWeight: 700, cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(100,116,139,0.14)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(100,116,139,0.08)";
+                  }}
+                >
+                  <ChevronUp size={14} />
+                  Show Less
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
