@@ -744,7 +744,7 @@ export default function RssiMonitorPanel({ detections }: RssiMonitorPanelProps) 
         {/* Footer */}
         {chartModel.rows.length > 0 && (
           <div style={{ color: theme.colors.textSecondary, fontSize: theme.typography.body.fontSize }}>
-            Distance buckets are estimated from telemetry sequence because GPS coordinates are unavailable.
+            Distance buckets are estimated from telemetry sequence because GPS coordinates are una
           </div>
         )}
 
