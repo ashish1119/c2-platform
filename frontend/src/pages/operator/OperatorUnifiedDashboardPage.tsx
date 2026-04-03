@@ -1149,12 +1149,12 @@ useEffect(() => {
     gridTemplateColumns: "1fr",
   }}
 >
-  <Card>
+  {/* <Card>
     <h3 style={{ marginTop: 0 }}>DF Monitoring Console</h3>
     <div style={{ height: "500px" }}>
       <DFMonitoringConsole />
     </div>
-  </Card>
+  </Card> */}
 </div>
 
                   <Card>

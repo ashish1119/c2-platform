@@ -1,5 +1,12 @@
 import { Fragment, useMemo, useState } from "react";
-import { CircleMarker, MapContainer, Polygon, Polyline, Popup, TileLayer } from "react-leaflet";
+import {
+  CircleMarker,
+  MapContainer,
+  Polygon,
+  Polyline,
+  Popup,
+  TileLayer,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import Card from "../ui/Card";
 import { useTheme } from "../../context/ThemeContext";
@@ -29,14 +36,23 @@ type BearingLine = {
   positions: [number, number][];
 };
 
+
 const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946];
-const SENSOR_COLORS = ["#ef4444", "#0ea5e9", "#22c55e", "#f59e0b", "#e11d48", "#8b5cf6", "#14b8a6"];
+const SENSOR_COLORS = [
+  "#ef4444",
+  "#0ea5e9",
+  "#22c55e",
+  "#f59e0b",
+  "#e11d48",
+  "#8b5cf6",
+  "#14b8a6",
+];
 
 function destinationPoint(
   latitude: number,
   longitude: number,
   bearingDeg: number,
-  distanceMeters: number
+  distanceMeters: number,
 ): [number, number] {
   const earthRadiusMeters = 6_371_000;
   const bearingRad = (bearingDeg * Math.PI) / 180;
@@ -46,14 +62,14 @@ function destinationPoint(
 
   const nextLat = Math.asin(
     Math.sin(latRad) * Math.cos(angularDistance) +
-      Math.cos(latRad) * Math.sin(angularDistance) * Math.cos(bearingRad)
+      Math.cos(latRad) * Math.sin(angularDistance) * Math.cos(bearingRad),
   );
 
   const nextLon =
     lonRad +
     Math.atan2(
       Math.sin(bearingRad) * Math.sin(angularDistance) * Math.cos(latRad),
-      Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(nextLat)
+      Math.cos(angularDistance) - Math.sin(latRad) * Math.sin(nextLat),
     );
 
   return [(nextLat * 180) / Math.PI, (nextLon * 180) / Math.PI];
@@ -72,10 +88,14 @@ function bearingToCardinal(bearing: number): string {
 
 function resolveSensorId(detection: SmsDetectionRecord): string {
   const sensorId = detection.raw_payload?.sensor_id;
-  return typeof sensorId === "string" && sensorId.trim().length > 0 ? sensorId : detection.source_node;
+  return typeof sensorId === "string" && sensorId.trim().length > 0
+    ? sensorId
+    : detection.source_node;
 }
 
-function isBearingDetection(detection: SmsDetectionRecord): detection is LatestBearingDetection {
+function isBearingDetection(
+  detection: SmsDetectionRecord,
+): detection is LatestBearingDetection {
   return (
     typeof detection.latitude === "number" &&
     typeof detection.longitude === "number" &&
@@ -96,12 +116,16 @@ export default function DirectionFinderPanel({
   const [showIntersections, setShowIntersections] = useState(true);
   const [showCentroid, setShowCentroid] = useState(true);
   const [showEllipse, setShowEllipse] = useState(true);
-
+const [openNodes, setOpenNodes] = useState<Record<string, boolean>>({});
+const [selectedSensors, setSelectedSensors] = useState<Record<string, boolean>>({});
   const latestBearingDetections = useMemo(() => {
     const latestBySensor = new Map<string, LatestBearingDetection>();
     const sortedDetections = [...detections]
       .filter(isBearingDetection)
-      .sort((left, right) => Date.parse(right.timestamp_utc) - Date.parse(left.timestamp_utc));
+      .sort(
+        (left, right) =>
+          Date.parse(right.timestamp_utc) - Date.parse(left.timestamp_utc),
+      );
 
     for (const detection of sortedDetections) {
       const sensorId = resolveSensorId(detection);
@@ -114,9 +138,13 @@ export default function DirectionFinderPanel({
   }, [detections]);
 
   const strongestLatestDetection = useMemo(() => {
-    return [...latestBearingDetections].sort(
-      (left, right) => (right.power_dbm ?? Number.NEGATIVE_INFINITY) - (left.power_dbm ?? Number.NEGATIVE_INFINITY)
-    )[0] ?? null;
+    return (
+      [...latestBearingDetections].sort(
+        (left, right) =>
+          (right.power_dbm ?? Number.NEGATIVE_INFINITY) -
+          (left.power_dbm ?? Number.NEGATIVE_INFINITY),
+      )[0] ?? null
+    );
   }, [latestBearingDetections]);
 
   const activeTriangulations = useMemo(() => {
@@ -127,11 +155,18 @@ export default function DirectionFinderPanel({
   }, [triangulation, triangulations]);
 
   const centroidEntries = useMemo(() => {
-    const entries: Array<{ key: string; point: [number, number]; confidenceLevel: number | null | undefined }> = [];
+    const entries: Array<{
+      key: string;
+      point: [number, number];
+      confidenceLevel: number | null | undefined;
+    }> = [];
 
     for (let index = 0; index < activeTriangulations.length; index += 1) {
       const entry = activeTriangulations[index];
-      if (typeof entry.centroid_latitude !== "number" || typeof entry.centroid_longitude !== "number") {
+      if (
+        typeof entry.centroid_latitude !== "number" ||
+        typeof entry.centroid_longitude !== "number"
+      ) {
         continue;
       }
 
@@ -152,7 +187,10 @@ export default function DirectionFinderPanel({
     : strongestLatestDetection
       ? [strongestLatestDetection.latitude, strongestLatestDetection.longitude]
       : directionFinderAssets.length > 0
-        ? [directionFinderAssets[0].latitude, directionFinderAssets[0].longitude]
+        ? [
+            directionFinderAssets[0].latitude,
+            directionFinderAssets[0].longitude,
+          ]
         : DEFAULT_CENTER;
 
   const sensorRegistry = useMemo(() => {
@@ -184,7 +222,12 @@ export default function DirectionFinderPanel({
     }
 
     return Array.from(registry.entries()).map(([id, label]) => ({ id, label }));
-  }, [activeTriangulations, directionFinderAssets, latestBearingDetections, triangulation]);
+  }, [
+    activeTriangulations,
+    directionFinderAssets,
+    latestBearingDetections,
+    triangulation,
+  ]);
 
   const sensorColorById = useMemo(() => {
     const map = new Map<string, string>();
@@ -200,7 +243,9 @@ export default function DirectionFinderPanel({
       return allRays.map((ray, index) => ({
         key: `ray-${ray.source_id}-${index}`,
         sensorId: ray.source_id,
-        sensorLabel: sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ?? ray.source_id,
+        sensorLabel:
+          sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ??
+          ray.source_id,
         bearingDeg: ray.bearing_deg,
         confidence: ray.confidence,
         positions: [
@@ -214,7 +259,9 @@ export default function DirectionFinderPanel({
       return triangulation.rays.map((ray, index) => ({
         key: `ray-${ray.source_id}-${index}`,
         sensorId: ray.source_id,
-        sensorLabel: sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ?? ray.source_id,
+        sensorLabel:
+          sensorRegistry.find((sensor) => sensor.id === ray.source_id)?.label ??
+          ray.source_id,
         bearingDeg: ray.bearing_deg,
         confidence: ray.confidence,
         positions: [
@@ -234,21 +281,34 @@ export default function DirectionFinderPanel({
         confidence: detection.confidence ?? 0.8,
         positions: [
           [detection.latitude, detection.longitude],
-          destinationPoint(detection.latitude, detection.longitude, detection.doa_azimuth_deg, 8_000),
+          destinationPoint(
+            detection.latitude,
+            detection.longitude,
+            detection.doa_azimuth_deg,
+            8_000,
+          ),
         ],
       };
     });
-  }, [activeTriangulations, latestBearingDetections, triangulation, sensorRegistry]);
+  }, [
+    activeTriangulations,
+    latestBearingDetections,
+    triangulation,
+    sensorRegistry,
+  ]);
 
   const ellipsePolygons = useMemo(
     () =>
       activeTriangulations
         .map((entry, index) => ({
           key: `ellipse-${index}`,
-          points: entry.roi_polygon?.map((point) => [point.latitude, point.longitude] as [number, number]) ?? [],
+          points:
+            entry.roi_polygon?.map(
+              (point) => [point.latitude, point.longitude] as [number, number],
+            ) ?? [],
         }))
         .filter((entry) => entry.points.length > 2),
-    [activeTriangulations]
+    [activeTriangulations],
   );
 
   const intersections = useMemo(
@@ -258,22 +318,30 @@ export default function DirectionFinderPanel({
           key: `intersection-${entryIndex}-${pointIndex}`,
           latitude: point.latitude,
           longitude: point.longitude,
-        }))
+        })),
       ),
-    [activeTriangulations]
+    [activeTriangulations],
   );
 
   const warningMessages = useMemo(
     () =>
       activeTriangulations
         .map((entry) => entry.warning)
-        .filter((warning): warning is string => typeof warning === "string" && warning.trim().length > 0),
-    [activeTriangulations]
+        .filter(
+          (warning): warning is string =>
+            typeof warning === "string" && warning.trim().length > 0,
+        ),
+    [activeTriangulations],
   );
 
   const intersectionCount = useMemo(
-    () => activeTriangulations.reduce((sum, entry) => sum + (entry.intersection_count ?? (entry.intersections?.length ?? 0)), 0),
-    [activeTriangulations]
+    () =>
+      activeTriangulations.reduce(
+        (sum, entry) =>
+          sum + (entry.intersection_count ?? entry.intersections?.length ?? 0),
+        0,
+      ),
+    [activeTriangulations],
   );
 
   const toggleButtonStyle = (active: boolean): React.CSSProperties => ({
@@ -292,27 +360,65 @@ export default function DirectionFinderPanel({
       <div style={{ display: "grid", gap: theme.spacing.md }}>
         <div>
           <h3 style={{ margin: 0 }}>Direction Finder Panel</h3>
-          <div style={{ color: theme.colors.textSecondary, marginTop: theme.spacing.xs }}>
-            Multi-sensor AOA bearings, triangulation intersections, centroid estimate, and confidence ellipse.
+          <div
+            style={{
+              color: theme.colors.textSecondary,
+              marginTop: theme.spacing.xs,
+            }}
+          >
+            Multi-sensor AOA bearings, triangulation intersections, centroid
+            estimate, and confidence ellipse.
           </div>
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: theme.spacing.sm }}>
-          <button type="button" onClick={() => setShowSensors((value) => !value)} style={toggleButtonStyle(showSensors)}>Sensors</button>
-          <button type="button" onClick={() => setShowBearings((value) => !value)} style={toggleButtonStyle(showBearings)}>Bearings</button>
-          <button type="button" onClick={() => setShowIntersections((value) => !value)} style={toggleButtonStyle(showIntersections)}>Intersections</button>
-          <button type="button" onClick={() => setShowCentroid((value) => !value)} style={toggleButtonStyle(showCentroid)}>Centroid</button>
-          <button type="button" onClick={() => setShowEllipse((value) => !value)} style={toggleButtonStyle(showEllipse)}>Ellipse</button>
+        <div
+          style={{ display: "flex", flexWrap: "wrap", gap: theme.spacing.sm }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowSensors((value) => !value)}
+            style={toggleButtonStyle(showSensors)}
+          >
+            Sensors
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBearings((value) => !value)}
+            style={toggleButtonStyle(showBearings)}
+          >
+            Bearings
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowIntersections((value) => !value)}
+            style={toggleButtonStyle(showIntersections)}
+          >
+            Intersections
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCentroid((value) => !value)}
+            style={toggleButtonStyle(showCentroid)}
+          >
+            Centroid
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowEllipse((value) => !value)}
+            style={toggleButtonStyle(showEllipse)}
+          >
+            Ellipse
+          </button>
         </div>
 
         <div
           style={{
-          display: "grid",
-    gridTemplateColumns: "minmax(240px, 280px) minmax(0, 1fr)",
-    gap: theme.spacing.md,
-    alignItems: "stretch",
-    height: "100%",        // ✅ ADD THIS
-    minHeight: 400, 
+            display: "grid",
+            gridTemplateColumns: "minmax(240px, 280px) minmax(0, 1fr)",
+            gap: theme.spacing.md,
+            alignItems: "stretch",
+            height: "100%", // ✅ ADD THIS
+            minHeight: 400,
           }}
         >
           <div
@@ -328,15 +434,38 @@ export default function DirectionFinderPanel({
             }}
           >
             {latestBearingDetections.length === 0 ? (
-              <div style={{ color: theme.colors.textSecondary }}>No active DF bearing detections.</div>
+              <div style={{ color: theme.colors.textSecondary }}>
+                No active DF bearing detections.
+              </div>
             ) : (
-              <div style={{ display: "grid", placeItems: "center", gap: theme.spacing.sm }}>
+              <div
+                style={{
+                  display: "grid",
+                  placeItems: "center",
+                  gap: theme.spacing.sm,
+                }}
+              >
                 {/* Single combined compass showing all sensor rays */}
                 <svg viewBox="0 0 200 200" style={{ width: 180, height: 180 }}>
                   {/* Outer ring */}
-                  <circle cx="100" cy="100" r="88" fill="none" stroke={theme.colors.border} strokeWidth="1.5" />
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="88"
+                    fill="none"
+                    stroke={theme.colors.border}
+                    strokeWidth="1.5"
+                  />
                   {/* Inner ring */}
-                  <circle cx="100" cy="100" r="70" fill="none" stroke={theme.colors.border} strokeWidth="0.5" strokeDasharray="3 5" />
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="70"
+                    fill="none"
+                    stroke={theme.colors.border}
+                    strokeWidth="0.5"
+                    strokeDasharray="3 5"
+                  />
                   {/* Tick marks every 30° */}
                   {Array.from({ length: 12 }, (_, i) => {
                     const angle = (i * 30 * Math.PI) / 180;
@@ -354,36 +483,116 @@ export default function DirectionFinderPanel({
                     );
                   })}
                   {/* Cardinal labels */}
-                  <text x="100" y="10" textAnchor="middle" fill={theme.colors.textSecondary} fontSize="12" fontWeight="600">N</text>
-                  <text x="100" y="198" textAnchor="middle" fill={theme.colors.textSecondary} fontSize="12" fontWeight="600">S</text>
-                  <text x="10" y="104" textAnchor="middle" fill={theme.colors.textSecondary} fontSize="12" fontWeight="600">W</text>
-                  <text x="190" y="104" textAnchor="middle" fill={theme.colors.textSecondary} fontSize="12" fontWeight="600">E</text>
+                  <text
+                    x="100"
+                    y="10"
+                    textAnchor="middle"
+                    fill={theme.colors.textSecondary}
+                    fontSize="12"
+                    fontWeight="600"
+                  >
+                    N
+                  </text>
+                  <text
+                    x="100"
+                    y="198"
+                    textAnchor="middle"
+                    fill={theme.colors.textSecondary}
+                    fontSize="12"
+                    fontWeight="600"
+                  >
+                    S
+                  </text>
+                  <text
+                    x="10"
+                    y="104"
+                    textAnchor="middle"
+                    fill={theme.colors.textSecondary}
+                    fontSize="12"
+                    fontWeight="600"
+                  >
+                    W
+                  </text>
+                  <text
+                    x="190"
+                    y="104"
+                    textAnchor="middle"
+                    fill={theme.colors.textSecondary}
+                    fontSize="12"
+                    fontWeight="600"
+                  >
+                    E
+                  </text>
                   {/* All bearing rays, each in sensor color */}
                   {latestBearingDetections.map((detection) => {
                     const sensorId = resolveSensorId(detection);
-                    const color = sensorColorById.get(sensorId) ?? theme.colors.danger;
+                    const color =
+                      sensorColorById.get(sensorId) ?? theme.colors.danger;
                     const bearing = normalizeBearing(detection.doa_azimuth_deg);
                     return (
-                      <g key={sensorId} transform={`rotate(${bearing} 100 100)`}>
-                        <line x1="100" y1="100" x2="100" y2="18" stroke={color} strokeWidth="2.5" strokeOpacity="0.9" />
+                      <g
+                        key={sensorId}
+                        transform={`rotate(${bearing} 100 100)`}
+                      >
+                        <line
+                          x1="100"
+                          y1="100"
+                          x2="100"
+                          y2="18"
+                          stroke={color}
+                          strokeWidth="2.5"
+                          strokeOpacity="0.9"
+                        />
                         <polygon points="100,10 93,24 107,24" fill={color} />
                       </g>
                     );
                   })}
                   {/* Centre dot */}
-                  <circle cx="100" cy="100" r="4" fill={theme.colors.textPrimary} />
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="4"
+                    fill={theme.colors.textPrimary}
+                  />
                 </svg>
                 {/* Per-sensor bearing labels below the compass */}
                 <div style={{ display: "grid", gap: 2, width: "100%" }}>
                   {latestBearingDetections.map((detection) => {
                     const sensorId = resolveSensorId(detection);
-                    const color = sensorColorById.get(sensorId) ?? theme.colors.danger;
+                    const color =
+                      sensorColorById.get(sensorId) ?? theme.colors.danger;
                     const bearing = normalizeBearing(detection.doa_azimuth_deg);
                     return (
-                      <div key={sensorId} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 999, background: color, flexShrink: 0 }} />
-                        <span style={{ fontWeight: 600, color: theme.colors.textPrimary, flex: 1 }}>{detection.source_node}</span>
-                        <span style={{ color: theme.colors.textSecondary }}>{bearing.toFixed(1)}° ({bearingToCardinal(bearing)})</span>
+                      <div
+                        key={sensorId}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          fontSize: 11,
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: 999,
+                            background: color,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: theme.colors.textPrimary,
+                            flex: 1,
+                          }}
+                        >
+                          {detection.source_node}
+                        </span>
+                        <span style={{ color: theme.colors.textSecondary }}>
+                          {bearing.toFixed(1)}° ({bearingToCardinal(bearing)})
+                        </span>
                       </div>
                     );
                   })}
@@ -391,154 +600,350 @@ export default function DirectionFinderPanel({
               </div>
             )}
 
-            <div style={{ display: "grid", gap: theme.spacing.xs, color: theme.colors.textSecondary }}>
+            <div
+              style={{
+                display: "grid",
+                gap: theme.spacing.xs,
+                color: theme.colors.textSecondary,
+              }}
+            >
               <div>Sensors: {directionFinderAssets.length}</div>
               <div>Intersections: {intersectionCount}</div>
               <div>
-                Estimate: {centroid ? `${centroid[0].toFixed(5)}, ${centroid[1].toFixed(5)}` : "Awaiting valid geometry"}
+                Estimate:{" "}
+                {centroid
+                  ? `${centroid[0].toFixed(5)}, ${centroid[1].toFixed(5)}`
+                  : "Awaiting valid geometry"}
               </div>
               {warningMessages.map((warning, index) => (
-                <div key={`warning-${index}`} style={{ color: theme.colors.warning }}>{warning}</div>
+                <div
+                  key={`warning-${index}`}
+                  style={{ color: theme.colors.warning }}
+                >
+                  {warning}
+                </div>
               ))}
             </div>
 
-            <div style={{ display: "grid", gap: theme.spacing.xs }}>
-              {sensorRegistry.map((sensor) => {
-                const detection = latestBearingDetections.find((row) => resolveSensorId(row) === sensor.id);
-                const color = sensorColorById.get(sensor.id) ?? theme.colors.primary;
+       <div style={{ display: "grid", gap: theme.spacing.xs }}>
+  {/* Dynamic grouping by source_node (DF Node) */}
+  {Object.entries(
+    sensorRegistry.reduce<Record<string, typeof sensorRegistry>>(
+      (acc, sensor) => {
+        const detection = latestBearingDetections.find(
+          (row) => resolveSensorId(row) === sensor.id
+        );
 
-                return (
-                  <div
-                    key={sensor.id}
+        const groupKey =
+          detection?.source_node || "Unknown DF Node";
+
+        if (!acc[groupKey]) acc[groupKey] = [];
+        acc[groupKey].push(sensor);
+
+        return acc;
+      },
+      {}
+    )
+  ).map(([groupName, sensors]) => {
+    const isOpen = openNodes[groupName] ?? true;
+
+    return (
+      <div key={groupName}>
+        {/* Parent Node */}
+        <div
+          onClick={() =>
+            setOpenNodes((prev) => ({
+              ...prev,
+              [groupName]: !isOpen,
+            }))
+          }
+          style={{
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontWeight: 600,
+            color: theme.colors.textPrimary,
+            fontSize: 12,
+            padding: "6px 8px",
+            borderRadius: 6,
+          }}
+        >
+          <span>{isOpen ? "▼" : "▶"}</span>
+          <span>{groupName}</span>
+        </div>
+
+        {/* Children with MULTI CHECKBOX */}
+        {isOpen && (
+          <div
+            style={{
+              paddingLeft: 16,
+              marginTop: 4,
+              display: "grid",
+              gap: 4,
+              borderLeft: `1px solid ${theme.colors.border}`,
+            }}
+          >
+            {sensors.map((sensor) => {
+              const detection = latestBearingDetections.find(
+                (row) => resolveSensorId(row) === sensor.id
+              );
+
+              const color =
+                sensorColorById.get(sensor.id) ??
+                theme.colors.primary;
+
+              const isChecked = selectedSensors[sensor.id] ?? false;
+
+              return (
+                <div
+                  key={sensor.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    fontSize: 11,
+                    padding: "4px 6px",
+                    borderRadius: 4,
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background =
+                      "rgba(255,255,255,0.04)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background =
+                      "transparent")
+                  }
+                >
+                  {/* LEFT SIDE (checkbox + label) */}
+                  <label
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
                       alignItems: "center",
-                      gap: theme.spacing.sm,
-                      fontSize: theme.typography.body.fontSize,
+                      gap: 6,
+                      cursor: "pointer",
+                      flex: 1,
                     }}
                   >
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: theme.spacing.xs }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 999, background: color }} />
-                      {sensor.label}
-                    </span>
-                    <span style={{ color: theme.colors.textSecondary }}>
-                      {detection ? `${normalizeBearing(detection.doa_azimuth_deg).toFixed(1)} deg` : "-"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() =>
+                        setSelectedSensors((prev) => ({
+                          ...prev,
+                          [sensor.id]: !prev[sensor.id],
+                        }))
+                      }
+                      style={{
+                        cursor: "pointer",
+                        accentColor: color,
+                      }}
+                    />
+
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 999,
+                        background: color,
+                      }}
+                    />
+
+                    <span>{sensor.label}</span>
+                  </label>
+
+                  {/* RIGHT SIDE (bearing) */}
+                  <span style={{ color: theme.colors.textSecondary }}>
+                    {detection
+                      ? `${normalizeBearing(
+                          detection.doa_azimuth_deg
+                        ).toFixed(1)}°`
+                      : "-"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  })}
+</div>
           </div>
 
-<div
-  style={{
-    borderRadius: theme.radius.md,
-    overflow: "hidden",
-    border: `1px solid ${theme.colors.border}`,
-    height: "100%",     // ✅ IMPORTANT
-    display: "flex",    // ✅ IMPORTANT
-  }}
->            <MapContainer
+          <div
+            style={{
+              borderRadius: theme.radius.md,
+              overflow: "hidden",
+              border: `1px solid ${theme.colors.border}`,
+              height: "100%", // ✅ IMPORTANT
+              display: "flex", // ✅ IMPORTANT
+            }}
+          >
+            {" "}
+            <MapContainer
               center={mapCenter}
               zoom={12}
               scrollWheelZoom={true}
-              style={{ height: "100%",        
-  width: "100%",
-  background: theme.colors.surfaceAlt,}}
+              style={{
+                height: "100%",
+                width: "100%",
+                background: theme.colors.surfaceAlt,
+              }}
             >
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution="&copy; OpenStreetMap contributors"
               />
 
-              {showSensors && directionFinderAssets.map((asset) => {
-                const color = sensorColorById.get(asset.id) ?? theme.colors.primary;
-                return (
+              {showSensors &&
+                directionFinderAssets.map((asset) => {
+                  const color =
+                    sensorColorById.get(asset.id) ?? theme.colors.primary;
+                  return (
+                    <CircleMarker
+                      key={asset.id}
+                      center={[asset.latitude, asset.longitude]}
+                      radius={7}
+                      pathOptions={{
+                        color,
+                        fillColor: color,
+                        fillOpacity: 0.22,
+                        weight: 2,
+                      }}
+                    >
+                      <Popup>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{asset.name}</div>
+                          <div>Type: {asset.type ?? "DIRECTION_FINDER"}</div>
+                          <div>
+                            Position: {asset.latitude.toFixed(5)},{" "}
+                            {asset.longitude.toFixed(5)}
+                          </div>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                })}
+
+              {showBearings &&
+                bearingLines.map((line) => {
+                  const color =
+                    sensorColorById.get(line.sensorId) ?? theme.colors.danger;
+                  return (
+                    <Polyline
+                      key={line.key}
+                      positions={line.positions}
+                      pathOptions={{
+                        color,
+                        weight: 3,
+                        dashArray: "9 6",
+                        opacity: 0.9,
+                      }}
+                    >
+                      <Popup>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>
+                            {line.sensorLabel}
+                          </div>
+                          <div>
+                            Bearing:{" "}
+                            {normalizeBearing(line.bearingDeg).toFixed(1)} deg
+                          </div>
+                          <div>
+                            Confidence: {(line.confidence * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                      </Popup>
+                    </Polyline>
+                  );
+                })}
+
+              {showIntersections &&
+                intersections.map((point, index) => (
                   <CircleMarker
-                    key={asset.id}
-                    center={[asset.latitude, asset.longitude]}
-                    radius={7}
-                    pathOptions={{ color, fillColor: color, fillOpacity: 0.22, weight: 2 }}
+                    key={point.key}
+                    center={[point.latitude, point.longitude]}
+                    radius={4}
+                    pathOptions={{
+                      color: "#f8fafc",
+                      fillColor: theme.colors.warning,
+                      fillOpacity: 0.95,
+                      weight: 1.5,
+                    }}
                   >
                     <Popup>
                       <div>
-                        <div style={{ fontWeight: 600 }}>{asset.name}</div>
-                        <div>Type: {asset.type ?? "DIRECTION_FINDER"}</div>
-                        <div>Position: {asset.latitude.toFixed(5)}, {asset.longitude.toFixed(5)}</div>
+                        <div style={{ fontWeight: 600 }}>
+                          Intersection {index + 1}
+                        </div>
+                        <div>
+                          {point.latitude.toFixed(5)},{" "}
+                          {point.longitude.toFixed(5)}
+                        </div>
                       </div>
                     </Popup>
                   </CircleMarker>
-                );
-              })}
+                ))}
 
-              {showBearings && bearingLines.map((line) => {
-                const color = sensorColorById.get(line.sensorId) ?? theme.colors.danger;
-                return (
-                  <Polyline
-                    key={line.key}
-                    positions={line.positions}
-                    pathOptions={{ color, weight: 3, dashArray: "9 6", opacity: 0.9 }}
-                  >
-                    <Popup>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>{line.sensorLabel}</div>
-                        <div>Bearing: {normalizeBearing(line.bearingDeg).toFixed(1)} deg</div>
-                        <div>Confidence: {(line.confidence * 100).toFixed(1)}%</div>
-                      </div>
-                    </Popup>
-                  </Polyline>
-                );
-              })}
+              {showCentroid &&
+                centroidEntries.map((entry, index) => (
+                  <Fragment key={entry.key}>
+                    <CircleMarker
+                      center={entry.point}
+                      radius={12}
+                      pathOptions={{
+                        color: theme.colors.success,
+                        fillColor: theme.colors.success,
+                        fillOpacity: 0.12,
+                        weight: 1,
+                      }}
+                    />
+                    <CircleMarker
+                      center={entry.point}
+                      radius={7}
+                      pathOptions={{
+                        color: theme.colors.success,
+                        fillColor: theme.colors.success,
+                        fillOpacity: 0.85,
+                        weight: 2,
+                      }}
+                    >
+                      <Popup>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>
+                            Estimated Emitter {index + 1}
+                          </div>
+                          <div>
+                            {entry.point[0].toFixed(5)},{" "}
+                            {entry.point[1].toFixed(5)}
+                          </div>
+                          {typeof entry.confidenceLevel === "number" && (
+                            <div>
+                              Confidence:{" "}
+                              {(entry.confidenceLevel * 100).toFixed(1)}%
+                            </div>
+                          )}
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  </Fragment>
+                ))}
 
-              {showIntersections && intersections.map((point, index) => (
-                <CircleMarker
-                  key={point.key}
-                  center={[point.latitude, point.longitude]}
-                  radius={4}
-                  pathOptions={{ color: "#f8fafc", fillColor: theme.colors.warning, fillOpacity: 0.95, weight: 1.5 }}
-                >
-                  <Popup>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>Intersection {index + 1}</div>
-                      <div>{point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}</div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              ))}
-
-              {showCentroid && centroidEntries.map((entry, index) => (
-                <Fragment key={entry.key}>
-                  <CircleMarker
-                    center={entry.point}
-                    radius={12}
-                    pathOptions={{ color: theme.colors.success, fillColor: theme.colors.success, fillOpacity: 0.12, weight: 1 }}
+              {showEllipse &&
+                ellipsePolygons.map((ellipse) => (
+                  <Polygon
+                    key={ellipse.key}
+                    positions={ellipse.points}
+                    pathOptions={{
+                      color: theme.colors.success,
+                      weight: 2.5,
+                      dashArray: "11 7",
+                      fillOpacity: 0.16,
+                    }}
                   />
-                  <CircleMarker
-                    center={entry.point}
-                    radius={7}
-                    pathOptions={{ color: theme.colors.success, fillColor: theme.colors.success, fillOpacity: 0.85, weight: 2 }}
-                  >
-                    <Popup>
-                      <div>
-                        <div style={{ fontWeight: 600 }}>Estimated Emitter {index + 1}</div>
-                        <div>{entry.point[0].toFixed(5)}, {entry.point[1].toFixed(5)}</div>
-                        {typeof entry.confidenceLevel === "number" && (
-                          <div>Confidence: {(entry.confidenceLevel * 100).toFixed(1)}%</div>
-                        )}
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                </Fragment>
-              ))}
-
-              {showEllipse && ellipsePolygons.map((ellipse) => (
-                <Polygon
-                  key={ellipse.key}
-                  positions={ellipse.points}
-                  pathOptions={{ color: theme.colors.success, weight: 2.5, dashArray: "11 7", fillOpacity: 0.16 }}
-                />
-              ))}
+                ))}
             </MapContainer>
           </div>
         </div>
