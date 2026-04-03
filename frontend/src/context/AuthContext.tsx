@@ -1,61 +1,85 @@
-import { createContext, useContext, useState, ReactNode } from "react";
-import api from "../api/axios";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { AuthSession, getCurrentSession, loginRequest, logoutRequest } from "../api/auth";
 
 interface User {
   id: string;
   username: string;
   role: "ADMIN" | "OPERATOR";
-  token: string;
   permissions?: string[];
 }
 
 interface AuthContextType {
   user: User | null;
+  loading: boolean;
   login: (username: string, password: string) => Promise<User>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem("user");
-    if (!saved) return null;
-    try {
-      return JSON.parse(saved) as User;
-    } catch {
-      localStorage.removeItem("user");
-      return null;
-    }
-  });
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSession = async () => {
+      try {
+        const response = await getCurrentSession();
+        if (!isMounted) {
+          return;
+        }
+        const session = response.data as AuthSession;
+        setUser({
+          id: session.id,
+          username: session.username,
+          role: session.role,
+          permissions: session.permissions ?? [],
+        });
+      } catch {
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const login = async (username: string, password: string): Promise<User> => {
-    const response = await api.post("/auth/login", {
-      username,
-      password,
-    });
+    const response = await loginRequest(username, password);
 
     const loggedUser = {
-      ...response.data,
+      id: response.data.id,
+      username: response.data.username,
+      role: response.data.role,
       permissions: response.data.permissions ?? [],
     } as User;
 
     setUser(loggedUser);
 
-    localStorage.setItem("token", loggedUser.token);
-    localStorage.setItem("user", JSON.stringify(loggedUser));
-
     return loggedUser;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  const logout = async () => {
+    try {
+      await logoutRequest();
+    } finally {
+      setUser(null);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

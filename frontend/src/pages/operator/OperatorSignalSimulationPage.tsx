@@ -1,5 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getAssets } from "../../api/assets";
+import type { AssetRecord } from "../../api/assets";
+import type { DfSensorConfig } from "../../features/signal-simulation/model/types";
 import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
 import Card from "../../components/ui/Card";
@@ -17,11 +20,62 @@ import {
 import type { SimulationConfig } from "../../features/signal-simulation/model/types";
 import { useTheme } from "../../context/ThemeContext";
 
+const FALLBACK_SENSORS: DfSensorConfig[] = [
+  {
+    id: "sim-df-1",
+    label: "SIM DF North",
+    location: { latitude: 12.984, longitude: 77.586 },
+    bearingNoiseStdDeg: 1.8,
+    bearingBiasDeg: 0.4,
+    confidence: 0.95,
+  },
+  {
+    id: "sim-df-2",
+    label: "SIM DF East",
+    location: { latitude: 12.973, longitude: 77.613 },
+    bearingNoiseStdDeg: 2.2,
+    bearingBiasDeg: -0.6,
+    confidence: 0.9,
+  },
+  {
+    id: "sim-df-3",
+    label: "SIM DF South",
+    location: { latitude: 12.956, longitude: 77.596 },
+    bearingNoiseStdDeg: 1.6,
+    bearingBiasDeg: 0.2,
+    confidence: 0.94,
+  },
+];
+
+function dfAssetsToSensors(dfAssets: AssetRecord[]): DfSensorConfig[] {
+  return dfAssets.map((asset, index) => ({
+    id: asset.id,
+    label: asset.name,
+    location: { latitude: Number(asset.latitude), longitude: Number(asset.longitude) },
+    bearingNoiseStdDeg: [1.8, 2.2, 1.6, 2.0][index % 4],
+    bearingBiasDeg: [0.4, -0.6, 0.2, 0.0][index % 4],
+    confidence: [0.95, 0.9, 0.94, 0.92][index % 4],
+  }));
+}
+
 export default function OperatorSignalSimulationPage() {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [centerFrequencyMhz, setCenterFrequencyMhz] = useState(433.92);
   const [noiseFloorDbm, setNoiseFloorDbm] = useState(-102);
+  const [realDfAssets, setRealDfAssets] = useState<AssetRecord[]>([]);
+
+  useEffect(() => {
+    getAssets()
+      .then((res) => {
+        const dfAssets = res.data.filter(
+          (a) => (a.type ?? "").toUpperCase() === "DIRECTION_FINDER" &&
+            typeof a.latitude === "number" && typeof a.longitude === "number"
+        );
+        setRealDfAssets(dfAssets);
+      })
+      .catch(() => { /* keep empty → fallback sensors used */ });
+  }, []);
 
   const simulationConfig = useMemo<SimulationConfig>(
     () => ({
@@ -35,37 +89,12 @@ export default function OperatorSignalSimulationPage() {
       noiseFloorDbm,
       historyLimit: 240,
       trackingEmitterId: "rf-link-a",
-      bearingRayLengthM: 12_000,
+        bearingRayLengthM: 10_000,
       parallelAngleThresholdDeg: 6,
       maxIntersectionDistanceM: 25_000,
       heatmapGridSize: 13,
       heatmapCellSizeM: 180,
-      sensors: [
-        {
-          id: "sim-df-1",
-          label: "SIM DF North",
-          location: { latitude: 12.984, longitude: 77.586 },
-          bearingNoiseStdDeg: 1.8,
-          bearingBiasDeg: 0.4,
-          confidence: 0.95,
-        },
-        {
-          id: "sim-df-2",
-          label: "SIM DF East",
-          location: { latitude: 12.973, longitude: 77.613 },
-          bearingNoiseStdDeg: 2.2,
-          bearingBiasDeg: -0.6,
-          confidence: 0.9,
-        },
-        {
-          id: "sim-df-3",
-          label: "SIM DF South",
-          location: { latitude: 12.956, longitude: 77.596 },
-          bearingNoiseStdDeg: 1.6,
-          bearingBiasDeg: 0.2,
-          confidence: 0.94,
-        },
-      ],
+      sensors: realDfAssets.length >= 2 ? dfAssetsToSensors(realDfAssets) : FALLBACK_SENSORS,
       emitters: [
         {
           id: "rf-link-a",
@@ -114,7 +143,7 @@ export default function OperatorSignalSimulationPage() {
         },
       ],
     }),
-    [centerFrequencyMhz, noiseFloorDbm]
+    [centerFrequencyMhz, noiseFloorDbm, realDfAssets]
   );
 
   const simulation = useSignalSimulation(simulationConfig);

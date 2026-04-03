@@ -1,4 +1,5 @@
 import type { DrawShapeType } from "./mapViewConfig";
+import { Layers } from "lucide-react";
 import {
   BASE_MAP_OPTIONS,
   MAX_JAMMER_POPUP_ALPHA,
@@ -311,7 +312,7 @@ export default function MapOverlayControls({
             fontSize: 15,
           }}
         >
-          {String.fromCodePoint(0x1F5FA)}
+          <Layers size={15} strokeWidth={2} />
         </button>
 
         {showBaseMapSelector && (

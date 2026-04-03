@@ -2,6 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
+from app.deps import require_permission
 from app.schemas import RFSignalCreate, RFSignalRead, HeatMapCell, TriangulationResponse
 from app.services.rf_service import ingest_signal, list_signals, build_heatmap, triangulate_signals
 
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/rf", tags=["rf"])
 
 
 @router.post("/signals")
-async def create_signal(data: RFSignalCreate, db: AsyncSession = Depends(get_db)):
+async def create_signal(data: RFSignalCreate, db: AsyncSession = Depends(get_db), _claims: dict = Depends(require_permission("rf", "write"))):
 	signal = await ingest_signal(data, db)
 	return {"id": signal.id, "status": "ingested"}
 
@@ -19,6 +20,7 @@ async def get_signals(
 	period_start: datetime | None = Query(default=None),
 	period_end: datetime | None = Query(default=None),
 	db: AsyncSession = Depends(get_db),
+	_claims: dict = Depends(require_permission("rf", "read")),
 ):
 	rows = await list_signals(db, period_start, period_end)
 	return [
@@ -43,6 +45,7 @@ async def get_heatmap(
 	period_start: datetime | None = Query(default=None),
 	period_end: datetime | None = Query(default=None),
 	db: AsyncSession = Depends(get_db),
+	_claims: dict = Depends(require_permission("rf", "read")),
 ):
 	rows = await build_heatmap(db, period_start, period_end)
 	return [
@@ -63,6 +66,7 @@ async def get_triangulation(
 	parallel_angle_threshold_deg: float = Query(default=5.0, ge=0.0, lt=90.0),
 	max_intersection_distance_m: float = Query(default=100000.0, gt=0),
 	db: AsyncSession = Depends(get_db),
+	_claims: dict = Depends(require_permission("rf", "read")),
 ):
 	result = await triangulate_signals(
 		db=db,

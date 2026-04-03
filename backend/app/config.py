@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -9,12 +9,20 @@ class Settings(BaseSettings):
     # Core
     APP_NAME: str = "C2 Platform"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # Security
     SECRET_KEY: str = Field(...)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_COOKIE_NAME: str = "access_token"
+    ACCESS_TOKEN_COOKIE_SAMESITE: str = "lax"
+    ACCESS_TOKEN_COOKIE_SECURE: bool | None = None
+    PASSWORD_RESET_TOKEN_TTL_MINUTES: int = 15
+    PASSWORD_RESET_EXPOSE_TOKEN_IN_DEV: bool | None = None
+    ADMIN_BOOTSTRAP_USERNAME: str | None = None
+    ADMIN_BOOTSTRAP_EMAIL: str | None = None
+    ADMIN_BOOTSTRAP_PASSWORD: str | None = None
 
     # Database
     DATABASE_URL: str = Field(...)
@@ -74,6 +82,17 @@ class Settings(BaseSettings):
     # Event streaming backend
     REDIS_URL: str | None = None
     CRFS_REDIS_STREAM: str = "crfs.events"
+
+    @model_validator(mode="after")
+    def apply_security_defaults(self):
+        is_development = self.ENVIRONMENT.lower() == "development"
+        if self.ACCESS_TOKEN_COOKIE_SECURE is None:
+            self.ACCESS_TOKEN_COOKIE_SECURE = not is_development
+        if self.PASSWORD_RESET_EXPOSE_TOKEN_IN_DEV is None:
+            self.PASSWORD_RESET_EXPOSE_TOKEN_IN_DEV = is_development
+        if not is_development and not self.REDIS_URL:
+            raise ValueError("REDIS_URL must be configured outside development for secure token revocation")
+        return self
 
 
 @lru_cache

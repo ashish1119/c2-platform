@@ -13,8 +13,9 @@ async def get_db():
         yield session
 
 
+@router.get("", response_model=list[AlertRead], include_in_schema=False)
 @router.get("/", response_model=list[AlertRead])
-async def get_alerts(status: str | None = Query(default=None), db: AsyncSession = Depends(get_db)):
+async def get_alerts(status: str | None = Query(default=None), db: AsyncSession = Depends(get_db), _claims: dict = Depends(get_current_user_claims)):
     return await list_alerts(db, status)
 
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
@@ -16,6 +16,113 @@ import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
 const REFRESH_MS = 5000;
+
+const RED_CAPABILITIES = [
+  "Monitor and record VHF/UHF signals for immediate playback",
+  "Create alerts for signals of interest through automatic detection",
+  "Use inherent direction finding to localize signals and interference",
+  "Adapt to existing government or commercial sensors",
+  "Support one-operator control across distributed EW sensing",
+  "Extend toward triangulation workflows with external localizer tooling",
+];
+
+const EW_MISSION_AREAS = [
+  "Electronic support and spectrum hunting",
+  "Interference reporting and spectrum policing",
+  "EMOE training and emissions-footprint awareness",
+  "Multinational exercise support with shared signatures",
+];
+
+type ProtocolTheme = {
+  key: "tetrA" | "dmr" | "p25" | "nxdn" | "satcom" | "unknown";
+  label: string;
+  textColor: string;
+  background: string;
+  borderColor: string;
+};
+
+const PROTOCOL_THEME_MAP: Record<ProtocolTheme["key"], ProtocolTheme> = {
+  tetrA: {
+    key: "tetrA",
+    label: "TETRA",
+    textColor: "#9a3412",
+    background: "#ffedd5",
+    borderColor: "#fdba74",
+  },
+  dmr: {
+    key: "dmr",
+    label: "DMR",
+    textColor: "#1d4ed8",
+    background: "#dbeafe",
+    borderColor: "#93c5fd",
+  },
+  p25: {
+    key: "p25",
+    label: "P25",
+    textColor: "#14532d",
+    background: "#dcfce7",
+    borderColor: "#86efac",
+  },
+  nxdn: {
+    key: "nxdn",
+    label: "NXDN",
+    textColor: "#5b21b6",
+    background: "#ede9fe",
+    borderColor: "#c4b5fd",
+  },
+  satcom: {
+    key: "satcom",
+    label: "SATCOM",
+    textColor: "#0f766e",
+    background: "#ccfbf1",
+    borderColor: "#99f6e4",
+  },
+  unknown: {
+    key: "unknown",
+    label: "UNKNOWN",
+    textColor: "#334155",
+    background: "#e2e8f0",
+    borderColor: "#cbd5e1",
+  },
+};
+
+const PROTOCOL_THEME_LEGEND: Array<ProtocolTheme["key"]> = [
+  "tetrA",
+  "dmr",
+  "p25",
+  "nxdn",
+  "satcom",
+];
+
+const resolveProtocolTheme = (
+  standard: string | null | undefined,
+  protocol: string | null | undefined,
+): ProtocolTheme => {
+  const haystack = `${standard ?? ""} ${protocol ?? ""}`.toLowerCase();
+
+  if (haystack.includes("tetra")) {
+    return PROTOCOL_THEME_MAP.tetrA;
+  }
+  if (haystack.includes("dmr")) {
+    return PROTOCOL_THEME_MAP.dmr;
+  }
+  if (haystack.includes("p25") || haystack.includes("project 25")) {
+    return PROTOCOL_THEME_MAP.p25;
+  }
+  if (haystack.includes("nxdn")) {
+    return PROTOCOL_THEME_MAP.nxdn;
+  }
+  if (
+    haystack.includes("satcom") ||
+    haystack.includes("satellite") ||
+    haystack.includes("inmarsat") ||
+    haystack.includes("iridium")
+  ) {
+    return PROTOCOL_THEME_MAP.satcom;
+  }
+
+  return PROTOCOL_THEME_MAP.unknown;
+};
 
 const normalizeIpv4Input = (value: string) => {
   const sanitized = value.replace(/[^\d.]/g, "");
@@ -48,6 +155,212 @@ const parseApiErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+type RecentMessage = TcpClientStatus["recent_messages"][number];
+
+type DecodioMetadata = {
+  talkgroup: string | null;
+  timeslot: string | null;
+  lcn: string | null;
+  standard: string | null;
+};
+
+type ChannelSummary = {
+  id: string;
+  label: string;
+  messageCount: number;
+  lastReceivedAt: string | null;
+  protocols: string[];
+  metadata: {
+    talkgroups: string[];
+    timeslots: string[];
+    lcns: string[];
+    standards: string[];
+  };
+};
+
+const CHANNEL_FIELD_PRIORITY = [
+  "channel",
+  "channel_id",
+  "receiver_channel",
+  "receiver",
+  "lcn",
+  "slot",
+  "timeslot",
+  "ts",
+  "talkgroup",
+  "tgid",
+];
+
+const TALKGROUP_FIELDS = ["tgid", "talkgroup", "talkgroup_id", "group_id"];
+const TIMESLOT_FIELDS = ["timeslot", "slot", "ts", "time_slot", "tdma_slot"];
+const LCN_FIELDS = ["lcn", "logical_channel", "logical_channel_number", "channel_number"];
+const STANDARD_FIELDS = [
+  "standard",
+  "protocol_family",
+  "air_interface",
+  "radio_standard",
+  "network_type",
+  "system_type",
+  "service",
+];
+
+const buildNormalizedFieldMap = (
+  message: RecentMessage,
+): Map<string, string> => {
+  const normalized = new Map<string, string>();
+  const fields = message.parsed_fields;
+
+  if (!fields || Object.keys(fields).length === 0) {
+    return normalized;
+  }
+
+  Object.entries(fields).forEach(([key, value]) => {
+    normalized.set(key.toLowerCase(), value);
+  });
+
+  return normalized;
+};
+
+const getFirstMatchingValue = (
+  normalized: Map<string, string>,
+  preferredKeys: string[],
+): string | null => {
+  for (const key of preferredKeys) {
+    const value = normalized.get(key);
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  for (const [key, value] of normalized.entries()) {
+    if (
+      preferredKeys.some(
+        (preferredKey) => key.includes(preferredKey) || preferredKey.includes(key),
+      )
+    ) {
+      const normalizedValue = value.trim();
+      if (normalizedValue.length > 0) {
+        return normalizedValue;
+      }
+    }
+  }
+
+  return null;
+};
+
+const getDecodioMetadataFromMessage = (
+  message: RecentMessage,
+): DecodioMetadata => {
+  const normalized = buildNormalizedFieldMap(message);
+
+  return {
+    talkgroup: getFirstMatchingValue(normalized, TALKGROUP_FIELDS),
+    timeslot: getFirstMatchingValue(normalized, TIMESLOT_FIELDS),
+    lcn: getFirstMatchingValue(normalized, LCN_FIELDS),
+    standard: getFirstMatchingValue(normalized, STANDARD_FIELDS),
+  };
+};
+
+const getChannelIdFromMessage = (message: RecentMessage): string | null => {
+  const normalized = buildNormalizedFieldMap(message);
+  if (normalized.size === 0) {
+    return null;
+  }
+
+  for (const key of CHANNEL_FIELD_PRIORITY) {
+    const value = normalized.get(key);
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  for (const [key, value] of normalized.entries()) {
+    if (key.includes("channel") || key.includes("slot")) {
+      const normalizedValue = value.trim();
+      if (normalizedValue.length > 0) {
+        return normalizedValue;
+      }
+    }
+  }
+
+  return null;
+};
+
+const buildChannelSummaries = (messages: RecentMessage[]): ChannelSummary[] => {
+  const map = new Map<string, {
+    id: string;
+    count: number;
+    lastReceivedAt: string | null;
+    protocols: Set<string>;
+    talkgroups: Set<string>;
+    timeslots: Set<string>;
+    lcns: Set<string>;
+    standards: Set<string>;
+  }>();
+
+  messages.forEach((message) => {
+    const channelId = getChannelIdFromMessage(message);
+    if (!channelId) {
+      return;
+    }
+
+    const existing = map.get(channelId) ?? {
+      id: channelId,
+      count: 0,
+      lastReceivedAt: null,
+      protocols: new Set<string>(),
+      talkgroups: new Set<string>(),
+      timeslots: new Set<string>(),
+      lcns: new Set<string>(),
+      standards: new Set<string>(),
+    };
+
+    const metadata = getDecodioMetadataFromMessage(message);
+
+    existing.count += 1;
+    if (message.received_at) {
+      existing.lastReceivedAt = message.received_at;
+    }
+    if (message.protocol) {
+      existing.protocols.add(message.protocol);
+    }
+    if (metadata.talkgroup) {
+      existing.talkgroups.add(metadata.talkgroup);
+    }
+    if (metadata.timeslot) {
+      existing.timeslots.add(metadata.timeslot);
+    }
+    if (metadata.lcn) {
+      existing.lcns.add(metadata.lcn);
+    }
+    if (metadata.standard) {
+      existing.standards.add(metadata.standard);
+    }
+
+    map.set(channelId, existing);
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => {
+      const aDate = a.lastReceivedAt ? Date.parse(a.lastReceivedAt) : 0;
+      const bDate = b.lastReceivedAt ? Date.parse(b.lastReceivedAt) : 0;
+      return bDate - aDate;
+    })
+    .map((channel) => ({
+      id: channel.id,
+      label: `Channel ${channel.id}`,
+      messageCount: channel.count,
+      lastReceivedAt: channel.lastReceivedAt,
+      protocols: Array.from(channel.protocols),
+      metadata: {
+        talkgroups: Array.from(channel.talkgroups),
+        timeslots: Array.from(channel.timeslots),
+        lcns: Array.from(channel.lcns),
+        standards: Array.from(channel.standards),
+      },
+    }));
+};
+
 export default function OperatorTcpClientPage() {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -62,10 +375,11 @@ export default function OperatorTcpClientPage() {
   const [error, setError] = useState<string | null>(null);
   const [serverHost, setServerHost] = useState("");
   const [serverPort, setServerPort] = useState("");
-  const [protocol, setProtocol] = useState<"line" | "proto">("proto");
+  const [protocol, setProtocol] = useState<"line" | "proto">("line");
   const [lengthEndian, setLengthEndian] = useState<"big" | "little">("little");
   const [serverDirty, setServerDirty] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+  const [selectedChannelId, setSelectedChannelId] = useState<string>("all");
 
   const hasPermission = (requiredPermission: string) => {
     const permissions = user?.permissions ?? [];
@@ -107,7 +421,7 @@ export default function OperatorTcpClientPage() {
             clientResponse.data.target_port ?? healthResponse.data.port;
           setServerHost(resolvedHost ?? "");
           setServerPort(resolvedPort ? String(resolvedPort) : "");
-          setProtocol(clientResponse.data.protocol ?? "proto");
+          setProtocol(clientResponse.data.protocol ?? "line");
           setLengthEndian(clientResponse.data.length_endian ?? "little");
         }
       } catch (loadError) {
@@ -214,18 +528,67 @@ export default function OperatorTcpClientPage() {
     .slice()
     .reverse();
 
+  const channelSummaries = useMemo(
+    () => buildChannelSummaries(recentMessages),
+    [recentMessages],
+  );
+
+  const detectedChannelCount = channelSummaries.length;
+
+  const classifiedMessageCount = useMemo(
+    () =>
+      recentMessages.reduce((total, message) => {
+        return getChannelIdFromMessage(message) ? total + 1 : total;
+      }, 0),
+    [recentMessages],
+  );
+
+  const unclassifiedMessageCount = recentMessages.length - classifiedMessageCount;
+
+  const filteredMessages = useMemo(() => {
+    if (selectedChannelId === "all") {
+      return recentMessages;
+    }
+    return recentMessages.filter(
+      (message) => getChannelIdFromMessage(message) === selectedChannelId,
+    );
+  }, [recentMessages, selectedChannelId]);
+
+  useEffect(() => {
+    if (
+      selectedChannelId !== "all" &&
+      !channelSummaries.some((channel) => channel.id === selectedChannelId)
+    ) {
+      setSelectedChannelId("all");
+    }
+  }, [channelSummaries, selectedChannelId]);
+
   return (
     <AppLayout>
-      <PageContainer title="TCP Client">
+      <PageContainer title="DECODIO RED Integration">
         <div style={{ display: "grid", gap: theme.spacing.lg }}>
           <div
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
+              gap: theme.spacing.md,
+              flexWrap: "wrap",
             }}
           >
-            <h2 style={{ margin: 0 }}>TCP Client</h2>
+            <div style={{ display: "grid", gap: 6, minWidth: 280, flex: 1 }}>
+              <h2 style={{ margin: 0 }}>DECODIO RED Electronic Warfare Integration</h2>
+              <div
+                style={{
+                  color: theme.colors.textSecondary,
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  maxWidth: 980,
+                }}
+              >
+                Operator console for integrating DECODIO RED as a spectrum-monitoring and electronic-warfare application layer: monitor and record VHF/UHF activity, surface signals of interest, localize emitters with direction finding, and coordinate one-operator control of distributed sensors.
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => load(true)}
@@ -245,9 +608,139 @@ export default function OperatorTcpClientPage() {
             </button>
           </div>
 
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1.4fr) minmax(320px, 0.95fr)",
+              gap: theme.spacing.lg,
+              alignItems: "start",
+            }}
+          >
+            <Card>
+              <div style={{ display: "grid", gap: theme.spacing.md }}>
+                <div>
+                  <h3 style={{ marginTop: 0, marginBottom: 8 }}>EW Mission Fit</h3>
+                  <div style={{ color: theme.colors.textSecondary, fontSize: 14, lineHeight: 1.6 }}>
+                    Based on Decodio electronic-warfare reference guidance, RED supplements more complex EW systems by helping operators find digital radio protocols, monitor target communications, record traffic for immediate playback, and generate interference or signal-of-interest reporting from a single software package.
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: 12,
+                  }}
+                >
+                  {RED_CAPABILITIES.map((capability) => (
+                    <div
+                      key={capability}
+                      style={{
+                        padding: theme.spacing.md,
+                        borderRadius: theme.radius.md,
+                        background: theme.colors.surfaceAlt,
+                        border: `1px solid ${theme.colors.border}`,
+                        color: theme.colors.textSecondary,
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {capability}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <div style={{ display: "grid", gap: theme.spacing.md }}>
+                <div>
+                  <h3 style={{ marginTop: 0, marginBottom: 8 }}>Operational Application</h3>
+                  <div style={{ color: theme.colors.textSecondary, fontSize: 14, lineHeight: 1.6 }}>
+                    This integration view aligns the transport layer with EW operations: ingest RED-compatible sensor feeds, classify signals of interest, and pivot quickly into DF, interference reporting, and exercise support workflows.
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {EW_MISSION_AREAS.map((item) => (
+                    <span
+                      key={item}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "#0f766e",
+                        background: "#ccfbf1",
+                        border: "1px solid #99f6e4",
+                      }}
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 8,
+                    padding: theme.spacing.md,
+                    borderRadius: theme.radius.md,
+                    background: theme.colors.surfaceAlt,
+                    border: `1px solid ${theme.colors.border}`,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: theme.colors.textSecondary }}>
+                    Integration Workflow
+                  </span>
+                  <span style={{ fontSize: 13, color: theme.colors.textSecondary, lineHeight: 1.6 }}>
+                    Sensor feed {"->"} RED transport session {"->"} automatic signal detection {"->"} channel and protocol interpretation {"->"} DF/localization support {"->"} operator action or reporting.
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <Card>
+            <div style={{ display: "grid", gap: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
+                Protocol Theme Legend
+              </h3>
+              <div style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 1.6 }}>
+                Color coding prioritizes known EW protocol families for rapid operator triage inside channels and decoded frame cards.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {PROTOCOL_THEME_LEGEND.map((key) => {
+                  const protocolTheme = PROTOCOL_THEME_MAP[key];
+                  return (
+                    <span
+                      key={protocolTheme.key}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 10px",
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: protocolTheme.textColor,
+                        background: protocolTheme.background,
+                        border: `1px solid ${protocolTheme.borderColor}`,
+                      }}
+                    >
+                      {protocolTheme.label}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+
         <Card>
   <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-    Access
+    Integration Access
   </h3>
 
   <div
@@ -326,21 +819,21 @@ export default function OperatorTcpClientPage() {
               gap: theme.spacing.md,
             }}
           >
-            <MetricCard label="Listener" value={statusLabel} />
+            <MetricCard label="RED Gateway" value={statusLabel} />
             <MetricCard
-              label="Active Connections"
+              label="Sensor Links"
               value={loading ? "..." : (health?.active_connections ?? 0)}
             />
             <MetricCard
-              label="Total Connections"
+              label="Observed Links"
               value={loading ? "..." : (health?.total_connections ?? 0)}
             />
             <MetricCard
-              label="Messages Received"
+              label="Frames Received"
               value={loading ? "..." : (health?.messages_received ?? 0)}
             />
             <MetricCard
-              label="Messages Rejected"
+              label="Frames Rejected"
               value={loading ? "..." : (health?.messages_rejected ?? 0)}
             />
           </div>
@@ -349,8 +842,19 @@ export default function OperatorTcpClientPage() {
 
           <Card>
             <h3 style={{ marginTop: 0, marginBottom: theme.spacing.md }}>
-              TCP Client Connection
+              RED Transport Session
             </h3>
+
+            <div
+              style={{
+                marginBottom: theme.spacing.md,
+                color: theme.colors.textSecondary,
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              Configure the host transport used to receive RED-compatible sensor output, decoded metadata, and signal-of-interest traffic from connected EW or spectrum-monitoring assets.
+            </div>
 
             <div
               style={{
@@ -433,7 +937,9 @@ export default function OperatorTcpClientPage() {
                     fontSize: 14,
                   }}
                 >
-                  <option value="proto">proto (protobuf)</option>
+                  <option value="proto" disabled>
+                    proto (protobuf) - coming soon
+                  </option>
                   <option value="line">line (text/json)</option>
                 </select>
               </label>
@@ -518,6 +1024,172 @@ export default function OperatorTcpClientPage() {
             )}
           </Card>
 
+          <Card>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Signals of Interest and Channel Control</h3>
+
+            <div
+              style={{
+                marginBottom: 14,
+                color: theme.colors.textSecondary,
+                fontSize: 13,
+                lineHeight: 1.6,
+              }}
+            >
+              Decodio RED-style channel management view for sorting active traffic into interpretable channels, protocol families, TGIDs, timeslots, and LCNs so operators can focus on signals of interest quickly.
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                gap: 12,
+                marginBottom: 14,
+              }}
+            >
+              <MetricCard label="Detected Channels" value={detectedChannelCount} />
+              <MetricCard label="Classified Messages" value={classifiedMessageCount} />
+              <MetricCard label="Unclassified" value={unclassifiedMessageCount} />
+            </div>
+
+            <label style={{ display: "grid", gap: 6, marginBottom: 14 }}>
+              <span style={{ fontSize: 13, color: "#64748B" }}>Active Channel View</span>
+              <select
+                value={selectedChannelId}
+                onChange={(event) => setSelectedChannelId(event.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  background: "#fff",
+                  color: "#0f172a",
+                  fontSize: 14,
+                }}
+              >
+                <option value="all">All Channels</option>
+                {channelSummaries.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    {channel.label} ({channel.messageCount})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {channelSummaries.length > 0 ? (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {channelSummaries.map((channel) => {
+                  const isActive = selectedChannelId === channel.id;
+                  const protocolTheme = resolveProtocolTheme(
+                    channel.metadata.standards[0] ?? null,
+                    channel.protocols[0] ?? null,
+                  );
+                  const metadataBadges = [
+                    channel.metadata.talkgroups[0]
+                      ? `TGID ${channel.metadata.talkgroups[0]}`
+                      : null,
+                    channel.metadata.timeslots[0]
+                      ? `TS ${channel.metadata.timeslots[0]}`
+                      : null,
+                    channel.metadata.lcns[0]
+                      ? `LCN ${channel.metadata.lcns[0]}`
+                      : null,
+                    channel.metadata.standards[0]
+                      ? `STD ${channel.metadata.standards[0]}`
+                      : null,
+                  ].filter((badge): badge is string => Boolean(badge));
+
+                  return (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      onClick={() => setSelectedChannelId(channel.id)}
+                      style={{
+                        border: isActive
+                          ? `1px solid ${protocolTheme.borderColor}`
+                          : "1px solid #e2e8f0",
+                        background: isActive ? protocolTheme.background : "#ffffff",
+                        borderRadius: 8,
+                        padding: 12,
+                        textAlign: "left",
+                        cursor: "pointer",
+                        display: "grid",
+                        gap: 6,
+                      }}
+                    >
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a" }}>
+                        {channel.label}
+                      </span>
+                      <span style={{ fontSize: 12, color: "#64748B" }}>
+                        {channel.messageCount} messages
+                      </span>
+                      <span style={{ fontSize: 12, color: "#64748B" }}>
+                        {channel.protocols.length > 0
+                          ? `Protocols: ${channel.protocols.join(", ")}`
+                          : "Protocols: unknown"}
+                      </span>
+                      <span style={{ fontSize: 12, color: "#64748B" }}>
+                        Last seen: {channel.lastReceivedAt ?? "-"}
+                      </span>
+
+                      <span
+                        style={{
+                          width: "fit-content",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: protocolTheme.textColor,
+                          background: protocolTheme.background,
+                          border: `1px solid ${protocolTheme.borderColor}`,
+                          borderRadius: 999,
+                          padding: "2px 8px",
+                        }}
+                      >
+                        {protocolTheme.label}
+                      </span>
+
+                      {metadataBadges.length > 0 && (
+                        <span
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 6,
+                            marginTop: 2,
+                          }}
+                        >
+                          {metadataBadges.map((badge) => (
+                            <span
+                              key={badge}
+                              style={{
+                                fontSize: 11,
+                                color: protocolTheme.textColor,
+                                background: protocolTheme.background,
+                                border: `1px solid ${protocolTheme.borderColor}`,
+                                borderRadius: 999,
+                                padding: "2px 8px",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {badge}
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ color: "#64748B", fontSize: 14 }}>
+                No channel metadata found in incoming parsed fields yet.
+              </div>
+            )}
+          </Card>
+
          <div
   style={{
     display: "grid",
@@ -529,7 +1201,7 @@ export default function OperatorTcpClientPage() {
   {/* LEFT CARD */}
   <Card>
     <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-      Client Receive Metrics
+      RED Receive Metrics
     </h3>
 
     <div
@@ -581,24 +1253,51 @@ export default function OperatorTcpClientPage() {
   {/* RIGHT CARD */}
   <Card>
     <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-      Received Data (Latest First)
+      RED Decoded Traffic (Latest First) {selectedChannelId === "all" ? "" : `- Channel ${selectedChannelId}`}
     </h3>
 
+    <div
+      style={{
+        marginBottom: 14,
+        color: theme.colors.textSecondary,
+        fontSize: 13,
+        lineHeight: 1.6,
+      }}
+    >
+      Review recent decoded transport data, parsed protocol fields, and Decodio-oriented metadata extracted from the incoming EW feed.
+    </div>
+
     <div style={{ display: "grid", gap: 12 }}>
-      {recentMessages.length === 0 && (
+      {filteredMessages.length === 0 && (
         <div style={{ color: "#64748B", fontSize: 14 }}>
-          No messages received yet.
+          {selectedChannelId === "all"
+            ? "No messages received yet."
+            : "No messages for selected channel."}
         </div>
       )}
 
-      {recentMessages.slice(0, 20).map((message, index) => (
+      {filteredMessages.slice(0, 20).map((message, index) => (
+        (() => {
+          const metadata = getDecodioMetadataFromMessage(message);
+          const protocolTheme = resolveProtocolTheme(
+            metadata.standard,
+            message.protocol ?? null,
+          );
+          const messageBadges = [
+            metadata.talkgroup ? `TGID ${metadata.talkgroup}` : null,
+            metadata.timeslot ? `TS ${metadata.timeslot}` : null,
+            metadata.lcn ? `LCN ${metadata.lcn}` : null,
+            metadata.standard ? `STD ${metadata.standard}` : null,
+          ].filter((badge): badge is string => Boolean(badge));
+
+          return (
         <div
           key={`${message.received_at ?? "na"}-${index}`}
           style={{
-            border: "1px solid #e5e7eb",
+            border: `1px solid ${protocolTheme.borderColor}`,
             borderRadius: 6,
             padding: 14,
-            background: "#ffffff",
+            background: protocolTheme.background,
             display: "flex",
             flexDirection: "column",
             gap: 10,
@@ -620,6 +1319,9 @@ export default function OperatorTcpClientPage() {
                 <span>{message.byte_length} bytes</span>
               )}
               {message.protocol && <span>{message.protocol}</span>}
+              <span style={{ fontWeight: 700, color: protocolTheme.textColor }}>
+                {protocolTheme.label}
+              </span>
             </span>
           </div>
 
@@ -627,6 +1329,27 @@ export default function OperatorTcpClientPage() {
           {message.ascii_preview && (
             <div style={{ fontSize: 14, color: "#0f172a" }}>
               {message.ascii_preview}
+            </div>
+          )}
+
+          {messageBadges.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {messageBadges.map((badge) => (
+                <span
+                  key={badge}
+                  style={{
+                    fontSize: 11,
+                    color: protocolTheme.textColor,
+                    background: protocolTheme.background,
+                    border: `1px solid ${protocolTheme.borderColor}`,
+                    borderRadius: 999,
+                    padding: "2px 8px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {badge}
+                </span>
+              ))}
             </div>
           )}
 
@@ -677,6 +1400,8 @@ export default function OperatorTcpClientPage() {
             </div>
           )}
         </div>
+          );
+        })()
       ))}
     </div>
   </Card>

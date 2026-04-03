@@ -19,6 +19,18 @@ INSERT INTO permissions (resource, action, scope) VALUES
 ('crfs', 'read', 'GLOBAL'),
 ('crfs', 'write', 'GLOBAL'),
 ('crfs', 'replay', 'GLOBAL'),
+('assets', 'read', 'GLOBAL'),
+('assets', 'write', 'GLOBAL'),
+('rf', 'read', 'GLOBAL'),
+('rf', 'write', 'GLOBAL'),
+('telecom', 'read', 'GLOBAL'),
+('telecom', 'write', 'GLOBAL'),
+('users', 'read', 'GLOBAL'),
+('users', 'write', 'GLOBAL'),
+('roles', 'read', 'GLOBAL'),
+('roles', 'write', 'GLOBAL'),
+('permissions', 'read', 'GLOBAL'),
+('permissions', 'write', 'GLOBAL'),
 ('tcp_listener', 'read', 'GLOBAL'),
 ('tcp_listener', 'write', 'GLOBAL')
 ON CONFLICT (resource, action) DO NOTHING;
@@ -45,11 +57,26 @@ JOIN permissions p
             ('crfs', 'read'),
             ('crfs', 'write'),
             ('crfs', 'replay'),
+            ('assets', 'read'),
+            ('assets', 'write'),
+            ('rf', 'read'),
+            ('rf', 'write'),
+            ('telecom', 'read'),
+            ('telecom', 'write'),
+            ('users', 'read'),
+            ('users', 'write'),
+            ('roles', 'read'),
+            ('roles', 'write'),
+            ('permissions', 'read'),
+            ('permissions', 'write'),
             ('tcp_listener', 'read'),
             ('tcp_listener', 'write')
         ))
         OR
         (r.name = 'OPERATOR' AND (p.resource, p.action) IN (
+            ('assets', 'read'),
+            ('rf', 'read'),
+            ('telecom', 'read'),
             ('crfs', 'read'),
             ('tcp_listener', 'read'),
             ('tcp_listener', 'write'),
@@ -60,14 +87,17 @@ JOIN permissions p
     )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
-INSERT INTO users (username, email, hashed_password, role_id)
-VALUES (
-    'admin',
-    'admin@c2.local',
-    '$2b$12$C6UzMDM.H6dfI/f/IKcEeO7nZ9YjRzCQXDpUe1koRaSPo6e7iT730', -- password: password
-    1
-);
+--INSERT INTO users (username, email, hashed_password, role_id)
+--VALUES (
+--    'admin',
+--    'admin@c2.local',
+    --'$2b$12$C6UzMDM.H6dfI/f/IKcEeO7nZ9YjRzCQXDpUe1koRaSPo6e7iT730', -- password: password
+--    '$2b$12$3DOLmptNUulIYVMN7F50Ju5hQGEDuqy0mKXNhHLC3Pp5ED0kk0SEG',
+--    1
+--);
 
+-- Admin bootstrap is now handled by backend startup using
+-- ADMIN_BOOTSTRAP_USERNAME / ADMIN_BOOTSTRAP_PASSWORD / ADMIN_BOOTSTRAP_EMAIL.
 INSERT INTO assets (name, type, status, location)
 VALUES
     (

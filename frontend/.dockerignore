@@ -3,6 +3,4 @@ dist
 .git
 Dockerfile
 .dockerignore
-node_modules
-dist
-.git
+docker-compose.yml

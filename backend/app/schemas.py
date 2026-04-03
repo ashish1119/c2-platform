@@ -14,12 +14,21 @@ class LoginResponse(BaseModel):
     id: uuid.UUID
     username: str
     role: str
-    token: str
+    token: str | None = None
     permissions: list[str] = []
 
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
+    new_password: str
+
+
+class PasswordResetRequestStart(BaseModel):
+    identifier: str
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
     new_password: str
 
 
@@ -45,7 +54,7 @@ class UserCreate(BaseModel):
     username: str
     email: str
     password: str
-    role_id: int | None = None
+    role_id: int
 
 
 class UserUpdate(BaseModel):
@@ -1027,3 +1036,12 @@ class CrfsOperatorDashboardRead(BaseModel):
     events: list[CrfsEventRead] = Field(default_factory=list)
     alerts: list[CrfsAlertRead] = Field(default_factory=list)
     realtime_events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RFData(BaseModel):
+    id: int
+    freq: float
+    power: float
+    snr: float
+    lat: float
+    lon: float 

@@ -7,21 +7,24 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const AdminCommandCenterPage = lazy(() => import("./pages/admin/AdminCommandCenterPage"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const AssetsManagementPage = lazy(() => import("./pages/admin/AssetsManagementPage"));
-const OperatorDashboardPage = lazy(() => import("./pages/operator/OperatorDashboardPage"));
+const OperatorUnifiedDashboardPage = lazy(() => import("./pages/operator/OperatorUnifiedDashboardPage"));
 const OperatorCommandCenterPage = lazy(() => import("./pages/operator/OperatorCommandCenterPage"));
 const OperatorMapPage = lazy(() => import("./pages/operator/OperatorMapPage"));
+const OperatorAlertsPage = lazy(() => import("./pages/operator/OperatorAlertsPage"));
+const OperatorSMSPage = lazy(() => import("./pages/operator/OperatorSMSPage"));
 const OperatorTcpClientPage = lazy(() => import("./pages/operator/OperatorTcpClientPage"));
-const OperatorSignalSimulationPage = lazy(
-  () => import("./pages/operator/OperatorSignalSimulationPage"),
-);
 const ReportingCenterPage = lazy(() => import("./pages/ReportingCenterPage"));
 const CrfsLivePage = lazy(() => import("./pages/CrfsLivePage"));
 const JammerControlPage = lazy(() => import("./pages/JammerControlPage"));
 const GeospatialSourcesPage = lazy(() => import("./pages/admin/GeospatialSourcesPage"));
+const TelecomIntelligencePage = lazy(() => import("./pages/TelecomIntelligencePage"));
+const DeviceSelectorPage = lazy(() => import("./pages/operator/DeviceSelectorPage"));
+const ForbiddenPage = lazy(() => import("./pages/ForbiddenPage"));
 
 function RouteFallback() {
   return <div style={{ minHeight: "100vh", background: "#071120" }} />;
 }
+
 
 function FallbackRedirect() {
   const { user } = useAuth();
@@ -41,6 +44,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forbidden" element={<ForbiddenPage />} />
 
             <Route
               path="/admin"
@@ -116,7 +120,23 @@ export default function App() {
               path="/operator/dashboard"
               element={
                 <ProtectedRoute requiredRole="OPERATOR">
-                  <OperatorDashboardPage />
+                  <OperatorUnifiedDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/operator/simulation"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <OperatorUnifiedDashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/operator/sms"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <OperatorSMSPage />
                 </ProtectedRoute>
               }
             />
@@ -153,15 +173,6 @@ export default function App() {
               element={
                 <ProtectedRoute requiredRole="OPERATOR">
                   <OperatorTcpClientPage />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/operator/simulation"
-              element={
-                <ProtectedRoute requiredRole="OPERATOR">
-                  <OperatorSignalSimulationPage />
                 </ProtectedRoute>
               }
             />
@@ -216,6 +227,24 @@ export default function App() {
               element={
                 <ProtectedRoute requiredPermission="jammer:write">
                   <JammerControlPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/telecom/intelligence"
+              element={
+                <ProtectedRoute requiredPermission="crfs:read">
+                  <TelecomIntelligencePage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/operator/decodio/device-selector"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <DeviceSelectorPage />
                 </ProtectedRoute>
               }
             />

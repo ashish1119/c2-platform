@@ -6,3 +6,5 @@ export { default as OperatorAlertsPage } from "./OperatorAlertsPage";
 export { default as OperatorTcpClientPage } from "./OperatorTcpClientPage";
 export { default as OperatorSignalSimulationPage } from "./OperatorSignalSimulationPage";
 export { default as OperatorSimulationTestingPage } from "./OperatorSimulationTestingPage";
+export { default as OperatorSMSPage } from "./OperatorSMSPage";
+export { default as OperatorDashboard } from "./OperatorDashboard";

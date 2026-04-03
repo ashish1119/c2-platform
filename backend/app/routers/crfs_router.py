@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+from jose import JWTError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.core.security import decode_access_token
 from app.database import get_db
 from app.deps import require_permission
 from app.schemas import (
@@ -33,6 +36,13 @@ from app.services.crfs_service import (
 )
 
 router = APIRouter(prefix="/crfs", tags=["crfs"])
+
+
+def _extract_websocket_token(websocket: WebSocket) -> str | None:
+    query_token = websocket.query_params.get("token")
+    if query_token:
+        return query_token
+    return websocket.cookies.get(settings.ACCESS_TOKEN_COOKIE_NAME)
 
 
 @router.get("/health", response_model=CrfsIngestHealthRead)
@@ -244,6 +254,28 @@ async def websocket_live(websocket: WebSocket):
     service = getattr(websocket.app.state, "crfs_ingest_service", None)
     if service is None:
         await websocket.close(code=1013)
+        return
+
+    token = _extract_websocket_token(websocket)
+    if not token:
+        await websocket.close(code=1008)
+        return
+
+    try:
+        payload = decode_access_token(token)
+    except JWTError:
+        await websocket.close(code=1008)
+        return
+
+    permissions = set(payload.get("permissions", []))
+    role = str(payload.get("role", "")).upper()
+    if (
+        role != "ADMIN"
+        and "crfs:read" not in permissions
+        and "crfs:*" not in permissions
+        and "*:*" not in permissions
+    ):
+        await websocket.close(code=1008)
         return
 
     await service.hub.connect(websocket)

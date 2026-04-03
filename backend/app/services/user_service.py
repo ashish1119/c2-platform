@@ -13,13 +13,18 @@ async def create_user(data, db: AsyncSession):
         if role_ids:
             role_id = role_ids[0]
 
-    if role_id is not None:
-        role = (await db.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
-        if role is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid role_id",
-            )
+    if role_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="role_id is required",
+        )
+
+    role = (await db.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
+    if role is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid role_id",
+        )
 
     user = User(
         username=data.username,
@@ -58,8 +63,14 @@ async def update_user(user_id, data, db: AsyncSession):
             detail="Username and email are required",
         )
 
-    role_id = getattr(data, "role_id", None)
-    if role_id is not None:
+    if "role_id" in getattr(data, "model_fields_set", set()):
+        role_id = getattr(data, "role_id", None)
+        if role_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="role_id cannot be null",
+            )
+
         role = (await db.execute(select(Role).where(Role.id == role_id))).scalar_one_or_none()
         if role is None:
             raise HTTPException(
@@ -67,9 +78,10 @@ async def update_user(user_id, data, db: AsyncSession):
                 detail="Invalid role_id",
             )
 
+        user.role_id = role_id
+
     user.username = username
     user.email = email
-    user.role_id = role_id
 
     try:
         await db.commit()

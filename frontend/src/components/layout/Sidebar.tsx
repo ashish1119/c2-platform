@@ -80,6 +80,7 @@
 //   );
 // }
 
+
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -94,6 +95,7 @@ import {
   FileText,
   Radio,
   Zap,
+  Signal,
 } from "lucide-react";
 
 type SidebarProps = {
@@ -117,9 +119,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     );
   };
 
-  // ✅ FIXED: Icon is optional
   const navItem = (to: string, label: string, Icon?: any) => {
     const active = location.pathname === to;
+    const SafeIcon = Icon ?? LayoutDashboard;
 
     return (
       <Link
@@ -152,7 +154,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           }
         }}
       >
-        {/* Active Indicator */}
+        {/* 🔥 Active Indicator Bar */}
         {active && (
           <div
             style={{
@@ -167,9 +169,10 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           />
         )}
 
-        {/* ✅ SAFE ICON */}
-        {Icon && <Icon size={18} />}
+        {/* Icon */}
+        <SafeIcon size={18} />
 
+        {/* Label */}
         <span>{label}</span>
       </Link>
     );
@@ -186,7 +189,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         height: "100%",
       }}
     >
-      {/* 🔥 LOGO */}
+      {/* 🔥 TOP LOGO */}
       <div
         style={{
           padding: theme.spacing.lg,
@@ -214,7 +217,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         </span>
       </div>
 
-      {/* NAV */}
+      {/* NAV ITEMS */}
       <div
         style={{
           flex: 1,
@@ -224,10 +227,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {/* ADMIN */}
         {user?.role === "ADMIN" && (
           <>
-            {navItem("/admin", "Dashboard", LayoutDashboard)}
-            {navItem("/admin/users", "Users", Users)}
-            {navItem("/admin/assets", "Assets", Database)}
-            {navItem("/admin/command-center", "Admin Command Center", LayoutDashboard)}
+            {navItem("/admin/command-center", "Command Center", LayoutDashboard)}
+            {navItem("/admin/users", "Identity and Access", Users)}
+            {navItem("/admin/assets", "Assets and Systems", Database)}
             {navItem("/admin/geospatial", "Geospatial Sources", Map)}
             {navItem("/planning", "Reporting Center", FileText)}
           </>
@@ -237,11 +239,10 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {user?.role === "OPERATOR" && (
           <>
             {navItem("/operator/command-center", "Command Center", LayoutDashboard)}
-            {navItem("/operator/dashboard", "RF Operations", Radio)}
+            {navItem("/operator/dashboard", "Operator Dashboard", Radio)}
             {navItem("/operator/map", "Tactical Map", Map)}
-            {navItem("/operator/alerts", "Alerts", AlertTriangle)}
-            {navItem("/operator/tcp-client", "Sensor Network", Terminal)}
-            {navItem("/operator/simulation", "Signal Lab", Zap)}
+            {navItem("/operator/sms", "SMS", AlertTriangle)}
+            {navItem("/operator/tcp-client", "Decodio RED", Terminal)}
             {navItem("/reports", "Reporting Center", FileText)}
           </>
         )}
@@ -249,6 +250,9 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
         {/* EXTRA */}
         {hasPermission("crfs:read") &&
           navItem("/crfs/live", "CRFS Live", Radio)}
+
+        {hasPermission("crfs:read") &&
+          navItem("/telecom/intelligence", "Telecom Intelligence", Signal)}
 
         {hasPermission("jammer:write") &&
           navItem("/jammer/control", "Jammer Control", Zap)}

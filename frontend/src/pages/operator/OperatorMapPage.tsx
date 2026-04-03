@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AxiosError } from "axios";
+import { ChevronLeft } from "lucide-react";
 import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
 import MapView, { type JammerControlConfig } from "../../components/MapView";
@@ -33,6 +34,16 @@ const ASSET_TREE_PINNED_KEY = "ui.operator.assetTree.pinned";
 const OPERATOR_MAP_PANEL_HEIGHT = "calc(100vh - 190px)";
 const OPERATOR_MAP_MIN_HEIGHT_PX = 420;
 const TCP_STATUS_REFRESH_MS = 2000;
+const DEFAULT_OPERATOR_VISIBLE_TYPES = ["C2_NODE", "DIRECTION_FINDER"];
+
+function normalizeType(assetType: string | null | undefined): string {
+  return (assetType ?? "UNKNOWN").toUpperCase();
+}
+
+function isOperatorAllowedAssetType(assetType: string | null | undefined): boolean {
+  const type = normalizeType(assetType);
+  return DEFAULT_OPERATOR_VISIBLE_TYPES.includes(type);
+}
 
 const MODULE_ID_OPTIONS = ["1", "2", "3", "4"];
 const GAIN_OPTIONS = Array.from({ length: 35 }, (_, index) => String(index + 1));
@@ -154,6 +165,7 @@ export default function OperatorMapPage() {
   const [tcpRecentMessages, setTcpRecentMessages] = useState<TcpClientStatus["recent_messages"]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadWarnings, setLoadWarnings] = useState<string[]>([]);
   const [simulationMode, setSimulationMode] = useState(false);
   const [simulationSnapshot, setSimulationSnapshot] = useState<DashboardSimulationSnapshot | null>(null);
 
@@ -169,29 +181,65 @@ export default function OperatorMapPage() {
   const load = useCallback(async () => {
     try {
       setError(null);
+      const warnings: string[] = [];
       const [assetsRes, jammerProfilesRes, alertsRes, signalsRes, heatRes, tcpStatusRes] = await Promise.all([
         getAssets(),
-        getJammerProfiles(),
-        getAlerts(),
-        getRFSignals(),
-        getHeatMap(),
-        getTcpClientStatus().catch(() => null),
+        getJammerProfiles().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          if ((requestError as any)?.response?.status === 403) {
+            return { data: [] as JammerProfileRecord[] };
+          }
+          warnings.push(`jammers: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as JammerProfileRecord[] };
+        }),
+        getAlerts().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`alerts: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as AlertRecord[] };
+        }),
+        getRFSignals().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`rf/signals: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as RFSignal[] };
+        }),
+        getHeatMap().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`rf/heatmap: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return { data: [] as HeatCell[] };
+        }),
+        getTcpClientStatus().catch((requestError) => {
+          if ((requestError as any)?.response?.status === 401) {
+            return Promise.reject(requestError);
+          }
+          warnings.push(`tcp-listener/client/status: ${extractApiErrorMessage(requestError, "request failed")}`);
+          return null;
+        }),
       ]);
 
-      const loadedAssets = assetsRes.data;
-      const allTypes = Array.from(new Set(loadedAssets.map((asset) => (asset.type ?? "UNKNOWN").toUpperCase()))).sort();
+      const loadedAssets = assetsRes.data.filter((asset) => isOperatorAllowedAssetType(asset.type));
+      const allTypes = Array.from(new Set(loadedAssets.map((asset) => normalizeType(asset.type)))).sort();
       const allIds = loadedAssets.map((asset) => asset.id);
+      const initialTypes = allTypes;
+      const initialIds = allIds;
 
       setAssets(loadedAssets);
       setSelectedAssetTypes((current) => {
         if (!hasInitializedSelectionsRef.current) {
-          return allTypes;
+          return initialTypes;
         }
         return current.filter((t) => allTypes.includes(t));
       });
       setSelectedAssetIds((current) => {
         if (!hasInitializedSelectionsRef.current) {
-          return allIds;
+          return initialIds;
         }
         return current.filter((id) => allIds.includes(id));
       });
@@ -204,7 +252,13 @@ export default function OperatorMapPage() {
       setSignals(signalsRes.data);
       setHeatCells(heatRes.data);
       setTcpRecentMessages(tcpStatusRes?.data?.recent_messages ?? []);
-    } catch {
+      setLoadWarnings(warnings);
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        // Interceptor will redirect; suppress the error banner
+        return;
+      }
+      setLoadWarnings([]);
       setError("Failed to load map data.");
     } finally {
       setLoading(false);
@@ -330,7 +384,7 @@ export default function OperatorMapPage() {
     });
   }, [assets, selectedAssetIds, selectedAssetTypes, showAllAssets]);
 
-  const mapAssets = simulationMode ? simulationSnapshot?.directionFinderAssets ?? [] : filteredAssets;
+  const mapAssets = filteredAssets;
   const mapAlerts = simulationMode ? simulationSnapshot?.alerts ?? [] : alerts;
   const mapSignals = simulationMode ? simulationSnapshot?.signals ?? [] : signals;
   const mapHeatCells = simulationMode ? simulationSnapshot?.heatCells ?? [] : heatCells;
@@ -626,6 +680,22 @@ export default function OperatorMapPage() {
           </div>
         )}
 
+        {!error && loadWarnings.length > 0 && (
+          <div
+            style={{
+              padding: "8px 12px",
+              borderRadius: 6,
+              background: "rgba(245, 158, 11, 0.12)",
+              border: "1px solid #f59e0b",
+              color: "#f59e0b",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            DATA_WARNINGS: {loadWarnings.join(" | ")}
+          </div>
+        )}
+
         {/* TOAST */}
         {jammerToast && (
           <div style={{
@@ -666,48 +736,58 @@ export default function OperatorMapPage() {
           {/* Subtle UI overlay effect for corners */}
           <div style={{ position: 'absolute', top: 0, left: 0, width: 20, height: 20, borderTop: '2px solid #38bdf8', borderLeft: '2px solid #38bdf8', pointerEvents: 'none', zIndex: 10 }} />
           <MapView
-            assets={filteredAssets}
-            alerts={alerts}
-            signals={signals}
-            heatCells={heatCells}
+            assets={mapAssets}
+            alerts={mapAlerts}
+            signals={mapSignals}
+            heatCells={mapHeatCells}
             tcpRecentMessages={tcpRecentMessages}
+            triangulation={mapTriangulation}
             jammerLifecycleByAssetId={jammerLifecycleByAssetId}
             onJammerToggle={handleJammerToggle}
             jammerActionInProgressId={jammerActionAssetId}
+            initialShowAlerts={false}
+            initialShowSignals={false}
             mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
           />
         </div>
 
         {/* COLLAPSED TAB */}
         {!isTreeVisible && (
-          <div
+          <button
+            type="button"
+            onClick={() => setIsTreeVisible(true)}
             onMouseEnter={() => setIsTreeVisible(true)}
+            title="Expand system assets panel"
             style={{
               width: 60,
+              height: 60,
               borderRadius: 16,
-              border: `1px solid rgba(56, 189, 248, 0.1)`,
-              background: "linear-gradient(180deg, #1e293b 0%, #0f172a 100%)",
+              border: `1px solid rgba(56, 189, 248, 0.3)`,
+              background: "#ffffff",
+              color: "#0f172a",
+              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              cursor: "pointer",
-              boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)"
+              boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)",
+              transition: "all 0.2s ease",
+              padding: 0,
+              fontWeight: 700,
+              lineHeight: 1,
+            }}
+            onMouseOver={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "#e2e8f0";
+              el.style.borderColor = "rgba(56, 189, 248, 0.5)";
+            }}
+            onMouseOut={(e) => {
+              const el = e.currentTarget as HTMLButtonElement;
+              el.style.background = "#ffffff";
+              el.style.borderColor = "rgba(56, 189, 248, 0.3)";
             }}
           >
-            <div style={{ color: "#38bdf8", fontSize: 24, fontWeight: 'bold' }}>«</div>
-            <MapView
-              assets={mapAssets}
-              alerts={mapAlerts}
-              signals={mapSignals}
-              heatCells={mapHeatCells}
-              triangulation={mapTriangulation}
-              tcpRecentMessages={tcpRecentMessages}
-              jammerLifecycleByAssetId={jammerLifecycleByAssetId}
-              onJammerToggle={handleJammerToggle}
-              jammerActionInProgressId={jammerActionAssetId}
-              mapHeight={OPERATOR_MAP_PANEL_HEIGHT}
-            />
-          </div>
+            <ChevronLeft size={20} strokeWidth={2.2} />
+          </button>
         )}
 
         {/* SIDEBAR */}

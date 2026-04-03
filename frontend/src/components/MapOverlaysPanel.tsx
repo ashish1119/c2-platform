@@ -1,6 +1,5 @@
 import type { AssetTypeSettings, DrawShapeType } from "./mapViewConfig";
 import MapLegendPanel from "./MapLegendPanel";
-import MapOverlayControls from "./MapOverlayControls";
 
 type Props = {
   dfRangeColor: string;
@@ -101,51 +100,6 @@ export default function MapOverlaysPanel({
 }: Props) {
   return (
     <>
-      <MapOverlayControls
-        dfRangeColor={dfRangeColor}
-        showTransparencySlider={showTransparencySlider}
-        onToggleTransparencySlider={onToggleTransparencySlider}
-        jammerPopupAlpha={jammerPopupAlpha}
-        onJammerPopupAlphaChange={onJammerPopupAlphaChange}
-        showJammerColorPicker={showJammerColorPicker}
-        onToggleJammerColorPicker={onToggleJammerColorPicker}
-        jammerRangeColor={jammerRangeColor}
-        onJammerRangeColorChange={onJammerRangeColorChange}
-        showDfColorPicker={showDfColorPicker}
-        onToggleDfColorPicker={onToggleDfColorPicker}
-        onDfRangeColorChange={onDfRangeColorChange}
-        showBaseMapSelector={showBaseMapSelector}
-        onToggleBaseMapSelector={onToggleBaseMapSelector}
-        baseMapId={baseMapId}
-        onBaseMapSelectionChange={onBaseMapSelectionChange}
-        isOfflineBaseMap={isOfflineBaseMap}
-        baseMapTileErrors={baseMapTileErrors}
-        autoOfflineFallbackActive={autoOfflineFallbackActive}
-        navigatorOnline={navigatorOnline}
-        currentViewAvailable={currentViewAvailable}
-        onSaveCurrentView={onSaveCurrentView}
-        hasSavedView={hasSavedView}
-        onResetView={onResetView}
-        showAssets={showAssets}
-        onToggleAssets={onToggleAssets}
-        showSignals={showSignals}
-        onToggleSignals={onToggleSignals}
-        showHeatOverlay={showHeatOverlay}
-        onToggleHeatOverlay={onToggleHeatOverlay}
-        showTriangulationOverlay={showTriangulationOverlay}
-        onToggleTriangulationOverlay={onToggleTriangulationOverlay}
-        showNodeLabels={showNodeLabels}
-        onToggleNodeLabels={onToggleNodeLabels}
-        showAlerts={showAlerts}
-        onToggleAlerts={onToggleAlerts}
-        activeDrawShape={activeDrawShape}
-        activeShapeMenuTop={activeShapeMenuTop}
-        activeShapeColor={activeShapeColor}
-        activeShapeLabel={activeShapeLabel}
-        onActiveShapeColorChange={onActiveShapeColorChange}
-        mousePosition={mousePosition}
-      />
-
       <MapLegendPanel
         assetTypeLegend={assetTypeLegend}
         triangulationLegendEntries={triangulationLegendEntries}

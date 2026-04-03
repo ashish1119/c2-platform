@@ -385,20 +385,60 @@ export default function OperatorDashboardPage() {
           }));
         }
 
-        if (eventType === "sms_ingest") {
-          const accepted = typeof payload.accepted === "number" ? payload.accepted : 0;
-          const rejected = typeof payload.rejected === "number" ? payload.rejected : 0;
-          const sourceNode = typeof payload.source_node === "string" ? payload.source_node : "";
+        // if (eventType === "sms_ingest") {
+        //   const accepted = typeof payload.accepted === "number" ? payload.accepted : 0;
+        //   const rejected = typeof payload.rejected === "number" ? payload.rejected : 0;
+        //   const sourceNode = typeof payload.source_node === "string" ? payload.source_node : "";
 
-          setStatus((previous) => ({
-            ...previous,
-            sourceNode: sourceNode || previous.sourceNode,
-            accepted,
-            rejected,
-            updatedAt: new Date().toISOString(),
-            message: `Live ingest update: accepted ${accepted}, rejected ${rejected}.`,
-          }));
-        }
+        //   setStatus((previous) => ({
+        //     ...previous,
+        //     sourceNode: sourceNode || previous.sourceNode,
+        //     accepted,
+        //     rejected,
+        //     updatedAt: new Date().toISOString(),
+        //     message: `Live ingest update: accepted ${accepted}, rejected ${rejected}.`,
+        //   }));
+        // }
+
+        if (eventType === "sms_ingest") {
+            const accepted = typeof payload.accepted === "number" ? payload.accepted : 0;
+            const rejected = typeof payload.rejected === "number" ? payload.rejected : 0;
+            const sourceNode = typeof payload.source_node === "string" ? payload.source_node : "";
+
+  // ✅ UPDATE STATUS
+  setStatus((previous) => ({
+    ...previous,
+    sourceNode: sourceNode || previous.sourceNode,
+    accepted,
+    rejected,
+    updatedAt: new Date().toISOString(),
+    message: `Live ingest update: accepted ${accepted}, rejected ${rejected}.`,
+  }));
+
+  // ============================================
+  // 🔥 NEW: PUSH TCP DATA INTO UI
+  // ============================================
+  if (payload.data) {
+    const d = payload.data as Partial<{
+      id: string;
+      freq: number;
+      power: number;
+      DOA: number;
+      timestamp: string;
+    }>;
+
+    const newDetection = {
+      id: d.id ?? `${Date.now()}`,
+      source_node: sourceNode || "tcp_node_01",
+      frequency_hz: d.freq ?? 0,
+      power_dbm: d.power ?? null,
+      doa_azimuth_deg: d.DOA ?? null,
+      timestamp_utc: d.timestamp ?? new Date().toISOString(),
+    };
+
+    setDetections((prev) => [newDetection, ...prev].slice(0, 200));
+  }
+}
       };
 
       websocket.onclose = () => {
@@ -705,14 +745,14 @@ export default function OperatorDashboardPage() {
               gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
             }}
           >
-            <RFUploader
+            {/* <RFUploader
               sourceNode={fileSourceNode}
               uploading={uploadingFile}
               disabled={!canWriteSms || simulationMode}
               lastUploadedFile={status.fileName ?? null}
               onSourceNodeChange={setFileSourceNode}
               onUpload={handleUpload}
-            />
+            /> */}
 
             <StreamInput
               streamUrl={streamUrl}
@@ -756,7 +796,7 @@ export default function OperatorDashboardPage() {
                 }}
               >
                 <SpectrumViewer bins={spectrumBins} loading={telemetryLoading} lastUpdatedAt={lastTelemetryUpdate} />
-                <WaterfallHistoryView detections={detections} spectrumBins={spectrumBins} loading={telemetryLoading} />
+                <WaterfallHistoryView loading={telemetryLoading} />
               </div>
 
               <div
