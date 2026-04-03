@@ -13,6 +13,21 @@ import {
 } from "../../api/tcpListener";
 import { useTheme } from "../../context/ThemeContext";
 
+// Types for stream data
+interface StreamPacket {
+  metadata: any;
+  signalData: Float32Array;
+  receivedAt: number;
+}
+
+interface StreamStats {
+  packetsReceived: number;
+  totalBytes: number;
+  lastPacketTime: number;
+  averageFrequency: number;
+  averageAmplitude: number;
+}
+
 // Reusable Input Field Component with Dynamic Contrast
 const AdaptiveInput: React.FC<{
   value?: string;
@@ -804,7 +819,7 @@ const formatDuration = (seconds: number | null | undefined): string => {
   return `${minutes}m ${remainingSeconds}s`;
 };
 
-export default function OperatorSignalAnalyzerPage(): React.FC {
+export default function OperatorSignalAnalyzerPage() {
   const { theme } = useTheme();
   const [tcpClientStatus, setTcpClientStatus] = useState<TcpClientStatus | null>(
     null
@@ -816,12 +831,169 @@ export default function OperatorSignalAnalyzerPage(): React.FC {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Signal Streamer State
+  const [isStreamerActive, setIsStreamerActive] = useState(false);
+  const [streamData, setStreamData] = useState<StreamPacket[]>([]);
+  const [streamStats, setStreamStats] = useState<StreamStats>({
+    packetsReceived: 0,
+    totalBytes: 0,
+    lastPacketTime: 0,
+    averageFrequency: 0,
+    averageAmplitude: 0
+  });
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const [selectedPacket, setSelectedPacket] = useState<StreamPacket | null>(null);
+  const streamSocketRef = useRef<WebSocket | null>(null);
+
   const handleConnect = useCallback(async () => {
     setConnectionStatus('connected');
   }, []);
 
   const handleDisconnect = useCallback(async () => {
     setConnectionStatus('disconnected');
+  }, []);
+
+  // Signal Streamer Handlers
+  const handleStartStreamer = useCallback(async () => {
+    try {
+      setIsStreamerActive(true);
+      setStreamError(null);
+      setStreamData([]);
+      setStreamStats({
+        packetsReceived: 0,
+        totalBytes: 0,
+        lastPacketTime: 0,
+        averageFrequency: 0,
+        averageAmplitude: 0
+      });
+      
+      console.log('Starting signal streamer...');
+      
+      // Try to connect to WebSocket, but also start mock data generation
+      const ws = new WebSocket('ws://localhost:8081/stream');
+      streamSocketRef.current = ws;
+      
+      ws.onopen = () => {
+        console.log('Connected to stream data WebSocket');
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'stream_data') {
+            const newStreamData: StreamPacket = {
+              metadata: data.metadata,
+              signalData: new Float32Array(data.signalData),
+              receivedAt: Date.now()
+            };
+            
+            setStreamData((prev: StreamPacket[]) => {
+              const updated = [...prev, newStreamData];
+              return updated.slice(-100);
+            });
+            
+            setStreamStats((prev: StreamStats) => ({
+              packetsReceived: prev.packetsReceived + 1,
+              totalBytes: prev.totalBytes + data.signalData.length * 4,
+              lastPacketTime: Date.now(),
+              averageFrequency: data.metadata.center_frequency || 0,
+              averageAmplitude: data.metadata.amplitudes ? 
+                data.metadata.amplitudes.reduce((a: number, b: number) => a + b, 0) / data.metadata.amplitudes.length : 0
+            }));
+          }
+        } catch (err) {
+          console.error('Error parsing stream data:', err);
+        }
+      };
+      
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+        setStreamError('WebSocket connection failed - using mock data instead');
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket connection closed');
+        if (isStreamerActive) {
+          setStreamError('WebSocket connection lost - using mock data');
+        }
+      };
+      
+      // Start mock data generation for demonstration
+      const mockDataInterval = setInterval(() => {
+        if (!isStreamerActive) {
+          clearInterval(mockDataInterval);
+          return;
+        }
+        
+        const sampleCount = 1024;
+        const signalData = new Float32Array(sampleCount);
+        const frequencies = [433.92, 434.5, 432.1, 435.2];
+        const randomFreq = frequencies[Math.floor(Math.random() * frequencies.length)];
+        
+        for (let i = 0; i < sampleCount; i++) {
+          const t = i / 44100;
+          signalData[i] = Math.sin(2 * Math.PI * randomFreq * 1e6 * t) * 
+                          (0.5 + Math.random() * 0.5) * 
+                          Math.exp(-t * 0.1);
+        }
+        
+        const mockPacket: StreamPacket = {
+          metadata: {
+            center_frequency: randomFreq * 1e9,
+            sample_rate: 44100,
+            bandwidth: 2000000,
+            amplitudes: Array.from({length: 10}, () => -50 + Math.random() * 20),
+            timestamp: Date.now(),
+            device_id: `device_${Math.floor(Math.random() * 1000)}`,
+            signal_strength: -60 + Math.random() * 30,
+            modulation: ['FSK', 'PSK', 'QAM', 'FM'][Math.floor(Math.random() * 4)]
+          },
+          signalData: signalData,
+          receivedAt: Date.now()
+        };
+        
+        setStreamData((prev: StreamPacket[]) => {
+          const updated = [...prev, mockPacket];
+          return updated.slice(-100);
+        });
+        
+        setStreamStats((prev: StreamStats) => ({
+          packetsReceived: prev.packetsReceived + 1,
+          totalBytes: prev.totalBytes + signalData.length * 4,
+          lastPacketTime: Date.now(),
+          averageFrequency: randomFreq * 1e9,
+          averageAmplitude: mockPacket.metadata.amplitudes.reduce((a: number, b: number) => a + b, 0) / mockPacket.metadata.amplitudes.length
+        }));
+      }, 1000);
+      
+      (window as any).mockDataInterval = mockDataInterval;
+      
+    } catch (err) {
+      console.error('Failed to start streamer:', err);
+      setStreamError('Failed to start streamer');
+      setIsStreamerActive(false);
+    }
+  }, [isStreamerActive]);
+
+  const handleStopStreamer = useCallback(() => {
+    setIsStreamerActive(false);
+    
+    if (streamSocketRef.current) {
+      streamSocketRef.current.close();
+      streamSocketRef.current = null;
+    }
+    
+    if ((window as any).mockDataInterval) {
+      clearInterval((window as any).mockDataInterval);
+      (window as any).mockDataInterval = null;
+    }
+    
+    console.log('Signal streamer stopped');
+  }, []);
+
+  const handlePacketClick = useCallback((packet: StreamPacket) => {
+    setSelectedPacket(packet);
+    console.log('Selected packet:', packet);
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -852,6 +1024,13 @@ export default function OperatorSignalAnalyzerPage(): React.FC {
     const interval = setInterval(fetchData, REFRESH_MS);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      handleStopStreamer();
+    };
+  }, [handleStopStreamer]);
 
   const protocolStats = useMemo(() => {
     const stats = new Map<string, { count: number; bytes: number; duration: number }>();
@@ -1329,7 +1508,257 @@ export default function OperatorSignalAnalyzerPage(): React.FC {
                 </div>
               </div>
             </Card>
-          </div>
+
+          {/* Signal Streamer Section */}
+          <Card>
+            <div style={{ 
+              display: "grid", 
+              gap: theme.spacing.lg,
+              padding: theme.spacing.md 
+            }}>
+              <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center",
+                borderBottom: `1px solid ${theme.colors.border}`,
+                paddingBottom: theme.spacing.sm
+              }}>
+                <h4 style={{ 
+                  margin: 0, 
+                  color: theme.colors.primary,
+                  fontSize: "1.1em",
+                  fontWeight: "600"
+                }}>
+                  Signal Streamer (Port 9999)
+                </h4>
+                <div style={{ display: "flex", gap: theme.spacing.sm }}>
+                  <button
+                    type="button"
+                    onClick={handleStartStreamer}
+                    disabled={isStreamerActive}
+                    style={{
+                      padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
+                      backgroundColor: isStreamerActive ? theme.colors.surface : theme.colors.primary,
+                      color: isStreamerActive ? theme.colors.textSecondary : theme.colors.text,
+                      border: `1px solid ${isStreamerActive ? theme.colors.border : theme.colors.primary}`,
+                      borderRadius: theme.radius.sm,
+                      cursor: isStreamerActive ? "not-allowed" : "pointer",
+                      fontSize: "0.9em",
+                      fontWeight: "500",
+                      outline: "none",
+                      transition: "all 0.2s ease",
+                      transform: isStreamerActive ? "scale(0.98)" : "scale(1)",
+                      boxShadow: isStreamerActive ? "none" : `0 2px 4px ${theme.colors.primary}30`
+                    }}
+                    onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      if (!isStreamerActive) {
+                        e.currentTarget.style.backgroundColor = theme.colors.primary + '90';
+                        e.currentTarget.style.transform = "scale(1.05)";
+                        e.currentTarget.style.boxShadow = `0 4px 8px ${theme.colors.primary}40`;
+                      }
+                    }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      if (!isStreamerActive) {
+                        e.currentTarget.style.backgroundColor = theme.colors.primary;
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = `0 2px 4px ${theme.colors.primary}30`;
+                      }
+                    }}
+                  >
+                    {isStreamerActive ? '⏸ Streamer Active' : '▶ Start Streamer'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStopStreamer}
+                    disabled={!isStreamerActive}
+                    style={{
+                      padding: `${theme.spacing.sm} ${theme.spacing.lg}`,
+                      backgroundColor: !isStreamerActive ? theme.colors.surface : theme.colors.error,
+                      color: !isStreamerActive ? theme.colors.textSecondary : theme.colors.text,
+                      border: `1px solid ${!isStreamerActive ? theme.colors.border : theme.colors.error}`,
+                      borderRadius: theme.radius.sm,
+                      cursor: !isStreamerActive ? "not-allowed" : "pointer",
+                      fontSize: "0.9em",
+                      fontWeight: "500",
+                      outline: "none",
+                      transition: "all 0.2s ease",
+                      transform: !isStreamerActive ? "scale(0.98)" : "scale(1)",
+                      boxShadow: !isStreamerActive ? "none" : `0 2px 4px ${theme.colors.error}30`
+                    }}
+                    onMouseEnter={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      if (isStreamerActive) {
+                        e.currentTarget.style.backgroundColor = theme.colors.error + '90';
+                        e.currentTarget.style.transform = "scale(1.05)";
+                        e.currentTarget.style.boxShadow = `0 4px 8px ${theme.colors.error}40`;
+                      }
+                    }}
+                    onMouseLeave={(e: React.MouseEvent<HTMLButtonElement>) => {
+                      if (isStreamerActive) {
+                        e.currentTarget.style.backgroundColor = theme.colors.error;
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = `0 2px 4px ${theme.colors.error}30`;
+                      }
+                    }}
+                  >
+                    {isStreamerActive ? '⏹ Stop Streamer' : '⏹ Inactive'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Streamer Status */}
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: theme.spacing.sm,
+                marginBottom: theme.spacing.md,
+                padding: theme.spacing.sm,
+                backgroundColor: isStreamerActive ? theme.colors.primary + '10' : theme.colors.surface,
+                borderRadius: theme.radius.sm,
+                border: `1px solid ${isStreamerActive ? theme.colors.primary : theme.colors.border}`
+              }}>
+                <div>
+                  <div style={{ fontSize: "0.8em", color: theme.colors.textSecondary }}>Status</div>
+                  <div style={{ fontWeight: "600", color: isStreamerActive ? theme.colors.primary : theme.colors.textSecondary }}>
+                    {isStreamerActive ? 'Active' : 'Inactive'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.8em", color: theme.colors.textSecondary }}>Packets</div>
+                  <div style={{ fontWeight: "600", color: theme.colors.text }}>
+                    {streamStats.packetsReceived}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.8em", color: theme.colors.textSecondary }}>Data Size</div>
+                  <div style={{ fontWeight: "600", color: theme.colors.text }}>
+                    {formatBytes(streamStats.totalBytes)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.8em", color: theme.colors.textSecondary }}>Avg Frequency</div>
+                  <div style={{ fontWeight: "600", color: theme.colors.text }}>
+                    {(streamStats.averageFrequency / 1e9).toFixed(3)} GHz
+                  </div>
+                </div>
+              </div>
+
+              {/* Stream Error */}
+              {streamError && (
+                <div style={{
+                  padding: theme.spacing.sm,
+                  backgroundColor: theme.colors.error + '10',
+                  border: `1px solid ${theme.colors.error}`,
+                  borderRadius: theme.radius.sm,
+                  color: theme.colors.error,
+                  fontSize: "0.9em",
+                  marginBottom: theme.spacing.md
+                }}>
+                  Error: {streamError}
+                </div>
+              )}
+
+              {/* Stream Data JSON Tree */}
+              {streamData.length > 0 && (
+                <div style={{
+                  marginTop: theme.spacing.md,
+                  padding: theme.spacing.sm,
+                  backgroundColor: theme.colors.background,
+                  border: `1px solid ${theme.colors.border}`,
+                  borderRadius: theme.radius.sm,
+                  maxHeight: "300px",
+                  overflow: "auto"
+                }}>
+                  <h5 style={{ margin: "0 0 " + theme.spacing.sm + " 0", color: theme.colors.primary }}>
+                    Stream Data (Last {streamData.length} packets)
+                  </h5>
+                  <div style={{ fontSize: "0.8em", fontFamily: "monospace" }}>
+                    {streamData.slice(-5).reverse().map((data: StreamPacket, index: number) => (
+                      <div 
+                        key={data.receivedAt} 
+                        onClick={() => handlePacketClick(data)}
+                        style={{
+                          marginBottom: theme.spacing.sm,
+                          padding: theme.spacing.sm,
+                          backgroundColor: selectedPacket?.receivedAt === data.receivedAt ? theme.colors.primary + '25' : theme.colors.surface,
+                          border: selectedPacket?.receivedAt === data.receivedAt ? `2px solid ${theme.colors.primary}` : `1px solid ${theme.colors.border}`,
+                          borderRadius: theme.radius.sm,
+                          cursor: "pointer",
+                          transition: "all 0.3s ease",
+                          transform: selectedPacket?.receivedAt === data.receivedAt ? "scale(1.02)" : "scale(1)",
+                          boxShadow: selectedPacket?.receivedAt === data.receivedAt ? `0 4px 12px ${theme.colors.primary}40` : `0 1px 3px rgba(0,0,0,0.1)`
+                        }}
+                        onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => {
+                          if (selectedPacket?.receivedAt !== data.receivedAt) {
+                            e.currentTarget.style.backgroundColor = theme.colors.surface + 'CC';
+                            e.currentTarget.style.transform = "scale(1.01)";
+                            e.currentTarget.style.boxShadow = `0 2px 8px rgba(0,0,0,0.15)`;
+                          }
+                        }}
+                        onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => {
+                          if (selectedPacket?.receivedAt !== data.receivedAt) {
+                            e.currentTarget.style.backgroundColor = theme.colors.surface;
+                            e.currentTarget.style.transform = "scale(1)";
+                            e.currentTarget.style.boxShadow = `0 1px 3px rgba(0,0,0,0.1)`;
+                          }
+                        }}
+                      >
+                        <div style={{ fontWeight: "600", color: theme.colors.primary, marginBottom: theme.spacing.xs, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span>
+                            📦 Packet #{streamStats.packetsReceived - index} - {new Date(data.receivedAt).toLocaleTimeString()}
+                          </span>
+                          {selectedPacket?.receivedAt === data.receivedAt && (
+                            <span style={{ 
+                              marginLeft: theme.spacing.sm, 
+                              fontSize: "0.8em", 
+                              color: theme.colors.primary,
+                              backgroundColor: theme.colors.primary + '20',
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              fontWeight: "700"
+                            }}>
+                              ✓ SELECTED
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ color: theme.colors.textSecondary, marginBottom: theme.spacing.xs, fontSize: "0.85em" }}>
+                          <strong>📊 Metadata:</strong>
+                        </div>
+                        <pre style={{ 
+                          margin: 0, 
+                          fontSize: "0.75em", 
+                          color: theme.colors.text,
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-all",
+                          backgroundColor: theme.colors.background,
+                          padding: theme.spacing.xs,
+                          borderRadius: "4px",
+                          border: `1px solid ${theme.colors.border}`
+                        }}>
+                          {JSON.stringify(data.metadata, null, 2)}
+                        </pre>
+                        <div style={{ 
+                          color: theme.colors.textSecondary, 
+                          marginTop: theme.spacing.xs, 
+                          fontSize: "0.75em",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center"
+                        }}>
+                          <span>📡 Signal Data: {data.signalData.length} samples</span>
+                          <span style={{ 
+                            color: theme.colors.success,
+                            fontWeight: "600"
+                          }}>
+                            {data.metadata.modulation || 'N/A'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
         </div>
       </PageContainer>
     </AppLayout>
