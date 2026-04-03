@@ -114,7 +114,7 @@ function jitter(v: number, scale = 0.002): number {
 
 export function useSignalIntelligence(cdrRecords: TelecomRecord[]) {
   const [devices, setDevices] = useState<DetectedDevice[]>([]);
-  const [targets, setTargets] = useState<Map<string, InterceptedTarget>>(new Map());
+  const [targets, setTargets] = useState<Map<string, InterceptedTarget>>(() => new Map());
   const [log, setLog] = useState<DetectionLogEntry[]>([]);
   const [alerts, setAlerts] = useState<SignalAlert[]>([]);
   const [scanning, setScanning] = useState(false);

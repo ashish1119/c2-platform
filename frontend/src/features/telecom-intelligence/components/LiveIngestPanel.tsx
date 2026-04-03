@@ -323,8 +323,9 @@ export default function LiveIngestPanel({ records }: Props) {
             <Activity size={16} color="#11C1CA" />
             Live CDR Stream
             {stream.connected && (
-              <span style={{ fontSize: 11, background: "#22c55e22", color: "#22c55e", border: "1px solid #22c55e55", borderRadius: 10, padding: "1px 8px", fontWeight: 700 }}>
-                ● LIVE
+              <span style={{ fontSize: 11, background: "#22c55e22", color: "#22c55e", border: "1px solid #22c55e55", borderRadius: 10, padding: "2px 10px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "liveBlink 1.2s ease-in-out infinite", boxShadow: "0 0 6px #22c55e" }} />
+                LIVE
               </span>
             )}
             {stream.alerts.length > 0 && (

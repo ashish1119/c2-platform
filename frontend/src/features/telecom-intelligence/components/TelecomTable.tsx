@@ -121,23 +121,31 @@ export default function TelecomTable({
       <div style={{ overflowX: "auto", flex: 1 }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
           <thead>
-            <tr style={{ background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" }}>
+            <tr style={{
+              background: isDark
+                ? "linear-gradient(135deg, rgba(0,229,255,0.08), rgba(0,112,243,0.06))"
+                : "linear-gradient(135deg, rgba(0,112,243,0.07), rgba(0,229,255,0.05))",
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+            }}>
               {COLS.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => onSort(col.key)}
                   style={{
-                    padding: "8px 10px",
+                    padding: "9px 10px",
                     textAlign: "left",
-                    fontWeight: 600,
+                    fontWeight: 700,
                     fontSize: 10,
-                    letterSpacing: "0.5px",
-                    color: sortKey === col.key ? "#11C1CA" : theme.colors.textSecondary,
+                    letterSpacing: "0.7px",
+                    color: sortKey === col.key ? theme.colors.primary : theme.colors.textSecondary,
                     cursor: "pointer",
                     whiteSpace: "nowrap",
-                    borderBottom: `1px solid ${theme.colors.border}30`,
+                    borderBottom: `1.5px solid ${sortKey === col.key ? theme.colors.primary : theme.colors.border}`,
                     minWidth: col.width,
                     userSelect: "none",
+                    textTransform: "uppercase",
                   }}
                 >
                   <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -149,32 +157,44 @@ export default function TelecomTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
+            {rows.map((r, rowIdx) => {
               const isSuspicious = r.fake || r.silentCallType !== "None";
               const isSelected = r.id === selectedId;
+              // Zebra striping
+              const zebraBase = isDark
+                ? rowIdx % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent"
+                : rowIdx % 2 === 0 ? "rgba(0,0,0,0.02)" : "transparent";
               return (
                 <tr
                   key={r.id}
+                  className="intel-row"
                   onClick={() => onSelect(r.id)}
                   style={{
                     cursor: "pointer",
                     background: isSelected
-                      ? "rgba(59,130,246,0.12)"
+                      ? isDark ? "rgba(0,112,243,0.14)" : "rgba(0,112,243,0.08)"
                       : isSuspicious
-                      ? "rgba(239,68,68,0.06)"
-                      : "transparent",
+                      ? isDark ? "rgba(255,77,79,0.07)" : "rgba(220,38,38,0.05)"
+                      : zebraBase,
                     borderLeft: isSelected
-                      ? "3px solid #3B82F6"
+                      ? `3px solid ${theme.colors.primary}`
                       : isSuspicious
-                      ? "3px solid #EF4444"
+                      ? `3px solid ${theme.colors.danger}`
                       : "3px solid transparent",
-                    transition: "background 0.1s",
                   }}
                   onMouseEnter={(e: MouseEvent<HTMLTableRowElement>) => {
-                    if (!isSelected) e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)";
+                    if (!isSelected) {
+                      e.currentTarget.style.background = isDark
+                        ? "rgba(0,229,255,0.07)"
+                        : "rgba(0,112,243,0.06)";
+                    }
                   }}
                   onMouseLeave={(e: MouseEvent<HTMLTableRowElement>) => {
-                    if (!isSelected) e.currentTarget.style.background = isSuspicious ? "rgba(239,68,68,0.06)" : "transparent";
+                    if (!isSelected) {
+                      e.currentTarget.style.background = isSuspicious
+                        ? isDark ? "rgba(255,77,79,0.07)" : "rgba(220,38,38,0.05)"
+                        : zebraBase;
+                    }
                   }}
                 >
                   <td style={{ padding: "7px 10px", color: theme.colors.textSecondary, whiteSpace: "nowrap" }}>

@@ -108,14 +108,45 @@ export function useTelecomAnalytics(filteredData: TelecomRecord[]) {
       .slice(0, 8);
   }, [filteredData]);
 
-  // ── Duration trend (per record, sorted by time) ───────────────────────────
+  // ── Duration trend — aggregated by HH:mm bucket (no duplicate X-axis) ───────
   const durationTrend = useMemo(() => {
-    return [...filteredData]
+    // Step 1: group total duration + suspicious flag per minute bucket
+    const buckets = new Map<string, { totalDuration: number; hasSuspicious: boolean; ts: string }>();
+
+    [...filteredData]
       .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""))
-      .map((r) => ({
-        time: (r.startTime || r.dateTime || "").slice(0, 16).replace("T", " "),
-        duration: Math.round((r.duration || 0) / 60), // minutes
-        suspicious: r.fake || r.silentCallType !== "None",
+      .forEach((r) => {
+        const raw = r.startTime || r.dateTime || "";
+        if (!raw) return;
+
+        // Build a sortable ISO-like key (YYYY-MM-DD HH:mm) for ordering
+        const isoKey = raw.slice(0, 16).replace("T", " ");
+
+        // Display label: HH:mm — if data spans multiple days, use MM-DD HH:mm
+        const dateStr  = raw.slice(0, 10);
+        const timeStr  = raw.slice(11, 16);
+        const displayKey = isoKey; // keep full for dedup; we'll shorten for display
+
+        if (!buckets.has(isoKey)) {
+          buckets.set(isoKey, { totalDuration: 0, hasSuspicious: false, ts: isoKey });
+        }
+        const b = buckets.get(isoKey)!;
+        b.totalDuration += r.duration || 0;
+        if (r.fake || r.silentCallType !== "None") b.hasSuspicious = true;
+      });
+
+    // Step 2: determine whether data spans multiple days
+    const dates = new Set([...buckets.keys()].map(k => k.slice(0, 10)));
+    const multiDay = dates.size > 1;
+
+    // Step 3: convert to chart-ready array, sorted chronologically
+    return [...buckets.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([isoKey, b]) => ({
+        // Show MM-DD HH:mm for multi-day data, HH:mm for single-day
+        time: multiDay ? isoKey.slice(5, 16) : isoKey.slice(11, 16),
+        duration: Math.round(b.totalDuration / 60),   // minutes
+        suspicious: b.hasSuspicious,
       }));
   }, [filteredData]);
 
@@ -184,12 +215,15 @@ export function useTelecomAnalytics(filteredData: TelecomRecord[]) {
       });
     }
 
-    // High frequency contact
+    // High frequency contact — top 6 by call count
     const targetFreq = new Map<string, number>();
     filteredData.forEach((r) => {
       if (r.target) targetFreq.set(r.target, (targetFreq.get(r.target) ?? 0) + 1);
     });
-    const highFreq = [...targetFreq.entries()].filter(([, c]) => c >= 5);
+    const highFreq = [...targetFreq.entries()]
+      .filter(([, c]) => c >= 5)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
     highFreq.forEach(([target, count]) => {
       items.push({
         id: `freq-${target}`,

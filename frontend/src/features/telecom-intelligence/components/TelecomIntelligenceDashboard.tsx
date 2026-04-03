@@ -2,12 +2,13 @@
  * TelecomIntelligenceDashboard — Premium Intelligence UI
  * Enhanced tab names, bold styling, glow effects, glassmorphism
  */
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { useTheme } from "../../../context/ThemeContext";
 import { useTelecomIntelligence } from "../state/useTelecomIntelligence";
 import { useTelecomAnalytics } from "../state/useTelecomAnalytics";
 import { useGraphData } from "../state/useGraphData";
+import type { GraphNode, GraphLink, GraphData } from "../state/useGraphData";
 import TelecomFilterBar from "./TelecomFilterBar";
 import TelecomKPICards from "./TelecomKPICards";
 import TelecomCallerPanel from "./TelecomCallerPanel";
@@ -24,9 +25,8 @@ import LiveIngestPanel from "./LiveIngestPanel";
 import CallGraph, { type CallGraphHandle } from "./analytics/CallGraph";
 import GraphControls from "./analytics/GraphControls";
 import NodeDetails from "./analytics/NodeDetails";
-import { exportCSV, exportPDF } from "../utils/exportUtils";
+import { exportCSV, exportPDF, exportAnalyticsPDF, type AnalyticsPDFPayload } from "../utils/exportUtils";
 import { getNetworkMap, getCallMap, type NetworkMapResponse, type CallMapResponse } from "../../../api/cdr";
-import type { GraphNode } from "../state/useGraphData";
 import {
   Activity, BarChart2, Clock, Download, FileText,
   Map, Table2, Wifi, WifiOff, Radio, Shield, Phone, Zap,
@@ -54,6 +54,7 @@ export default function TelecomIntelligenceDashboard() {
   const [activeTab, setActiveTab] = useState<ViewTab>("analytics");
   const [mapMode, setMapMode] = useState<"tower" | "callmap">("callmap");
   const [exporting, setExporting] = useState(false);
+  const [exportingAnalytics, setExportingAnalytics] = useState(false);
 
   // ── Graph state ───────────────────────────────────────────────────────────
   const { graphData, loading: graphLoading } = useGraphData(state.records, state.filters);
@@ -62,11 +63,159 @@ export default function TelecomIntelligenceDashboard() {
   const [showSuspiciousOnly, setShowSuspiciousOnly] = useState(false);
   const graphRef = useRef<CallGraphHandle>(null);
 
+  // ── Merged graph — accumulates nodes/links across expansions ─────────────
+  const [mergedGraph, setMergedGraph] = useState<GraphData | null>(null);
+
+  // Merge helper: combine old + new, deduplicate by id / source+target
+  const mergeGraphData = useCallback((
+    old: GraphData,
+    incoming: GraphData,
+    newCenter: string,
+  ): GraphData => {
+    // Merge nodes — incoming center becomes "main", all others become "contact"
+    const nodeMap = new Map<string, GraphNode>();
+    old.nodes.forEach((n: GraphNode) => {
+      nodeMap.set(n.id, { ...n, type: n.id === newCenter ? "main" : "contact" });
+    });
+    incoming.nodes.forEach((n: GraphNode) => {
+      nodeMap.set(n.id, { ...n, type: n.id === newCenter ? "main" : "contact" });
+    });
+
+    // Merge links — deduplicate by source+target pair
+    const linkKey = (l: GraphLink) => `${l.source}→${l.target}`;
+    const linkMap = new Map<string, GraphLink>();
+    [...old.links, ...incoming.links].forEach((l: GraphLink) => linkMap.set(linkKey(l), l));
+    const nodes: GraphNode[] = (Array.from(nodeMap.values()) as GraphNode[]).slice(0, 150);
+    const links: GraphLink[] = Array.from(linkMap.values()) as GraphLink[];
+
+    const centralNode = nodes
+      .filter((n: GraphNode) => n.type === "contact")
+      .sort((a: GraphNode, b: GraphNode) => b.total_calls - a.total_calls)[0];
+
+    return {
+      nodes,
+      links,
+      center_msisdn: newCenter,
+      total_records: incoming.total_records,
+      central_node_id: centralNode?.id ?? null,
+    };
+  }, []);
+
+  // Sync mergedGraph when graphData changes (initial load or filter change)
+  useEffect(() => {
+    if (!graphData) { setMergedGraph(null); return; }
+    setMergedGraph((prev: GraphData | null) => {
+      if (!prev) return graphData;
+      // If the new center is already in the merged graph → expansion, merge
+      // Otherwise it's a fresh filter change → reset
+      const isExpansion = prev.nodes.some((n: GraphNode) => n.id === graphData.center_msisdn);
+      if (!isExpansion) return graphData;
+      return mergeGraphData(prev, graphData, graphData.center_msisdn);
+    });
+  }, [graphData, mergeGraphData]);
+
+  // ── Graph navigation history (node expansion chain) ───────────────────────
+  const [graphHistory, setGraphHistory] = useState<string[]>([]);
+  // Track the currently focused node (for visual highlight) — separate from filter
+  const [currentFocusMsisdn, setCurrentFocusMsisdn] = useState<string | null>(null);
+
+  // When the filter MSISDN changes externally (e.g. user types in filter bar),
+  // reset the history AND the merged graph.
+  const prevMsisdnRef = useRef(state.filters.msisdn);
+  useEffect(() => {
+    if (state.filters.msisdn !== prevMsisdnRef.current) {
+      setGraphHistory([]);
+      setMergedGraph(null);
+      setCurrentFocusMsisdn(null);
+      prevMsisdnRef.current = state.filters.msisdn;
+    }
+  }, [state.filters.msisdn]);
+
+  // Expand: update the filter MSISDN so useGraphData fetches new connections,
+  // then the sync useEffect merges them into mergedGraph automatically.
+  const handleExpandNode = useCallback((msisdn: string) => {
+    const current = currentFocusMsisdn ?? state.filters.msisdn.trim();
+    if (!msisdn || msisdn === current) return;
+
+    setGraphHistory((prev: string[]) => [...prev, current]);
+    setCurrentFocusMsisdn(msisdn);
+    setSelectedNode(null);
+    // Update the filter — useGraphData will fetch the new graph,
+    // and the sync useEffect will merge it into mergedGraph
+    state.updateFilter("msisdn", msisdn);
+  }, [currentFocusMsisdn, state.filters.msisdn, state.updateFilter]);
+
+  // Back: pop history, restore previous focus
+  const handleGraphBack = useCallback(() => {
+    setGraphHistory((prev: string[]) => {
+      if (!prev.length) return prev;
+      const next = [...prev];
+      const parent = next.pop()!;
+      setCurrentFocusMsisdn(parent);
+      setSelectedNode(null);
+      state.updateFilter("msisdn", parent);
+      return next;
+    });
+  }, [state.updateFilter]);
+
+  // Back to root: jump straight to the original MSISDN focus
+  const handleGraphRoot = useCallback(() => {
+    if (!graphHistory.length) return;
+    const root = graphHistory[0];
+    setGraphHistory([]);
+    setCurrentFocusMsisdn(root);
+    setSelectedNode(null);
+    state.updateFilter("msisdn", root);
+  }, [graphHistory, state.updateFilter]);
+
   useEffect(() => { setSelectedNode(null); }, [state.filters.msisdn]);
 
+  // ── Analytics PDF export ──────────────────────────────────────────────────
+  const handleExportAnalytics = useCallback(async () => {
+    setExportingAnalytics(true);
+    try {
+      const cities = [...new Set(
+        state.records.map((r: import("../model").TelecomRecord) => r.gpsCity || r.place).filter(Boolean) as string[]
+      )];
+
+      const payload: AnalyticsPDFPayload = {
+        totalCalls:        state.kpis.totalCalls,
+        totalSMS:          state.kpis.totalSMS,
+        uniqueContacts:    state.kpis.uniqueContacts,
+        suspiciousCount:   state.kpis.suspiciousCount,
+        totalDurationSec:  state.kpis.totalDurationSec,
+        msisdn:            state.filters.msisdn || undefined,
+        dateFrom:          state.filters.dateFrom || undefined,
+        dateTo:            state.filters.dateTo   || undefined,
+        dataMode:          state.dataMode,
+        recordCount:       state.records.length,
+        avgDurationSec:    analytics.extKPIs.avgDurationSec,
+        mostActiveOperator:analytics.extKPIs.mostActiveOperator,
+        mostUsedNetwork:   analytics.extKPIs.mostUsedNetwork,
+        suspiciousPct:     analytics.extKPIs.suspiciousPct,
+        uniqueLocations:   analytics.extKPIs.uniqueLocations,
+        nightActivityCount:analytics.extKPIs.nightActivityCount,
+        peakHour:          analytics.extKPIs.peakHour,
+        peakHourCount:     analytics.extKPIs.peakHourCount,
+        mostContactedNumber:analytics.extKPIs.mostContactedNumber,
+        mostContactedCount: analytics.extKPIs.mostContactedCount,
+        dailyVolume:       analytics.dailyVolume,
+        callTypeDist:      analytics.callTypeDist,
+        operatorDist:      analytics.operatorDist,
+        topContacts:       analytics.topContacts,
+        durationTrend:     analytics.durationTrend,
+        insights:          analytics.insights,
+        cities,
+      };
+      await exportAnalyticsPDF(payload);
+    } finally {
+      setExportingAnalytics(false);
+    }
+  }, [state, analytics]);
+
   const selectedLink = useMemo(
-    () => graphData?.links.find((l) => l.target === selectedNode?.id) ?? null,
-    [graphData, selectedNode]
+    () => (mergedGraph ?? graphData)?.links.find((l: GraphLink) => l.target === selectedNode?.id) ?? null,
+    [mergedGraph, graphData, selectedNode]
   );
 
   // ── Network-map data ──────────────────────────────────────────────────────
@@ -146,7 +295,7 @@ export default function TelecomIntelligenceDashboard() {
             <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: "-0.3px",
               background: "linear-gradient(90deg, #11C1CA, #3B82F6)",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              Telecom Intelligence Platform
+              Cellular Interception
             </h2>
           </div>
           <div style={{ fontSize: 11, color: theme.colors.textSecondary, marginTop: 3, letterSpacing: "0.5px" }}>
@@ -280,6 +429,40 @@ export default function TelecomIntelligenceDashboard() {
       {activeTab === "analytics" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
+          {/* Analytics export button */}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={handleExportAnalytics}
+              disabled={exportingAnalytics || state.records.length === 0}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "8px 18px",
+                borderRadius: 8,
+                border: "1.5px solid rgba(17,193,202,0.5)",
+                background: exportingAnalytics
+                  ? "rgba(17,193,202,0.06)"
+                  : "linear-gradient(135deg, rgba(17,193,202,0.18), rgba(59,130,246,0.12))",
+                color: exportingAnalytics ? "#64748b" : "#11C1CA",
+                fontSize: 12, fontWeight: 700, cursor: exportingAnalytics || state.records.length === 0 ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+                boxShadow: exportingAnalytics ? "none" : "0 0 12px rgba(17,193,202,0.2)",
+                opacity: state.records.length === 0 ? 0.5 : 1,
+              }}
+            >
+              <FileText size={14} />
+              {exportingAnalytics ? "Generating..." : "Download Analytics PDF"}
+              {exportingAnalytics && (
+                <span style={{
+                  display: "inline-block", width: 12, height: 12,
+                  border: "2px solid rgba(17,193,202,0.3)",
+                  borderTopColor: "#11C1CA",
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
+                }} />
+              )}
+            </button>
+          </div>
+
           {/* KPI cards */}
           <TelecomKPICards kpis={state.kpis} />
 
@@ -323,14 +506,82 @@ export default function TelecomIntelligenceDashboard() {
                     background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
                     padding: "2px 8px", borderRadius: 10, fontWeight: 600 }}>
                     {state.filters.msisdn
-                      ? `${graphData?.nodes.length ?? 0} nodes · ${graphData?.links.length ?? 0} links`
+                      ? `${(mergedGraph ?? graphData)?.nodes.length ?? 0} nodes · ${(mergedGraph ?? graphData)?.links.length ?? 0} links`
                       : "Enter MSISDN to build graph"}
                   </span>
                 </div>
+
+                {/* ── Breadcrumb trail ── */}
+                {graphHistory.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
+                    {/* Back button */}
+                    <button
+                      onClick={handleGraphBack}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        cursor: "pointer", border: "1px solid rgba(17,193,202,0.4)",
+                        background: "rgba(17,193,202,0.1)", color: "#11C1CA",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      ← Back
+                    </button>
+
+                    {/* Root button */}
+                    <button
+                      onClick={handleGraphRoot}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        cursor: "pointer", border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`,
+                        background: "transparent", color: isDark ? "#64748b" : "#94a3b8",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      ⌂ Root
+                    </button>
+
+                    {/* Breadcrumb nodes */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, fontFamily: "monospace" }}>
+                      {graphHistory.map((msisdn: string, i: number) => (
+                        <React.Fragment key={msisdn}>
+                          <span
+                            onClick={() => {
+                              // Jump to any ancestor in the chain (graph stays merged)
+                              const newHistory = graphHistory.slice(0, i);
+                              setGraphHistory(newHistory);
+                              setSelectedNode(null);
+                              setCurrentFocusMsisdn(msisdn);
+                            }}
+                            style={{
+                              color: "#00E5FF", cursor: "pointer", opacity: 0.7,
+                              textDecoration: "underline", textDecorationStyle: "dotted",
+                            }}
+                          >
+                            {msisdn.length > 12 ? `…${msisdn.slice(-8)}` : msisdn}
+                          </span>
+                          <span style={{ color: isDark ? "#334155" : "#cbd5e1" }}>→</span>
+                        </React.Fragment>
+                      ))}
+                      <span style={{ color: "#00E5FF", fontWeight: 700 }}>
+                        {(currentFocusMsisdn ?? state.filters.msisdn).length > 12
+                          ? `…${(currentFocusMsisdn ?? state.filters.msisdn).slice(-8)}`
+                          : (currentFocusMsisdn ?? state.filters.msisdn)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
-              {graphData && (
+
+              {(mergedGraph ?? graphData) && (
                 <div style={{ fontSize: 11, color: isDark ? "#94a3b8" : "#64748b" }}>
-                  {graphData.total_records} records · centre: <strong style={{ color: "#11C1CA" }}>{graphData.center_msisdn}</strong>
+                  {(mergedGraph ?? graphData)!.total_records} records · centre: <strong style={{ color: "#00E5FF" }}>{(mergedGraph ?? graphData)!.center_msisdn}</strong>
+                  {mergedGraph && mergedGraph.nodes.length > (graphData?.nodes.length ?? 0) && (
+                    <span style={{ marginLeft: 8, fontSize: 10, color: "#22C55E", fontWeight: 700 }}>
+                      +{mergedGraph.nodes.length - (graphData?.nodes.length ?? 0)} expanded
+                    </span>
+                  )}
                 </div>
               )}
             </div>
@@ -367,26 +618,28 @@ export default function TelecomIntelligenceDashboard() {
                   </div>
                 )}
                 {state.filters.msisdn && graphLoading && !graphData && (
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#11C1CA", fontSize: 13, fontWeight: 600 }}>
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#00E5FF", fontSize: 13, fontWeight: 600 }}>
                     ⟳ Building graph…
                   </div>
                 )}
-                {graphData && graphData.nodes.length > 0 && (
+                {(mergedGraph ?? graphData) && (mergedGraph ?? graphData)!.nodes.length > 0 && (
                   <CallGraph
                     ref={graphRef}
-                    nodes={graphData.nodes}
-                    links={graphData.links}
+                    nodes={(mergedGraph ?? graphData)!.nodes}
+                    links={(mergedGraph ?? graphData)!.links}
                     selectedNodeId={selectedNode?.id ?? null}
                     onNodeSelect={setSelectedNode}
+                    onExpandNode={handleExpandNode}
                     showLabels={showLabels}
                     showSuspiciousOnly={showSuspiciousOnly}
                     isDark={isDark}
                     width={Math.round(window.innerWidth * 0.7 * 0.68)}
                     height={520}
-                    centralNodeId={graphData.central_node_id ?? null}
+                    centralNodeId={(mergedGraph ?? graphData)!.central_node_id ?? null}
+                    centerMsisdn={currentFocusMsisdn ?? state.filters.msisdn}
                   />
                 )}
-                {graphData && graphData.nodes.length === 0 && state.filters.msisdn && (
+                {(mergedGraph ?? graphData) && (mergedGraph ?? graphData)!.nodes.length === 0 && state.filters.msisdn && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: isDark ? "#94a3b8" : "#64748b" }}>
                     <div style={{ fontSize: 28 }}>🔍</div>
                     <div style={{ fontSize: 13 }}>No records found for <strong>{state.filters.msisdn}</strong></div>
@@ -399,7 +652,7 @@ export default function TelecomIntelligenceDashboard() {
                   linkCount={selectedLink?.count}
                   linkDuration={selectedLink?.duration}
                   onClose={() => setSelectedNode(null)}
-                  onFocus={(msisdn) => state.updateFilter("msisdn", msisdn)}
+                  onFocus={handleExpandNode}
                 />
               </div>
             </div>
@@ -425,7 +678,7 @@ export default function TelecomIntelligenceDashboard() {
                 <div style={{ width: 18, height: 2, background: "#ef4444" }} />suspicious link
               </div>
               <div style={{ marginLeft: "auto", color: isDark ? "#64748b" : "#94a3b8" }}>
-                Scroll to zoom · Drag to pan · Click node for details
+                Scroll to zoom · Drag to pan · Click → details · Double-click contact → expand
               </div>
             </div>
           </div>

@@ -44,6 +44,8 @@ type Props = {
   links: GraphLink[];
   selectedNodeId: string | null;
   onNodeSelect: (node: GraphNode | null) => void;
+  /** Called when user double-clicks a contact node to make it the new center */
+  onExpandNode?: (msisdn: string) => void;
   showLabels: boolean;
   showSuspiciousOnly: boolean;
   isDark: boolean;
@@ -51,6 +53,8 @@ type Props = {
   height?: number;
   /** ID of the most-connected node — rendered with gold centrality glow */
   centralNodeId?: string | null;
+  /** Current center MSISDN — used to highlight the active focus node */
+  centerMsisdn?: string | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -82,9 +86,19 @@ function edgeWidth(l: GraphLink): number {
 
 // ── Force layout ──────────────────────────────────────────────────────────────
 
-function initLayout(nodes: GraphNode[], w: number, h: number): LayoutNode[] {
+function initLayout(
+  nodes: GraphNode[],
+  w: number,
+  h: number,
+  existingPositions?: Map<string, { x: number; y: number }>,
+): LayoutNode[] {
   const cx = w / 2, cy = h / 2;
   return nodes.map((n, i) => {
+    // Reuse existing position if available (preserves layout on merge)
+    const existing = existingPositions?.get(n.id);
+    if (existing) {
+      return { ...n, x: existing.x, y: existing.y, vx: 0, vy: 0, radius: nodeRadius(n) };
+    }
     if (n.type === "main") return { ...n, x: cx, y: cy, vx: 0, vy: 0, radius: nodeRadius(n) };
     const angle = (i / Math.max(nodes.length - 1, 1)) * Math.PI * 2;
     const r = Math.min(w, h) * 0.32;
@@ -153,7 +167,7 @@ function tickForce(layout: LayoutNode[], links: GraphLink[], w: number, h: numbe
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
-  { nodes, links, selectedNodeId, onNodeSelect, showLabels, showSuspiciousOnly, isDark, width = 700, height = 520, centralNodeId }: Props,
+  { nodes, links, selectedNodeId, onNodeSelect, onExpandNode, showLabels, showSuspiciousOnly, isDark, width = 700, height = 520, centralNodeId, centerMsisdn }: Props,
   ref: React.ForwardedRef<CallGraphHandle>,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -167,6 +181,9 @@ const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
   const dragRef = useRef<{ startX: number; startY: number; tx: number; ty: number } | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hoveredRef = useRef<string | null>(null);
+
+  // Single-click timer for expand vs select disambiguation
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pulse tick for suspicious nodes
   const pulseRef = useRef(0);
@@ -182,10 +199,17 @@ const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
     [links, visibleNodeIds]
   );
 
-  // Re-init layout when nodes change
+  // Re-init layout when nodes change — preserve existing positions for old nodes
   useEffect(() => {
-    layoutRef.current = initLayout(visibleNodes, width, height);
-    tickRef.current = 0;
+    // Snapshot current positions before re-init so merged nodes stay put
+    const existingPositions = new Map<string, { x: number; y: number }>();
+    layoutRef.current.forEach((n: LayoutNode) => {
+      existingPositions.set(n.id, { x: n.x, y: n.y });
+    });
+    layoutRef.current = initLayout(visibleNodes, width, height, existingPositions);
+    // Only reset tick counter for truly new layouts (no existing positions)
+    if (existingPositions.size === 0) tickRef.current = 0;
+    else tickRef.current = 0; // still re-run forces so new nodes settle
   }, [visibleNodes, width, height]);
 
   // ── Draw ──────────────────────────────────────────────────────────────────
@@ -262,8 +286,14 @@ const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
     for (const n of layout) {
       const isSelected = n.id === selectedNodeId;
       const isHovered = n.id === hoveredRef.current;
+      const isFocusCenter = centerMsisdn ? n.id === centerMsisdn : n.type === "main";
+      // Fade non-focus, non-main nodes slightly when a center is active
+      const isOldNode = centerMsisdn && n.id !== centerMsisdn && n.type !== "main";
       const color = nodeColor(n, isSelected, isHovered);
       const r = n.radius;
+
+      // Fade older nodes (not the current focus center)
+      if (isOldNode) ctx.globalAlpha = 0.55;
 
       // Pulse glow for suspicious nodes
       if (n.suspicious) {
@@ -288,6 +318,16 @@ const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
         ctx.fill();
       }
 
+      // Current focus center — cyan outer ring
+      if (isFocusCenter && centerMsisdn) {
+        const pulse = 0.5 + 0.3 * Math.sin(pulseRef.current * 1.2);
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r + 9, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0,229,255,${pulse})`;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+
       // Selection ring
       if (isSelected) {
         ctx.beginPath();
@@ -309,6 +349,9 @@ const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
       ctx.lineWidth = 2;
       ctx.stroke();
 
+      // Reset alpha after drawing faded node
+      ctx.globalAlpha = 1;
+
       // Node label
       if (showLabels || n.type === "main") {
         const short = n.label.length > 13 ? n.label.slice(-10) : n.label;
@@ -326,6 +369,15 @@ const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(String(n.total_calls > 99 ? "99+" : n.total_calls), n.x, n.y);
+      }
+
+      // Expand hint: show "⊕" above hovered contact nodes when onExpandNode is available
+      if (onExpandNode && n.type === "contact" && isHovered) {
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = "#00E5FF";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("⊕", n.x, n.y - r - 2);
       }
     }
 
@@ -396,8 +448,23 @@ const CallGraph = forwardRef<CallGraphHandle, Props>(function CallGraph(
     const rect = canvasRef.current!.getBoundingClientRect();
     const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
     const hit = hitTest(cx, cy);
-    onNodeSelect(hit ?? null);
-  }, [hitTest, onNodeSelect]);
+
+    // Clear any pending click timer
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+
+    if (hit && hit.type === "contact" && onExpandNode) {
+      // Single click on contact node → expand graph (tree grows)
+      onExpandNode(hit.id);
+      // Also select the node so sidebar shows details
+      onNodeSelect(hit);
+    } else {
+      // Click on main node or empty space → just select/deselect
+      onNodeSelect(hit ?? null);
+    }
+  }, [hitTest, onNodeSelect, onExpandNode]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();

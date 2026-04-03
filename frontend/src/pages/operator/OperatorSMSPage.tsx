@@ -1,420 +1,169 @@
-import React, { useState, useMemo, useEffect, useRef } from "react";
+﻿import React, { useState } from "react";
 import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
-import Card from "../../components/ui/Card";
-
 import CESMSpectrum from "../../components/esm/CESMSpectrum";
 import CESMWaterfall from "../../components/esm/CESMWaterfall";
 import CESMTableTabs from "../../components/esm/CESMTableTabs";
 
-// If you use Recharts, install it: npm install recharts
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
+const TABS = ["C-ESM MAIN","C-ESM ZOOM","POLAR DF","RECORDINGS","TARGET DATABASE","SYS EVENTS","C-UAS"];
 
-const tabs = [
-  "C-ESM MAIN",
-  "C-ESM ZOOM",
-  "POLAR DF",
-  "RECORDINGS",
-  "TARGET DATABASE",
-  "SYS EVENTS",
-  "C-UAS",
+const MENU_ITEMS = [
+  { name: "Streaming Server" },
+  { name: "Frequency Settings", sub: ["Frequency_Plan"] },
+  { name: "Detection Settings", sub: ["Detection_Plan"] },
+  { name: "Target Settings" },
+  { name: "Recorder" },
+  { name: "Direction Finding" },
+  { name: "Signal Analysis" },
+  { name: "Intercept Control" },
+  { name: "System Status" },
 ];
 
-const internalMenuItems = [
-  { name : "Streaming Server"},
-  { name : "Frequency Settings", subItems: ["Frequency_Plan"]},
-  { name : "Detection Settings", subItems: ["Detection_Plan"]},
-  { name : "Target Settings"},
-  { name : "Recorder"},
-  { name : "Direction Finding"},
-  {name: "Signal Analysis"},
-  {name: "Intercept Control"},
-  {name: "System Status"},
+const SYS_EVENTS = [
+  { ts: "2026-03-13T05:42:54Z", node: "R5506", level: "ERROR", msg: "Receiver CRITICAL event" },
+  { ts: "2026-03-13T05:42:53Z", node: "R5506", level: "ERROR", msg: "Unable to connect to one (or more) receiver" },
+  { ts: "2026-03-13T05:42:42Z", node: "R5506", level: "ERROR", msg: "Receiver CRITICAL event" },
+  { ts: "2026-03-13T05:42:32Z", node: "R5506", level: "ERROR", msg: "Unable to connect to one (or more) receiver" },
+  { ts: "2026-03-13T05:42:22Z", node: "R5506", level: "ERROR", msg: "Receiver CRITICAL event" },
 ];
 
+const BG = "#020617";
+const PANEL = "#0B1220";
+const CYAN = "#00E5FF";
+const BORDER = "rgba(0,229,255,0.15)";
+const BDIM = "rgba(0,229,255,0.08)";
 
-// { const TargetData = [
-// //   { id: 1, frequency: "450.5 MHz", bearing: "120°", rssi: "-80 dBm", snr: "15 dB", duration: "5s", actions: "Play | Details" },
-// //   { id: 2, frequency: "136.0 MHz", bearing: "90°", rssi: "-75 dBm", snr: "18 dB", duration: "10s", actions: "Play | Details" },
-// //   // Add more mock data as needed
-// // ]; }
+function Placeholder({ label }: { label: string }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:360, gap:12, background:`linear-gradient(180deg,${BG} 0%,${PANEL} 100%)`, border:`1px solid ${BORDER}`, borderRadius:10 }}>
+      <div style={{ width:40, height:40, borderRadius:"50%", border:`1px solid ${BORDER}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ width:8, height:8, borderRadius:"50%", background:"#334155" }} />
+      </div>
+      <div style={{ fontSize:12, fontWeight:700, fontFamily:"monospace", color:"#334155", letterSpacing:"1px" }}>{label}</div>
+      <div style={{ fontSize:10, fontFamily:"monospace", color:"#1e293b" }}>AWAITING DATA</div>
+    </div>
+  );
+}
 
-
-const sysEventsData = [
-  { timestamp: "2026-03-13T05:42:54Z", sourceNode: "R5506", level: "ERROR", message: "Receiver CRITICAL event" },
-  { timestamp: "2026-03-13T05:42:53Z", sourceNode: "R5506", level: "ERROR", message: "Unable to connect to one (or more) receiver" },
-  { timestamp: "2026-03-13T05:42:42Z", sourceNode: "R5506", level: "ERROR", message: "Receiver CRITICAL event" },
-  { timestamp: "2026-03-13T05:42:32Z", sourceNode: "R5506", level: "ERROR", message: "Unable to connect to one (or more) receiver" },
-  { timestamp: "2026-03-13T05:42:22Z", sourceNode: "R5506", level: "ERROR", message: "Receiver CRITICAL event" },
-];
-
-
-// {function InterceptListTable() {
-//   return (
-//     <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
-//       <thead>
-//         <tr style={{ background: "#192a3f" }}>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Id</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
-//         </tr>
-//       </thead>
-//       <tbody>
-//         <tr>
-//           <td colSpan={11} style={{ padding: 10, textAlign: "center" }}>
-//             Dummy Intercept Data
-//           </td>
-//         </tr>
-//       </tbody>
-//     </table>
-//   );
-// }}
-
-
-// {function TargetListTable() {
-//   return (
-//     <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
-//       <thead>
-//         <tr style={{ background: "#192a3f" }}>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>ID</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Name</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>RF Type</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Dynamics</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Distance</th>
-//         </tr>
-//       </thead>
-//       <tbody>}
-//         { {TargetData.map((row, idx) => (
-//           <tr key={row.id} style={{ background: idx % 2 === 0 ? "#122033" : "#0f1a2a" }}>
-//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.frequency}</td>
-//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.bearing}</td>
-//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.rssi}</td>
-//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.snr}</td>
-//             <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.duration}</td>
-//             <td style={{ padding: 8, border: "1px solid #32475a" }}>
-//               <button style={{ marginRight: 4 }}>Play</button>
-//               <button>Details</button> 
-//             </td>
-//           </tr>
-//         ))} }
-//         {<tr>
-//           <td colSpan={20} style={{ padding: 10, textAlign: "center" }}>
-//             Dummy Target Data
-//           </td>
-//         </tr>
-//       </tbody>
-//     </table>
-//   );
-// }}
-
-
-
-// {function UnidentifiedListTable() {
-//   return (
-//     <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
-//       <thead>
-//         <tr style={{ background: "#192a3f" }}>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Id</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Status</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>First Seen</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Carrier</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>BW</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Duration</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Power</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>SNR</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Avg</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>DOA Std.</th>
-//           <th style={{ padding: 8, border: "1px solid #32475a" }}>Peak</th>
-//         </tr>
-//       </thead>
-//       <tbody>
-//         <tr>
-//           <td colSpan={11} style={{ padding: 10, textAlign: "center" }}>
-//             Dummy Unidentified Data
-//           </td>
-//         </tr>
-//       </tbody>
-//     </table>
-//   );
-// }}
-
-
+function SysEvents() {
+  return (
+    <div style={{ background:`linear-gradient(180deg,${BG} 0%,${PANEL} 100%)`, border:`1px solid ${BORDER}`, borderRadius:10, overflow:"hidden" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 16px", borderBottom:`1px solid ${BDIM}`, background:"rgba(0,229,255,0.04)" }}>
+        <div style={{ width:6, height:6, borderRadius:"50%", background:"#ef4444", boxShadow:"0 0 6px #ef4444" }} />
+        <span style={{ fontSize:11, fontWeight:700, color:CYAN, letterSpacing:"1.5px", fontFamily:"monospace" }}>SYSTEM EVENTS LOG</span>
+        <span style={{ marginLeft:"auto", fontSize:10, fontFamily:"monospace", color:"#ef4444" }}>{SYS_EVENTS.length} ERRORS</span>
+      </div>
+      <table style={{ width:"100%", borderCollapse:"collapse" }}>
+        <thead>
+          <tr>
+            {["TIMESTAMP","SOURCE NODE","LEVEL","MESSAGE"].map(h => (
+              <th key={h} style={{ padding:"8px 12px", textAlign:"left", borderBottom:`1px solid ${BDIM}`, background:"rgba(0,229,255,0.04)", color:CYAN, fontSize:10, fontWeight:700, fontFamily:"monospace", letterSpacing:"0.8px" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {SYS_EVENTS.map((r, i) => (
+            <tr key={i} style={{ background: i%2===0 ? "rgba(2,6,23,0.6)" : "rgba(11,18,32,0.6)" }}>
+              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${BDIM}`, fontSize:11, fontFamily:"monospace", color:"#475569" }}>{r.ts}</td>
+              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${BDIM}`, fontSize:11, fontFamily:"monospace", color:"#94a3b8" }}>{r.node}</td>
+              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${BDIM}` }}>
+                <span style={{ fontSize:10, fontWeight:700, fontFamily:"monospace", color:"#ef4444", background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.3)", padding:"2px 7px", borderRadius:3 }}>{r.level}</span>
+              </td>
+              <td style={{ padding:"8px 12px", borderBottom:`1px solid ${BDIM}`, fontSize:11, fontFamily:"monospace", color:"#64748b" }}>{r.msg}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function OperatorSMSPage() {
   const [activeTab, setActiveTab] = useState(0);
   const [activeMenu, setActiveMenu] = useState(0);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [hovered, setHovered] = useState<number | null>(null);
 
-  const [expandedMenus, setExpandedMenus] = useState<Set<number>>(new Set());
-
-  {/*const [activeSubTab, setActiveSubTab] = useState(0);
-  const subTabs = ["INTERCEPT LIST", "TARGET LIST", "UNIDENTIFIED LIST", "COMPASS DF"];
-
-  const spectrumData = useMemo(() => Array.from({ length: 100 }, (_, i) => ({
-    freq: 400 + i * 1,
-    level: Math.random() * 20 - 120 + (i === 50 ? 30 : 0),
-   })),[]);
-   
-  const waterfallData = useMemo(() => Array.from({ length: 40 }, (_, t) =>
-    Array.from({ length: 100 }, (_, f) => ({
-        freq: 400 + f * 1,
-        time: t,
-        intensity: Math.random() * 100 + (f === 50 ? 200 : 0),
-    }))
-   ),[]); */}
+  const toggle = (i: number) => setExpanded(p => { const n = new Set(p); n.has(i) ? n.delete(i) : n.add(i); return n; });
 
   return (
     <AppLayout>
       <PageContainer title="Operator SMS">
-        <div style={{ display: "flex", minHeight: "calc(100vh - 200px)" }}>
-        <div style={{ padding: 24, flex: 1, display: "flex" }}>
-          {/* Internal Sidebar */}
-          {/* <div style={{ width: "200px", background: "#f5f5f5", padding: 16, borderRight: "1px solid #ddd" }}> */}
-          <div style={{ width: "200px", background: "#1e293b", padding: 16, borderRight: "1px solid #334155" }}>
+        <div style={{ display:"flex", minHeight:"calc(100vh - 120px)", background:BG, borderRadius:12, border:`1px solid ${BORDER}`, overflow:"hidden", boxShadow:"0 0 40px rgba(0,229,255,0.04)" }}>
 
-            <h3 style={{ marginBottom: 16 }}>ESM Menu</h3>
-            {internalMenuItems.map((item, idx) => (
-                <div key={item.name}>
-                    <button
-                    onClick={() => {
-                        if (item.subItems && item.subItems.length > 0) {
-                        // Toggle expand/collapse for items with subItems
-                        setExpandedMenus((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(idx)) next.delete(idx);
-                            else next.add(idx);
-                            return next;
-                        });
-                    } else {
-                        // Regular items just get selected
-                        setActiveMenu(idx);
-                    }
-                }}
-                style={{
-                    display: "block",
-                    width: "100%",
-                    padding: 8,
-                    marginBottom: 4,
-                    border: "none",
-                    background: activeMenu === idx ? "#1976d2" : "#e0e0e0",
-                    color: activeMenu === idx ? "#fff" : "#333",
-                    textAlign: "left",
-                    cursor: "pointer",
-                }}
-            >
-                {(item.subItems?.length ?? 0) > 0 && (expandedMenus.has(idx) ? "−" : "+")} {item.name}
-            </button>
-            {item.subItems && expandedMenus.has(idx) && (
-                <div style={{ paddingLeft: 20 }}>
-                    {item.subItems.map((subItem) => (
-                        <button
-                            key={subItem}
-                            onClick={() => setActiveMenu(idx)} // Or handle subItem selection
-                            style={{
-                                display: "block",
-                                width: "100%",
-                                padding: 6,
-                                marginBottom: 2,
-                                border: "none",
-                                background: "#f0f0f0",
-                                color: "#555",
-                                fontSize: 12,
-                                textAlign: "left",
-                                cursor: "pointer",
-                            }}
-                        >
-                            {subItem}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    ))}
-          </div>
-          {/* Main Content */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-            {/* Tabs */}
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              {tabs.map((tab, idx) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(idx)}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 4,
-                    border: "none",
-                    background: activeTab === idx ? "#1976d2" : "#e0e0e0",
-                    color: activeTab === idx ? "#fff" : "#333",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  {tab}
-                </button>
-              ))}
+          {/* LEFT PANEL */}
+          <div style={{ width:200, flexShrink:0, background:"linear-gradient(180deg,#060e1f 0%,#0B1220 100%)", borderRight:`1px solid ${BORDER}`, display:"flex", flexDirection:"column" }}>
+            <div style={{ padding:"12px 14px 10px", borderBottom:`1px solid ${BDIM}`, background:"rgba(0,229,255,0.04)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <div style={{ width:5, height:5, borderRadius:"50%", background:CYAN, boxShadow:`0 0 5px ${CYAN}` }} />
+                <span style={{ fontSize:10, fontWeight:800, color:CYAN, letterSpacing:"1.5px", fontFamily:"monospace" }}>ESM MENU</span>
+              </div>
             </div>
-
-            {/* Main Tab Content (C-ESM Main) */}
-            {activeTab === 0 && (
-              <>
-                {/*<Card>
-                  <div style={{ height: 220 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={spectrumData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                        <CartesianGrid stroke="rgba(255,255,255,0.08)" />
-                        <XAxis dataKey="freq" tick={{ fill: "#ffffff" }} tickLine={{ stroke: "rgba(255,255,255,0.3)" }} axisLine={{ stroke: "rgba(255,255,255,0.5)" }} label={{ value: "Freq [MHz]", position: "insideBottomRight", offset: -6, fill: "#ffffff" }} />
-                        <YAxis domain={[-140, 0]} tick={{ fill: "#ffffff" }} tickLine={{ stroke: "rgba(255,255,255,0.3)" }} axisLine={{ stroke: "rgba(255,255,255,0.5)" }} label={{ value: "Level [dBm]", angle: -90, position: "insideLeft", fill: "#ffffff" }} />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="level" stroke="#00eaff" dot={false} strokeWidth={2} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card> 
-
-                <Card>
-                  <div style={{ height: 220, position: "relative" }}>
-                    <canvas
-                      width={800}
-                      height={220}
-                      style={{ width: "100%", height: "100%", background: "#001024" }}
-                      ref={el => {
-                        if (el) {
-                          const ctx = el.getContext("2d");
-                          if (ctx) {
-                            for (let t = 0; t < waterfallData.length; t++) {
-                              for (let f = 0; f < waterfallData[t].length; f++) {
-                                const intensity = waterfallData[t][f].intensity;
-                                const brightness = Math.round(Math.min(255, Math.max(10, (intensity / 300) * 255)));
-                                ctx.fillStyle = `rgb(${Math.floor(brightness / 3)},${Math.floor(brightness / 1.5)},${brightness})`;
-                                ctx.fillRect((f / waterfallData[t].length) * el.width, (t / waterfallData.length) * el.height, el.width / waterfallData[t].length, el.height / waterfallData.length);
-                              }
-                            }
-                          }
-                        }
-                      }}
-                    />
-                  </div>
-                </Card>
-
-                <Card>
-                  <div style={{ marginTop: 16 }}>*/}
-                    
-                    {/* Sub-tabs */}
-                    {/*<div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-                      {subTabs.map((tab, idx) => (
-                        <button
-                          key={tab}
-                          onClick={() => setActiveSubTab(idx)}
-                          style={{
-                            padding: "6px 12px",
-                            borderRadius: 4,
-                            border: "none",
-                            background: activeSubTab === idx ? "#1976d2" : "#e0e0e0",
-                            color: activeSubTab === idx ? "#fff" : "#333",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {tab}
-                        </button>
-                      ))}
-                    </div>*/}
-
-                    {/* <InterceptTable /> */}
-                    {/*{activeSubTab === 0 && <InterceptListTable />}
-
-                    {activeSubTab === 1 && <TargetListTable />}
-
-                    {activeSubTab === 2 && <UnidentifiedListTable />}
-
-                    {activeSubTab === 3 && (
-                      <div style={{ padding: 20 }}>COMPASS DF (Dummy Table)</div>
+            <div style={{ flex:1, overflowY:"auto", padding:"8px" }}>
+              {MENU_ITEMS.map((item, idx) => {
+                const active = activeMenu === idx;
+                const hover = hovered === idx;
+                const hasSub = (item.sub?.length ?? 0) > 0;
+                const open = expanded.has(idx);
+                return (
+                  <div key={item.name} style={{ marginBottom:2 }}>
+                    <button
+                      onClick={() => hasSub ? toggle(idx) : setActiveMenu(idx)}
+                      onMouseEnter={() => setHovered(idx)}
+                      onMouseLeave={() => setHovered(null)}
+                      style={{ display:"flex", alignItems:"center", justifyContent:"space-between", width:"100%", padding:"7px 10px", borderRadius:6, border: active ? "1px solid rgba(0,229,255,0.4)" : "1px solid transparent", background: active ? "rgba(0,229,255,0.1)" : hover ? "rgba(0,229,255,0.05)" : "transparent", color: active ? CYAN : hover ? "#94a3b8" : "#475569", fontSize:11, fontWeight: active ? 700 : 500, fontFamily:"monospace", cursor:"pointer", textAlign:"left", transition:"all 0.18s ease", boxShadow: active ? "0 0 8px rgba(0,229,255,0.12)" : "none" }}
+                    >
+                      <span>{item.name}</span>
+                      {hasSub && <span style={{ fontSize:9, opacity:0.6, display:"inline-block", transition:"transform 0.2s", transform: open ? "rotate(90deg)" : "none" }}>{">"}</span>}
+                    </button>
+                    {hasSub && open && (
+                      <div style={{ paddingLeft:12, paddingTop:2 }}>
+                        {item.sub!.map(s => (
+                          <button key={s} onClick={() => setActiveMenu(idx)} style={{ display:"block", width:"100%", padding:"5px 10px", marginBottom:1, borderRadius:4, border:"1px solid transparent", background:"transparent", color:"#334155", fontSize:10, fontFamily:"monospace", textAlign:"left", cursor:"pointer" }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#64748b"; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#334155"; }}
+                          >{">"} {s}</button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                </Card>*/}
-                <CESMSpectrum />
-                <CESMWaterfall />
-                <CESMTableTabs />
-              </>
-            )}
+                );
+              })}
+            </div>
+            <div style={{ padding:"10px 14px", borderTop:`1px solid ${BDIM}`, background:"rgba(0,229,255,0.02)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                <div style={{ width:5, height:5, borderRadius:"50%", background:"#22c55e", boxShadow:"0 0 4px #22c55e" }} />
+                <span style={{ fontSize:9, fontFamily:"monospace", color:"#22c55e", letterSpacing:"0.5px" }}>SYSTEM ONLINE</span>
+              </div>
+              <div style={{ fontSize:9, fontFamily:"monospace", color:"#1e293b" }}>NODE: R5506 v2.4.1</div>
+            </div>
+          </div>
 
-            {activeTab === 2 && (
-              <>
-                <Card>
-                  <div style={{ alignItems: "center", justifyContent: "center", display: "flex", minHeight: 360, color: "#999" }}>
-                    <strong>{tabs[activeTab]}</strong> content placeholder (to be backed by real API data in the next step).
-                  </div>
-                </Card>
-                <CESMTableTabs />
-              </>
-            )}
-
-            {/* SYS EVENTS Tab */}
-            {activeTab === 5 && (
-              <Card>
-                <div style={{ overflowX: "auto", minHeight: 360 }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", color: "#ffffff" }}>
-                    <thead>
-                      <tr style={{ background: "#192a3f" }}>
-                        <th style={{ padding: 10, border: "1px solid #32475a" }}>Timestamp</th>
-                        <th style={{ padding: 10, border: "1px solid #32475a" }}>Source Node Name</th>
-                        <th style={{ padding: 10, border: "1px solid #32475a" }}>Level</th>
-                        <th style={{ padding: 10, border: "1px solid #32475a" }}>Message</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sysEventsData.map((row, idx) => (
-                        <tr key={idx} style={{ background: idx % 2 === 0 ? "#122033" : "#0f1a2a" }}>
-                          <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.timestamp}</td>
-                          <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.sourceNode}</td>
-                          <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.level}</td>
-                          <td style={{ padding: 8, border: "1px solid #32475a" }}>{row.message}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            )}
-
-            {activeTab !== 0 && activeTab !== 2 && activeTab !== 5 && (
-              <Card>
-                <div style={{ alignItems: "center", justifyContent: "center", display: "flex", minHeight: 360, color: "#999" }}>
-                  <strong>{tabs[activeTab]}</strong> content placeholder (to be backed by real API data in the next step).
-                </div>
-              </Card>
-            )}
+          {/* RIGHT PANEL */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0 }}>
+            <div style={{ display:"flex", alignItems:"stretch", borderBottom:`1px solid ${BORDER}`, background:"rgba(0,229,255,0.02)", overflowX:"auto", flexShrink:0 }}>
+              {TABS.map((tab, idx) => {
+                const active = activeTab === idx;
+                return (
+                  <button key={tab} onClick={() => setActiveTab(idx)}
+                    style={{ padding:"10px 18px", fontSize:10, fontWeight:700, fontFamily:"monospace", letterSpacing:"0.8px", cursor:"pointer", border:"none", borderBottom: active ? `2px solid ${CYAN}` : "2px solid transparent", background: active ? "rgba(0,229,255,0.08)" : "transparent", color: active ? CYAN : "#334155", transition:"all 0.2s ease", whiteSpace:"nowrap", flexShrink:0, position:"relative" }}
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = "#64748b"; }}
+                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = "#334155"; }}
+                  >
+                    {tab}
+                    {active && <div style={{ position:"absolute", bottom:0, left:"20%", right:"20%", height:2, background:`linear-gradient(90deg,transparent,${CYAN},transparent)`, boxShadow:`0 0 6px ${CYAN}` }} />}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:16, display:"flex", flexDirection:"column", gap:12 }}>
+              {activeTab === 0 && (<><CESMSpectrum /><CESMWaterfall /><CESMTableTabs /></>)}
+              {activeTab === 2 && (<><Placeholder label={TABS[activeTab]} /><CESMTableTabs /></>)}
+              {activeTab === 5 && <SysEvents />}
+              {activeTab !== 0 && activeTab !== 2 && activeTab !== 5 && <Placeholder label={TABS[activeTab]} />}
+            </div>
           </div>
         </div>
-      </div>
       </PageContainer>
     </AppLayout>
   );
