@@ -13,6 +13,7 @@ const OperatorMapPage = lazy(() => import("./pages/operator/OperatorMapPage"));
 const OperatorAlertsPage = lazy(() => import("./pages/operator/OperatorAlertsPage"));
 const OperatorSMSPage = lazy(() => import("./pages/operator/OperatorSMSPage"));
 const OperatorTcpClientPage = lazy(() => import("./pages/operator/OperatorTcpClientPage"));
+const OperatorSignalAnalyzerPage = lazy(() => import("./pages/operator/OperatorSignalAnalyzer"));
 const ReportingCenterPage = lazy(() => import("./pages/ReportingCenterPage"));
 const CrfsLivePage = lazy(() => import("./pages/CrfsLivePage"));
 const JammerControlPage = lazy(() => import("./pages/JammerControlPage"));
@@ -173,6 +174,15 @@ export default function App() {
               element={
                 <ProtectedRoute requiredRole="OPERATOR">
                   <OperatorTcpClientPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/operator/signal-analyzer"
+              element={
+                <ProtectedRoute requiredRole="OPERATOR">
+                  <OperatorSignalAnalyzerPage />
                 </ProtectedRoute>
               }
             />

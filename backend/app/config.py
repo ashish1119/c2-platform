@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     ADMIN_BOOTSTRAP_USERNAME: str | None = None
     ADMIN_BOOTSTRAP_EMAIL: str | None = None
     ADMIN_BOOTSTRAP_PASSWORD: str | None = None
+    OPERATOR_BOOTSTRAP_USERNAME: str | None = None
+    OPERATOR_BOOTSTRAP_EMAIL: str | None = None
+    OPERATOR_BOOTSTRAP_PASSWORD: str | None = None
 
     # Database
     DATABASE_URL: str = Field(...)

@@ -14,6 +14,7 @@ from app.core.app_lifecycle import initialize_runtime_services, shutdown_runtime
 from app.core.db_bootstrap import bootstrap_database
 from app.core.rate_limiter import limiter
 from app.core.websocket_manager import manager
+from app.core.signal_stream_hub import signal_stream_hub
 from app.database import engine
 from app.routers import (
     alerts_router,
@@ -38,7 +39,9 @@ from app.routers import (
     users_router,
 )
 from app.routers.websocket_router import router as websocket_router
+from app.routers.signal_stream_router import router as signal_stream_router
 from app.services.tcp_server import start_tcp_server
+from app.services.signal_analyzer_tcp_ingest import start_signal_analyzer_tcp_server
 
 
 app = FastAPI(title="C2 Platform")
@@ -74,6 +77,7 @@ app.include_router(tcp_listener_router.router)
 app.include_router(geospatial_router.router)
 app.include_router(crfs_router.router)
 app.include_router(websocket_router)
+app.include_router(signal_stream_router)
 app.include_router(cdr_router.router)
 app.include_router(signal_router.router)
 
@@ -119,12 +123,14 @@ async def readyz() -> dict[str, object]:
 @app.on_event("startup")
 async def startup_services() -> None:
     manager.loop = asyncio.get_running_loop()
+    signal_stream_hub.loop = asyncio.get_running_loop()
 
     async with engine.begin() as conn:
         await bootstrap_database(conn)
 
     await initialize_runtime_services(app)
     threading.Thread(target=start_tcp_server, daemon=True).start()
+    threading.Thread(target=start_signal_analyzer_tcp_server, daemon=True).start()
 
 
 @app.on_event("shutdown")

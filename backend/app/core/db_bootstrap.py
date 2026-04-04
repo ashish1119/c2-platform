@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -68,7 +70,9 @@ SCHEMA_PATCH_STATEMENTS = [
 async def bootstrap_database(conn: AsyncConnection) -> None:
     await conn.run_sync(Base.metadata.create_all)
     await _apply_schema_patches(conn)
+    await _bootstrap_base_roles(conn)
     await _bootstrap_admin_user(conn)
+    await _bootstrap_operator_user(conn)
 
 
 async def _apply_schema_patches(conn: AsyncConnection) -> None:
@@ -109,14 +113,73 @@ async def _bootstrap_admin_user(conn: AsyncConnection) -> None:
     await conn.execute(
         text(
             """
-            INSERT INTO users (username, email, hashed_password, role_id)
-            VALUES (:username, :email, :hashed_password, :role_id)
+            INSERT INTO users (id, username, email, hashed_password, role_id)
+            VALUES (:id, :username, :email, :hashed_password, :role_id)
             """
         ),
         {
+            "id": uuid.uuid4(),
             "username": username,
             "email": email,
             "hashed_password": hash_password(password),
             "role_id": admin_role_id,
+        },
+    )
+
+
+async def _bootstrap_base_roles(conn: AsyncConnection) -> None:
+    await conn.execute(
+        text("INSERT INTO roles (name) VALUES ('ADMIN') ON CONFLICT (name) DO NOTHING")
+    )
+    await conn.execute(
+        text(
+            "INSERT INTO roles (name) VALUES ('OPERATOR') ON CONFLICT (name) DO NOTHING"
+        )
+    )
+
+
+async def _bootstrap_operator_user(conn: AsyncConnection) -> None:
+    username = (settings.OPERATOR_BOOTSTRAP_USERNAME or "").strip() or "operator"
+    password = settings.OPERATOR_BOOTSTRAP_PASSWORD or "password"
+    email = (settings.OPERATOR_BOOTSTRAP_EMAIL or "").strip() or "operator@c2.local"
+
+    is_development = (settings.ENVIRONMENT or "").lower() == "development"
+    if not is_development and settings.OPERATOR_BOOTSTRAP_PASSWORD is None:
+        return
+
+    operator_role_row = await conn.execute(
+        text("SELECT id FROM roles WHERE name = 'OPERATOR' LIMIT 1")
+    )
+    operator_role_id = operator_role_row.scalar_one_or_none()
+    if operator_role_id is None:
+        return
+
+    existing_user_row = await conn.execute(
+        text(
+            """
+            SELECT id
+            FROM users
+            WHERE username = :username OR email = :email
+            LIMIT 1
+            """
+        ),
+        {"username": username, "email": email},
+    )
+    if existing_user_row.scalar_one_or_none() is not None:
+        return
+
+    await conn.execute(
+        text(
+            """
+            INSERT INTO users (id, username, email, hashed_password, role_id)
+            VALUES (:id, :username, :email, :hashed_password, :role_id)
+            """
+        ),
+        {
+            "id": uuid.uuid4(),
+            "username": username,
+            "email": email,
+            "hashed_password": hash_password(password),
+            "role_id": operator_role_id,
         },
     )

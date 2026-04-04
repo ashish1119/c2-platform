@@ -38,6 +38,7 @@ services:
       - "8000:8000"
       - "9300:9300"
       - "5000:5000"
+      - "9999:9999"
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
 import AppLayout from "../../components/layout/AppLayout";
 import PageContainer from "../../components/layout/PageContainer";
@@ -162,6 +162,15 @@ type DecodioMetadata = {
   timeslot: string | null;
   lcn: string | null;
   standard: string | null;
+};
+
+type StreamerPacket = {
+  id: string;
+  createdAt: string;
+  frequencyHz: number;
+  byteLength: number;
+  payloadHex: string;
+  metadata: Record<string, unknown>;
 };
 
 type ChannelSummary = {
@@ -381,6 +390,20 @@ export default function OperatorTcpClientPage() {
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [selectedChannelId, setSelectedChannelId] = useState<string>("all");
 
+  const wsRef = useRef<WebSocket | null>(null);
+  const mockTimerRef = useRef<number | null>(null);
+  const [streamerRunning, setStreamerRunning] = useState(false);
+  const [streamerMode, setStreamerMode] = useState<
+    "websocket" | "mock" | "stopped"
+  >("stopped");
+  const [streamerFrequencyHz, setStreamerFrequencyHz] = useState<number>(5);
+  const [streamerPackets, setStreamerPackets] = useState<StreamerPacket[]>([]);
+  const [selectedPacketId, setSelectedPacketId] = useState<string | null>(null);
+  const [streamerError, setStreamerError] = useState<string | null>(null);
+  const [hoveredButton, setHoveredButton] = useState<"start" | "stop" | null>(
+    null,
+  );
+
   const hasPermission = (requiredPermission: string) => {
     const permissions = user?.permissions ?? [];
     const [requiredResource, requiredAction] = requiredPermission.split(":");
@@ -563,6 +586,328 @@ export default function OperatorTcpClientPage() {
     }
   }, [channelSummaries, selectedChannelId]);
 
+  const streamerStats = useMemo(() => {
+    const packets = streamerPackets.length;
+    const bytes = streamerPackets.reduce((total, packet) => total + packet.byteLength, 0);
+    const lastPacketAt = streamerPackets[0]?.createdAt ?? null;
+    return { packets, bytes, lastPacketAt };
+  }, [streamerPackets]);
+
+  const stopSignalStreamer = useCallback(() => {
+    setStreamerRunning(false);
+    setStreamerError(null);
+
+    if (wsRef.current) {
+      try {
+        wsRef.current.close();
+      } catch {
+        // ignore
+      }
+      wsRef.current = null;
+    }
+
+    if (mockTimerRef.current) {
+      window.clearInterval(mockTimerRef.current);
+      mockTimerRef.current = null;
+    }
+
+    setStreamerMode("stopped");
+  }, []);
+
+  const startMockStreamer = useCallback((pps: number) => {
+    setStreamerMode("mock");
+    setStreamerRunning(true);
+    setStreamerError(null);
+
+    const intervalMs = Math.max(80, Math.round(1000 / Math.max(1, pps)));
+    if (mockTimerRef.current) {
+      window.clearInterval(mockTimerRef.current);
+      mockTimerRef.current = null;
+    }
+
+    mockTimerRef.current = window.setInterval(() => {
+      const now = new Date();
+      const id = `${now.getTime()}-${Math.random().toString(16).slice(2)}`;
+      const payloadBytes = 48 + Math.floor(Math.random() * 96);
+      const payloadHex = Array.from({ length: payloadBytes })
+        .map(() => Math.floor(Math.random() * 256).toString(16).padStart(2, "0"))
+        .join("");
+      const frequencyHz = 430_000_000 + Math.floor(Math.random() * 10_000_000);
+
+      const packet: StreamerPacket = {
+        id,
+        createdAt: now.toISOString(),
+        frequencyHz,
+        byteLength: Math.round(payloadHex.length / 2),
+        payloadHex,
+        metadata: {
+          source: "mock",
+          protocol: ["DMR", "TETRA", "P25", "NXDN", "SATCOM"][
+            Math.floor(Math.random() * 5)
+          ],
+          rssiDbm: -35 - Math.random() * 55,
+          snrDb: 4 + Math.random() * 22,
+          channel: `${1 + Math.floor(Math.random() * 12)}`,
+          tags: [
+            Math.random() > 0.6 ? "SOI" : "ambient",
+            Math.random() > 0.75 ? "interference" : "nominal",
+          ],
+        },
+      };
+
+      setStreamerPackets((prev) => {
+        const next = [packet, ...prev];
+        return next.slice(0, 100);
+      });
+    }, intervalMs);
+  }, []);
+
+  const startSignalStreamer = useCallback(() => {
+    stopSignalStreamer();
+
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${wsProtocol}://localhost:8081/stream`;
+
+    try {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      const wsFallbackTimer = window.setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          try {
+            ws.close();
+          } catch {
+            // ignore
+          }
+          wsRef.current = null;
+          setStreamerError("WebSocket unavailable. Using mock packet generator.");
+          startMockStreamer(streamerFrequencyHz);
+        }
+      }, 900);
+
+      ws.onopen = () => {
+        window.clearTimeout(wsFallbackTimer);
+        setStreamerMode("websocket");
+        setStreamerRunning(true);
+        setStreamerError(null);
+      };
+
+      ws.onerror = () => {
+        window.clearTimeout(wsFallbackTimer);
+        setStreamerError("WebSocket error. Using mock packet generator.");
+        startMockStreamer(streamerFrequencyHz);
+      };
+
+      ws.onclose = () => {
+        window.clearTimeout(wsFallbackTimer);
+        if (streamerMode === "websocket") {
+          setStreamerRunning(false);
+          setStreamerMode("stopped");
+        }
+      };
+
+      ws.onmessage = (event) => {
+        const now = new Date();
+        const id = `${now.getTime()}-${Math.random().toString(16).slice(2)}`;
+
+        const safeJsonParse = (value: string): unknown => {
+          try {
+            return JSON.parse(value);
+          } catch {
+            return null;
+          }
+        };
+
+        const parsed = typeof event.data === "string" ? safeJsonParse(event.data) : null;
+        const asRecord =
+          parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : null;
+
+        const recordType = typeof asRecord?.type === "string" ? asRecord.type : null;
+
+        if (recordType === "stream_data") {
+          const metadata =
+            asRecord?.metadata && typeof asRecord.metadata === "object" && !Array.isArray(asRecord.metadata)
+              ? (asRecord.metadata as Record<string, unknown>)
+              : {};
+          const signalData = Array.isArray(asRecord?.signalData)
+            ? (asRecord.signalData as unknown[])
+            : Array.isArray(asRecord?.signal_data)
+              ? (asRecord.signal_data as unknown[])
+              : [];
+
+          const floatCount = signalData.length;
+          const byteLength = floatCount * 4;
+
+          const frequencyHz =
+            typeof metadata.center_frequency === "number"
+              ? metadata.center_frequency
+              : typeof metadata.centerFrequency === "number"
+                ? metadata.centerFrequency
+                : 0;
+
+          const packet: StreamerPacket = {
+            id,
+            createdAt: now.toISOString(),
+            frequencyHz,
+            byteLength,
+            payloadHex: "",
+            metadata: {
+              ...metadata,
+              sample_count: floatCount,
+              source: "websocket",
+            },
+          };
+
+          setStreamerPackets((prev) => {
+            const next = [packet, ...prev];
+            return next.slice(0, 100);
+          });
+          return;
+        }
+
+        const utf8ToHex = (text: string) => {
+          const bytes = new TextEncoder().encode(text);
+          return Array.from(bytes)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+        };
+
+        const payloadHex =
+          typeof asRecord?.payloadHex === "string"
+            ? asRecord.payloadHex
+            : typeof asRecord?.payload_hex === "string"
+              ? asRecord.payload_hex
+              : typeof event.data === "string"
+                ? utf8ToHex(event.data)
+                : "";
+
+        const byteLength = Math.round(payloadHex.length / 2);
+        const frequencyHz =
+          typeof asRecord?.frequencyHz === "number"
+            ? asRecord.frequencyHz
+            : typeof asRecord?.frequency_hz === "number"
+              ? asRecord.frequency_hz
+              : 0;
+
+        const packet: StreamerPacket = {
+          id,
+          createdAt: now.toISOString(),
+          frequencyHz,
+          byteLength,
+          payloadHex,
+          metadata: asRecord ?? { raw: event.data },
+        };
+
+        setStreamerPackets((prev) => {
+          const next = [packet, ...prev];
+          return next.slice(0, 100);
+        });
+      };
+    } catch {
+      setStreamerError("WebSocket unavailable. Using mock packet generator.");
+      startMockStreamer(streamerFrequencyHz);
+    }
+  }, [startMockStreamer, stopSignalStreamer, streamerFrequencyHz, streamerMode]);
+
+  useEffect(() => {
+    return () => {
+      stopSignalStreamer();
+    };
+  }, [stopSignalStreamer]);
+
+  const selectedPacket = useMemo(() => {
+    if (!selectedPacketId) {
+      return null;
+    }
+    return streamerPackets.find((p) => p.id === selectedPacketId) ?? null;
+  }, [selectedPacketId, streamerPackets]);
+
+  const JsonTree = useCallback(
+    function JsonTreeInner({
+      value,
+      depth = 0,
+      label,
+    }: {
+      value: unknown;
+      depth?: number;
+      label?: string;
+    }) {
+      const indent = depth * 12;
+
+      const renderPrimitive = (val: unknown) => {
+        if (val === null) return <span style={{ color: "#64748B" }}>null</span>;
+        if (typeof val === "string")
+          return <span style={{ color: "#0f172a" }}>"{val}"</span>;
+        if (typeof val === "number")
+          return <span style={{ color: "#0f766e" }}>{val}</span>;
+        if (typeof val === "boolean")
+          return <span style={{ color: "#7c3aed" }}>{String(val)}</span>;
+        return <span style={{ color: "#64748B" }}>{String(val)}</span>;
+      };
+
+      if (Array.isArray(value)) {
+        return (
+          <div style={{ marginLeft: indent }}>
+            {label && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>
+                {label}: <span style={{ color: "#64748B" }}>[{value.length}]</span>
+              </div>
+            )}
+            <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+              {value.map((item, idx) => (
+                <JsonTreeInner
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={idx}
+                  value={item}
+                  depth={depth + 1}
+                  label={String(idx)}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (value && typeof value === "object") {
+        const entries = Object.entries(value as Record<string, unknown>);
+        return (
+          <div style={{ marginLeft: indent }}>
+            {label && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>
+                {label}
+              </div>
+            )}
+            <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+              {entries.length === 0 ? (
+                <div style={{ marginLeft: 12, color: "#64748B", fontSize: 12 }}>
+                  {"{ }"}
+                </div>
+              ) : (
+                entries.map(([k, v]) => (
+                  <JsonTreeInner key={k} value={v} depth={depth + 1} label={k} />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div style={{ marginLeft: indent, fontSize: 12 }}>
+          {label ? (
+            <span style={{ fontWeight: 700, color: "#334155" }}>
+              {label}:{" "}
+            </span>
+          ) : null}
+          {renderPrimitive(value)}
+        </div>
+      );
+    },
+    [],
+  );
+
   return (
     <AppLayout>
       <PageContainer title="DECODIO RED Integration">
@@ -738,79 +1083,71 @@ export default function OperatorTcpClientPage() {
             </div>
           </Card>
 
-        <Card>
-  <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-    Integration Access
-  </h3>
+          <Card>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Integration Access</h3>
 
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 16,
-    }}
-  >
-    {/* READ */}
-    <div
-      style={{
-        padding: 14,
-        borderRadius: 10,
-        backdropFilter: "blur(10px)",
-        background:
-          theme.mode === "dark"
-            ? "rgba(255,255,255,0.05)"
-            : "rgba(255,255,255,0.6)",
-        border: "1px solid rgba(255,255,255,0.2)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-      }}
-    >
-      <span style={{ fontSize: 12, color: "#64748B" }}>Read Access</span>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 16,
+              }}
+            >
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  backdropFilter: "blur(10px)",
+                  background:
+                    theme.mode === "dark"
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(255,255,255,0.6)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <span style={{ fontSize: 12, color: "#64748B" }}>Read Access</span>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: canReadEndpoint ? "#22c55e" : "#ef4444",
+                  }}
+                >
+                  {canReadEndpoint ? "Allowed" : "Denied"}
+                </span>
+              </div>
 
-      <span
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: canReadEndpoint ? "#22c55e" : "#ef4444",
-        }}
-      >
-        {canReadEndpoint ? "Allowed" : "Denied"}
-      </span>
-    </div>
-
-    {/* WRITE */}
-    <div
-      style={{
-        padding: 14,
-        borderRadius: 10,
-        backdropFilter: "blur(10px)",
-        background:
-          theme.mode === "dark"
-            ? "rgba(255,255,255,0.05)"
-            : "rgba(255,255,255,0.6)",
-        border: "1px solid rgba(255,255,255,0.2)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-      }}
-    >
-      <span style={{ fontSize: 12, color: "#64748B" }}>
-        Write Access
-      </span>
-
-      <span
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          color: canEditEndpoint ? "#22c55e" : "#ef4444",
-        }}
-      >
-        {canEditEndpoint ? "Allowed" : "Denied"}
-      </span>
-    </div>
-  </div>
-</Card>
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  backdropFilter: "blur(10px)",
+                  background:
+                    theme.mode === "dark"
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(255,255,255,0.6)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <span style={{ fontSize: 12, color: "#64748B" }}>Write Access</span>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: canEditEndpoint ? "#22c55e" : "#ef4444",
+                  }}
+                >
+                  {canEditEndpoint ? "Allowed" : "Denied"}
+                </span>
+              </div>
+            </div>
+          </Card>
 
           <div
             style={{
@@ -1190,222 +1527,514 @@ export default function OperatorTcpClientPage() {
             )}
           </Card>
 
-         <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "1fr 2fr", // left smaller, right bigger
-    gap: 20,
-    alignItems: "start",
-  }}
->
-  {/* LEFT CARD */}
-  <Card>
-    <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-      RED Receive Metrics
-    </h3>
-
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 16,
-      }}
-    >
-      {/* Item */}
-      <div>
-        <div style={{ fontSize: 12, color: "#64748B" }}>
-          Messages Received
-        </div>
-        <div style={{ fontSize: 18, fontWeight: 600 }}>
-          {clientStatus?.messages_received ?? 0}
-        </div>
-      </div>
-
-      <div>
-        <div style={{ fontSize: 12, color: "#64748B" }}>
-          Messages Rejected
-        </div>
-        <div style={{ fontSize: 18, fontWeight: 600 }}>
-          {clientStatus?.messages_rejected ?? 0}
-        </div>
-      </div>
-
-      <div>
-        <div style={{ fontSize: 12, color: "#64748B" }}>
-          Last Message At
-        </div>
-        <div style={{ fontSize: 14 }}>
-          {clientStatus?.last_message_at ?? "-"}
-        </div>
-      </div>
-
-      <div>
-        <div style={{ fontSize: 12, color: "#64748B" }}>
-          Last Client Error
-        </div>
-        <div style={{ fontSize: 14, color: "#ef4444" }}>
-          {clientStatus?.last_error ?? "-"}
-        </div>
-      </div>
-    </div>
-  </Card>
-
-  {/* RIGHT CARD */}
-  <Card>
-    <h3 style={{ marginTop: 0, marginBottom: 16 }}>
-      RED Decoded Traffic (Latest First) {selectedChannelId === "all" ? "" : `- Channel ${selectedChannelId}`}
-    </h3>
-
-    <div
-      style={{
-        marginBottom: 14,
-        color: theme.colors.textSecondary,
-        fontSize: 13,
-        lineHeight: 1.6,
-      }}
-    >
-      Review recent decoded transport data, parsed protocol fields, and Decodio-oriented metadata extracted from the incoming EW feed.
-    </div>
-
-    <div style={{ display: "grid", gap: 12 }}>
-      {filteredMessages.length === 0 && (
-        <div style={{ color: "#64748B", fontSize: 14 }}>
-          {selectedChannelId === "all"
-            ? "No messages received yet."
-            : "No messages for selected channel."}
-        </div>
-      )}
-
-      {filteredMessages.slice(0, 20).map((message, index) => (
-        (() => {
-          const metadata = getDecodioMetadataFromMessage(message);
-          const protocolTheme = resolveProtocolTheme(
-            metadata.standard,
-            message.protocol ?? null,
-          );
-          const messageBadges = [
-            metadata.talkgroup ? `TGID ${metadata.talkgroup}` : null,
-            metadata.timeslot ? `TS ${metadata.timeslot}` : null,
-            metadata.lcn ? `LCN ${metadata.lcn}` : null,
-            metadata.standard ? `STD ${metadata.standard}` : null,
-          ].filter((badge): badge is string => Boolean(badge));
-
-          return (
-        <div
-          key={`${message.received_at ?? "na"}-${index}`}
-          style={{
-            border: `1px solid ${protocolTheme.borderColor}`,
-            borderRadius: 6,
-            padding: 14,
-            background: protocolTheme.background,
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-          }}
-        >
-          {/* HEADER */}
           <div
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 12,
-              color: "#64748B",
+              display: "grid",
+              gridTemplateColumns: "minmax(280px, 1fr) minmax(420px, 2fr)",
+              gap: 20,
+              alignItems: "start",
             }}
           >
-            <span>{message.received_at ?? "Unknown time"}</span>
+            <Card>
+              <h3 style={{ marginTop: 0, marginBottom: 16 }}>RED Receive Metrics</h3>
 
-            <span style={{ display: "flex", gap: 10 }}>
-              {typeof message.byte_length === "number" && (
-                <span>{message.byte_length} bytes</span>
-              )}
-              {message.protocol && <span>{message.protocol}</span>}
-              <span style={{ fontWeight: 700, color: protocolTheme.textColor }}>
-                {protocolTheme.label}
-              </span>
-            </span>
-          </div>
-
-          {/* ASCII */}
-          {message.ascii_preview && (
-            <div style={{ fontSize: 14, color: "#0f172a" }}>
-              {message.ascii_preview}
-            </div>
-          )}
-
-          {messageBadges.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {messageBadges.map((badge) => (
-                <span
-                  key={badge}
-                  style={{
-                    fontSize: 11,
-                    color: protocolTheme.textColor,
-                    background: protocolTheme.background,
-                    border: `1px solid ${protocolTheme.borderColor}`,
-                    borderRadius: 999,
-                    padding: "2px 8px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {badge}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* PARSED */}
-          {message.parsed_fields &&
-            Object.keys(message.parsed_fields).length > 0 && (
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: 8,
-                  fontSize: 13,
-                  background: "#f8fafc",
-                  padding: 10,
-                  borderRadius: 6,
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 16,
                 }}
               >
-                {Object.entries(message.parsed_fields).map(
-                  ([key, value]) => (
-                    <div key={key}>
-                      <strong>{key}:</strong> {value}
-                    </div>
-                  ),
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748B" }}>
+                    Messages Received
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 600 }}>
+                    {clientStatus?.messages_received ?? 0}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748B" }}>
+                    Messages Rejected
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 600 }}>
+                    {clientStatus?.messages_rejected ?? 0}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748B" }}>
+                    Last Message At
+                  </div>
+                  <div style={{ fontSize: 14 }}>
+                    {clientStatus?.last_message_at ?? "-"}
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: "#64748B" }}>
+                    Last Client Error
+                  </div>
+                  <div style={{ fontSize: 14, color: "#ef4444" }}>
+                    {clientStatus?.last_error ?? "-"}
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h3 style={{ marginTop: 0, marginBottom: 16 }}>
+                RED Decoded Traffic (Latest First){" "}
+                {selectedChannelId === "all" ? "" : `- Channel ${selectedChannelId}`}
+              </h3>
+
+              <div
+                style={{
+                  marginBottom: 14,
+                  color: theme.colors.textSecondary,
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}
+              >
+                Review recent decoded transport data, parsed protocol fields, and
+                Decodio-oriented metadata extracted from the incoming EW feed.
+              </div>
+
+              <div style={{ display: "grid", gap: 12 }}>
+                {filteredMessages.length === 0 && (
+                  <div style={{ color: "#64748B", fontSize: 14 }}>
+                    {selectedChannelId === "all"
+                      ? "No messages received yet."
+                      : "No messages for selected channel."}
+                  </div>
                 )}
+
+                {filteredMessages.slice(0, 20).map((message, index) => {
+                  const metadata = getDecodioMetadataFromMessage(message);
+                  const protocolTheme = resolveProtocolTheme(
+                    metadata.standard,
+                    message.protocol ?? null,
+                  );
+                  const messageBadges = [
+                    metadata.talkgroup ? `TGID ${metadata.talkgroup}` : null,
+                    metadata.timeslot ? `TS ${metadata.timeslot}` : null,
+                    metadata.lcn ? `LCN ${metadata.lcn}` : null,
+                    metadata.standard ? `STD ${metadata.standard}` : null,
+                  ].filter((badge): badge is string => Boolean(badge));
+
+                  return (
+                    <div
+                      key={`${message.received_at ?? "na"}-${index}`}
+                      style={{
+                        border: `1px solid ${protocolTheme.borderColor}`,
+                        borderRadius: 6,
+                        padding: 14,
+                        background: protocolTheme.background,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: 12,
+                          color: "#64748B",
+                        }}
+                      >
+                        <span>{message.received_at ?? "Unknown time"}</span>
+
+                        <span style={{ display: "flex", gap: 10 }}>
+                          {typeof message.byte_length === "number" && (
+                            <span>{message.byte_length} bytes</span>
+                          )}
+                          {message.protocol && <span>{message.protocol}</span>}
+                          <span
+                            style={{ fontWeight: 700, color: protocolTheme.textColor }}
+                          >
+                            {protocolTheme.label}
+                          </span>
+                        </span>
+                      </div>
+
+                      {message.ascii_preview && (
+                        <div style={{ fontSize: 14, color: "#0f172a" }}>
+                          {message.ascii_preview}
+                        </div>
+                      )}
+
+                      {messageBadges.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                          {messageBadges.map((badge) => (
+                            <span
+                              key={badge}
+                              style={{
+                                fontSize: 11,
+                                color: protocolTheme.textColor,
+                                background: protocolTheme.background,
+                                border: `1px solid ${protocolTheme.borderColor}`,
+                                borderRadius: 999,
+                                padding: "2px 8px",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {badge}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {message.parsed_fields &&
+                        Object.keys(message.parsed_fields).length > 0 && (
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(2, 1fr)",
+                              gap: 8,
+                              fontSize: 13,
+                              background: "#f8fafc",
+                              padding: 10,
+                              borderRadius: 6,
+                            }}
+                          >
+                            {Object.entries(message.parsed_fields).map(([key, value]) => (
+                              <div key={key}>
+                                <strong>{key}:</strong> {value}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                      <code
+                        style={{
+                          fontSize: 12,
+                          background: "#f1f5f9",
+                          padding: 10,
+                          borderRadius: 6,
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {message.hex_preview ? `hex: ${message.hex_preview}` : message.raw ?? ""}
+                      </code>
+
+                      {message.decode_error && (
+                        <div style={{ color: "#ef4444", fontSize: 12 }}>
+                          {message.decode_error}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+
+          <Card>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Signal Streamer</h3>
+            <div style={{ color: theme.colors.textSecondary, fontSize: 13, lineHeight: 1.6 }}>
+              Real-time packet stream for operator triage. Uses WebSocket when available and falls back to mock packets otherwise.
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 10,
+                alignItems: "center",
+                marginTop: 14,
+              }}
+            >
+              <button
+                type="button"
+                onClick={startSignalStreamer}
+                disabled={streamerRunning}
+                onMouseEnter={() => setHoveredButton("start")}
+                onMouseLeave={() => setHoveredButton(null)}
+                style={{
+                  border: "none",
+                  borderRadius: 10,
+                  background: streamerRunning ? "#94a3b8" : "#11c1ca",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                  padding: "10px 14px",
+                  cursor: streamerRunning ? "not-allowed" : "pointer",
+                  transition: "transform 0.15s ease, filter 0.15s ease",
+                  transform:
+                    !streamerRunning && hoveredButton === "start" ? "translateY(-1px)" : "none",
+                  filter: !streamerRunning && hoveredButton === "start" ? "brightness(1.05)" : "none",
+                }}
+              >
+                Start Streamer
+              </button>
+
+              <button
+                type="button"
+                onClick={stopSignalStreamer}
+                disabled={!streamerRunning}
+                onMouseEnter={() => setHoveredButton("stop")}
+                onMouseLeave={() => setHoveredButton(null)}
+                style={{
+                  border: "none",
+                  borderRadius: 10,
+                  background: !streamerRunning ? "#94a3b8" : "#ef4444",
+                  color: "#ffffff",
+                  fontWeight: 700,
+                  padding: "10px 14px",
+                  cursor: !streamerRunning ? "not-allowed" : "pointer",
+                  transition: "transform 0.15s ease, filter 0.15s ease",
+                  transform:
+                    streamerRunning && hoveredButton === "stop" ? "translateY(-1px)" : "none",
+                  filter: streamerRunning && hoveredButton === "stop" ? "brightness(1.05)" : "none",
+                }}
+              >
+                Stop Streamer
+              </button>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B" }}>PPS</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={streamerFrequencyHz}
+                  disabled={streamerRunning && streamerMode !== "mock"}
+                  onChange={(e) => setStreamerFrequencyHz(Number(e.target.value))}
+                  style={{
+                    width: 80,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    color: "#0f172a",
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={!streamerRunning || streamerMode !== "mock"}
+                  onClick={() => startMockStreamer(streamerFrequencyHz)}
+                  style={{
+                    border: "1px solid #d1d5db",
+                    borderRadius: 10,
+                    background: "#ffffff",
+                    color: "#0f172a",
+                    fontWeight: 700,
+                    padding: "10px 12px",
+                    cursor:
+                      !streamerRunning || streamerMode !== "mock" ? "not-allowed" : "pointer",
+                    opacity: !streamerRunning || streamerMode !== "mock" ? 0.6 : 1,
+                  }}
+                >
+                  Apply (Mock)
+                </button>
+              </label>
+            </div>
+
+            {streamerError && (
+              <div style={{ marginTop: 10, fontSize: 13, color: "#ef4444" }}>
+                {streamerError}
               </div>
             )}
 
-          {/* RAW */}
-          <code
-            style={{
-              fontSize: 12,
-              background: "#f1f5f9",
-              padding: 10,
-              borderRadius: 6,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-          >
-            {message.hex_preview
-              ? `hex: ${message.hex_preview}`
-              : message.raw ?? ""}
-          </code>
-
-          {/* ERROR */}
-          {message.decode_error && (
-            <div style={{ color: "#ef4444", fontSize: 12 }}>
-              {message.decode_error}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                gap: 12,
+                marginTop: 14,
+              }}
+            >
+              <MetricCard label="Status" value={streamerRunning ? "RUNNING" : "STOPPED"} />
+              <MetricCard label="Mode" value={streamerMode.toUpperCase()} />
+              <MetricCard label="Packets" value={streamerStats.packets} />
+              <MetricCard label="Data Size" value={`${streamerStats.bytes} bytes`} />
+              <MetricCard label="Frequency" value={`${streamerFrequencyHz} pps`} />
             </div>
-          )}
-        </div>
-          );
-        })()
-      ))}
-    </div>
-  </Card>
-</div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(260px, 0.95fr) minmax(360px, 1.6fr)",
+                gap: 16,
+                marginTop: 16,
+                alignItems: "start",
+              }}
+            >
+              <div
+                style={{
+                  border: `1px solid ${theme.colors.border}`,
+                  borderRadius: theme.radius.md,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    background: theme.colors.surfaceAlt,
+                    borderBottom: `1px solid ${theme.colors.border}`,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 800, color: theme.colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Packets (Newest First)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStreamerPackets([]);
+                      setSelectedPacketId(null);
+                    }}
+                    style={{
+                      border: "1px solid #d1d5db",
+                      borderRadius: 10,
+                      background: "#ffffff",
+                      color: "#0f172a",
+                      fontWeight: 700,
+                      padding: "8px 10px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                <div style={{ maxHeight: 420, overflow: "auto", background: "#ffffff" }}>
+                  {streamerPackets.length === 0 ? (
+                    <div style={{ padding: 12, color: "#64748B", fontSize: 13 }}>
+                      No packets yet. Start the streamer to generate traffic.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid" }}>
+                      {streamerPackets.slice(0, 5).map((packet) => {
+                        const isSelected = packet.id === selectedPacketId;
+                        return (
+                          <button
+                            key={packet.id}
+                            type="button"
+                            onClick={() => setSelectedPacketId(packet.id)}
+                            style={{
+                              border: "none",
+                              textAlign: "left",
+                              padding: 12,
+                              cursor: "pointer",
+                              background: isSelected ? "#dbeafe" : "#ffffff",
+                              borderBottom: "1px solid #e2e8f0",
+                              transition: "background 0.12s ease",
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) (e.currentTarget.style.background = "#f8fafc");
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) (e.currentTarget.style.background = "#ffffff");
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                              <div style={{ display: "grid", gap: 4 }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: "#0f172a" }}>
+                                  {packet.frequencyHz ? `${(packet.frequencyHz / 1_000_000).toFixed(4)} MHz` : "Packet"}
+                                </div>
+                                <div style={{ fontSize: 12, color: "#64748B" }}>
+                                  {packet.byteLength} bytes • {packet.createdAt}
+                                </div>
+                              </div>
+
+                              {isSelected && (
+                                <span
+                                  style={{
+                                    alignSelf: "start",
+                                    fontSize: 11,
+                                    fontWeight: 900,
+                                    color: "#1d4ed8",
+                                    background: "#eff6ff",
+                                    border: "1px solid #93c5fd",
+                                    borderRadius: 999,
+                                    padding: "4px 10px",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  ✓ SELECTED
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ marginTop: 8, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace", fontSize: 12, color: "#334155" }}>
+                              {packet.payloadHex.slice(0, 72)}
+                              {packet.payloadHex.length > 72 ? "…" : ""}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  border: `1px solid ${theme.colors.border}`,
+                  borderRadius: theme.radius.md,
+                  overflow: "hidden",
+                  background: "#ffffff",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    background: theme.colors.surfaceAlt,
+                    borderBottom: `1px solid ${theme.colors.border}`,
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 800, color: theme.colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Packet Metadata (JSON Tree)
+                  </span>
+                </div>
+
+                <div style={{ padding: 12, maxHeight: 420, overflow: "auto" }}>
+                  {!selectedPacket ? (
+                    <div style={{ color: "#64748B", fontSize: 13 }}>
+                      Click a packet to view metadata.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gap: 10 }}>
+                      <div
+                        style={{
+                          padding: 12,
+                          borderRadius: 10,
+                          border: "1px solid #e2e8f0",
+                          background: "#f8fafc",
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 900, color: "#0f172a" }}>
+                          Selected Packet
+                        </div>
+                        <div style={{ marginTop: 6, fontSize: 12, color: "#64748B" }}>
+                          {selectedPacket.createdAt} • {selectedPacket.byteLength} bytes
+                        </div>
+                      </div>
+
+                      <div>
+                        <JsonTree
+                          value={{
+                            id: selectedPacket.id,
+                            createdAt: selectedPacket.createdAt,
+                            frequencyHz: selectedPacket.frequencyHz,
+                            byteLength: selectedPacket.byteLength,
+                            payloadHex: selectedPacket.payloadHex,
+                            metadata: selectedPacket.metadata,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
       </PageContainer>
     </AppLayout>

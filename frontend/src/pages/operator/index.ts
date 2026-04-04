@@ -4,6 +4,7 @@ export { default as OperatorInterceptionDashboardPage } from "./OperatorIntercep
 export { default as OperatorMapPage } from "./OperatorMapPage";
 export { default as OperatorAlertsPage } from "./OperatorAlertsPage";
 export { default as OperatorTcpClientPage } from "./OperatorTcpClientPage";
+export { default as OperatorSignalAnalyzerPage } from "./OperatorSignalAnalyzer";
 export { default as OperatorSignalSimulationPage } from "./OperatorSignalSimulationPage";
 export { default as OperatorSimulationTestingPage } from "./OperatorSimulationTestingPage";
 export { default as OperatorSMSPage } from "./OperatorSMSPage";
