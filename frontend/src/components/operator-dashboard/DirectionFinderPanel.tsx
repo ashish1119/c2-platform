@@ -600,170 +600,206 @@ const [selectedSensors, setSelectedSensors] = useState<Record<string, boolean>>(
               </div>
             )}
 
-            <div
-              style={{
-                display: "grid",
-                gap: theme.spacing.xs,
-                color: theme.colors.textSecondary,
-              }}
-            >
-              <div>Sensors: {directionFinderAssets.length}</div>
-              <div>Intersections: {intersectionCount}</div>
-              <div>
-                Estimate:{" "}
-                {centroid
-                  ? `${centroid[0].toFixed(5)}, ${centroid[1].toFixed(5)}`
-                  : "Awaiting valid geometry"}
-              </div>
-              {warningMessages.map((warning, index) => (
-                <div
-                  key={`warning-${index}`}
-                  style={{ color: theme.colors.warning }}
-                >
-                  {warning}
-                </div>
-              ))}
-            </div>
+           <div style={{ display: "grid", gap: theme.spacing.sm }}>
+  {latestBearingDetections.map((detection, index) => {
+    const nodeName =
+      detection.source_node || `Node ${index + 1}`;
 
-       <div style={{ display: "grid", gap: theme.spacing.xs }}>
-  {/* Dynamic grouping by source_node (DF Node) */}
-  {Object.entries(
-    sensorRegistry.reduce<Record<string, typeof sensorRegistry>>(
-      (acc, sensor) => {
-        const detection = latestBearingDetections.find(
-          (row) => resolveSensorId(row) === sensor.id
-        );
+    const sensorId = resolveSensorId(detection);
+    const sensor = sensorRegistry.find(
+      (s) => s.id === sensorId
+    );
 
-        const groupKey =
-          detection?.source_node || "Unknown DF Node";
+    const isOpen = openNodes[nodeName] ?? true;
 
-        if (!acc[groupKey]) acc[groupKey] = [];
-        acc[groupKey].push(sensor);
+    const color =
+      sensorColorById.get(sensorId) ??
+      theme.colors.primary;
 
-        return acc;
-      },
-      {}
-    )
-  ).map(([groupName, sensors]) => {
-    const isOpen = openNodes[groupName] ?? true;
+    const isChecked =
+      selectedSensors[sensorId] ?? false;
 
     return (
-      <div key={groupName}>
-        {/* Parent Node */}
+      <div
+        key={`${nodeName}-${sensorId}-${index}`}
+        style={{
+          border: `1px solid ${theme.colors.border}`,
+          borderRadius: 10,
+          padding: 10,
+          background: theme.colors.surfaceAlt,
+        }}
+      >
+        {/* 🔷 HEADER */}
         <div
           onClick={() =>
             setOpenNodes((prev) => ({
               ...prev,
-              [groupName]: !isOpen,
+              [nodeName]: !isOpen,
             }))
           }
           style={{
-            cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 6,
-            fontWeight: 600,
-            color: theme.colors.textPrimary,
-            fontSize: 12,
-            padding: "6px 8px",
-            borderRadius: 6,
+            justifyContent: "space-between",
+            cursor: "pointer",
           }}
         >
-          <span>{isOpen ? "▼" : "▶"}</span>
-          <span>{groupName}</span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontWeight: 600,
+              fontSize: 13,
+            }}
+          >
+            <span>{isOpen ? "▼" : "▶"}</span>
+            <span>{nodeName}</span>
+          </div>
         </div>
 
-        {/* Children with MULTI CHECKBOX */}
+        {/* 🔽 CONTENT */}
         {isOpen && (
           <div
             style={{
-              paddingLeft: 16,
-              marginTop: 4,
+              marginTop: 10,
               display: "grid",
-              gap: 4,
-              borderLeft: `1px solid ${theme.colors.border}`,
+              gap: 10,
             }}
           >
-            {sensors.map((sensor) => {
-              const detection = latestBearingDetections.find(
-                (row) => resolveSensorId(row) === sensor.id
-              );
-
-              const color =
-                sensorColorById.get(sensor.id) ??
-                theme.colors.primary;
-
-              const isChecked = selectedSensors[sensor.id] ?? false;
-
-              return (
+            {/* 📊 STATS PANEL */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                }}
+              >
                 <div
-                  key={sensor.id}
+                  style={{
+                    fontSize: 10,
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  Sensors
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 12 }}>
+                  1
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  Intersections
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 12 }}>
+                  {intersectionCount}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  background: "rgba(255,255,255,0.03)",
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  Estimate
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 12 }}>
+                  {centroid
+                    ? `${centroid[0].toFixed(5)}, ${centroid[1].toFixed(5)}`
+                    : "-"}
+                </div>
+              </div>
+            </div>
+
+            {/* 📦 SENSOR ROW */}
+            {sensor && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                  background: "rgba(255,255,255,0.02)",
+                }}
+              >
+                <label
                   style={{
                     display: "flex",
-                    justifyContent: "space-between",
                     alignItems: "center",
-                    fontSize: 11,
-                    padding: "4px 6px",
-                    borderRadius: 4,
-                    transition: "background 0.2s",
+                    gap: 8,
+                    cursor: "pointer",
                   }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background =
-                      "rgba(255,255,255,0.04)")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background =
-                      "transparent")
-                  }
                 >
-                  {/* LEFT SIDE (checkbox + label) */}
-                  <label
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() =>
+                      setSelectedSensors((prev) => ({
+                        ...prev,
+                        [sensorId]: !prev[sensorId],
+                      }))
+                    }
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
+                      accentColor: color,
                       cursor: "pointer",
-                      flex: 1,
                     }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() =>
-                        setSelectedSensors((prev) => ({
-                          ...prev,
-                          [sensor.id]: !prev[sensor.id],
-                        }))
-                      }
-                      style={{
-                        cursor: "pointer",
-                        accentColor: color,
-                      }}
-                    />
+                  />
 
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 999,
-                        background: color,
-                      }}
-                    />
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 999,
+                      background: color,
+                    }}
+                  />
 
-                    <span>{sensor.label}</span>
-                  </label>
-
-                  {/* RIGHT SIDE (bearing) */}
-                  <span style={{ color: theme.colors.textSecondary }}>
-                    {detection
-                      ? `${normalizeBearing(
-                          detection.doa_azimuth_deg
-                        ).toFixed(1)}°`
-                      : "-"}
+                  <span style={{ fontSize: 12 }}>
+                    {sensor.label}
                   </span>
-                </div>
-              );
-            })}
+                </label>
+
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  {normalizeBearing(
+                    detection.doa_azimuth_deg
+                  ).toFixed(1)}°
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

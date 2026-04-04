@@ -178,7 +178,7 @@ export default function TelecomIntelligenceDashboard() {
           {state.dataMode === "live" && (
             <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11,
               color: state.wsConnected ? theme.colors.success : theme.colors.danger,
-              padding: "5px 12px",
+              padding: "5px 11px",
               background: state.wsConnected ? `${theme.colors.success}15` : `${theme.colors.danger}15`,
               border: `1px solid ${state.wsConnected ? theme.colors.success : theme.colors.danger}50`,
               borderRadius: theme.radius.md,
