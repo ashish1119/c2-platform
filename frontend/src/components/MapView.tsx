@@ -1,6 +1,25 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import L from "leaflet";
-import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, Polygon, Polyline, ScaleControl, useMap, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Circle,
+  CircleMarker,
+  Polygon,
+  Polyline,
+  ScaleControl,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw";
 import "leaflet-draw/dist/leaflet.draw.css";
@@ -75,7 +94,8 @@ import {
   Trash2,
 } from "lucide-react";
 
-const ASSET_ICON_COLOR_OVERRIDES_KEY = "ui.operator.map.assetIconColorOverrides";
+const ASSET_ICON_COLOR_OVERRIDES_KEY =
+  "ui.operator.map.assetIconColorOverrides";
 
 type Props = {
   assets?: AssetRecord[];
@@ -90,9 +110,28 @@ type Props = {
   showOnlyDirectionFinders?: boolean;
   jammerLifecycleByAssetId?: Record<string, string>;
   jammerActionInProgressId?: string | null;
-  onJammerToggle?: (assetId: string, nextAction: "start" | "stop", config?: JammerControlConfig) => void;
+  onJammerToggle?: (
+    assetId: string,
+    nextAction: "start" | "stop",
+    config?: JammerControlConfig,
+  ) => void;
   initialShowAlerts?: boolean;
   initialShowSignals?: boolean;
+  dfBearingLines?: {
+    key: string;
+    positions: [number, number][];
+    bearing: number;
+    power: number;
+    timestamp: string;
+  }[];
+
+  dfSensorMarkers?: {
+    id: string;
+    latitude: number;
+    longitude: number;
+    name: string;
+    power: number;
+  }[];
 };
 
 export type JammerControlConfig = {
@@ -186,7 +225,6 @@ function AttributionPrefixController() {
   return null;
 }
 
-
 function BingTileLayer({
   option,
   url,
@@ -234,7 +272,16 @@ function BingTileLayer({
       layer.off("tileload", onTileLoad);
       map.removeLayer(layer);
     };
-  }, [map, option.attribution, option.maxZoom, option.subdomains, url, className, onTileError, onTileLoad]);
+  }, [
+    map,
+    option.attribution,
+    option.maxZoom,
+    option.subdomains,
+    url,
+    className,
+    onTileError,
+    onTileLoad,
+  ]);
 
   return null;
 }
@@ -302,7 +349,9 @@ function DrawMeasureControl({
     map.addControl(drawControl);
 
     // Hide the native Leaflet draw toolbar — replaced by custom buttons in the parent toolbar
-    const nativeContainer = (drawControl as any).getContainer?.() as HTMLElement | undefined;
+    const nativeContainer = (drawControl as any).getContainer?.() as
+      | HTMLElement
+      | undefined;
     if (nativeContainer) nativeContainer.style.display = "none";
 
     // Expose control to parent
@@ -310,7 +359,11 @@ function DrawMeasureControl({
 
     const onDrawStart: L.LeafletEventHandlerFn = (event) => {
       const layerType = (event as L.DrawEvents.DrawStart).layerType;
-      if (layerType === "polygon" || layerType === "polyline" || layerType === "circle") {
+      if (
+        layerType === "polygon" ||
+        layerType === "polyline" ||
+        layerType === "circle"
+      ) {
         onActiveShapeChange(layerType);
       } else {
         onActiveShapeChange(null);
@@ -343,12 +396,18 @@ function DrawMeasureControl({
       const polygonHandler = drawToolbar?._modes?.polygon?.handler;
       const polylineHandler = drawToolbar?._modes?.polyline?.handler;
 
-      if (polygonHandler?.enabled?.() && (polygonHandler._markers?.length ?? 0) >= 4) {
+      if (
+        polygonHandler?.enabled?.() &&
+        (polygonHandler._markers?.length ?? 0) >= 4
+      ) {
         polygonHandler.completeShape();
         return;
       }
 
-      if (polylineHandler?.enabled?.() && (polylineHandler._markers?.length ?? 0) >= 2) {
+      if (
+        polylineHandler?.enabled?.() &&
+        (polylineHandler._markers?.length ?? 0) >= 2
+      ) {
         polylineHandler.completeShape();
       }
     };
@@ -375,14 +434,19 @@ function DrawMeasureControl({
       for (let index = 0; index < latLngs.length; index += 1) {
         const point = latLngs[index];
         const previousPoint = index > 0 ? latLngs[index - 1] : null;
-        const nextPoint = index < latLngs.length - 1 ? latLngs[index + 1] : null;
+        const nextPoint =
+          index < latLngs.length - 1 ? latLngs[index + 1] : null;
 
         if (previousPoint) {
           cumulativeMeters += previousPoint.distanceTo(point);
         }
 
-        const segmentMeters = previousPoint ? previousPoint.distanceTo(point) : 0;
-        const angleText = nextPoint ? `${getBearingDegrees(point, nextPoint).toFixed(1)} deg` : "-";
+        const segmentMeters = previousPoint
+          ? previousPoint.distanceTo(point)
+          : 0;
+        const angleText = nextPoint
+          ? `${getBearingDegrees(point, nextPoint).toFixed(1)} deg`
+          : "-";
         const labelText = `P${index + 1}: ${point.lat.toFixed(6)}, ${point.lng.toFixed(6)} | ${(segmentMeters / 1000).toFixed(3)} km | ${angleText}`;
 
         const nodeLayer = L.circleMarker(point, {
@@ -428,8 +492,10 @@ function DrawMeasureControl({
 
       for (let index = 0; index < latLngs.length; index += 1) {
         const point = latLngs[index];
-        const previousPoint = index > 0 ? latLngs[index - 1] : latLngs[latLngs.length - 1];
-        const nextPoint = index < latLngs.length - 1 ? latLngs[index + 1] : latLngs[0];
+        const previousPoint =
+          index > 0 ? latLngs[index - 1] : latLngs[latLngs.length - 1];
+        const nextPoint =
+          index < latLngs.length - 1 ? latLngs[index + 1] : latLngs[0];
 
         const segmentMeters = previousPoint.distanceTo(point);
         const angleText = `${getBearingDegrees(point, nextPoint).toFixed(1)} deg`;
@@ -479,12 +545,19 @@ function DrawMeasureControl({
     const bindCirclePopup = (circleLayer: L.Circle) => {
       const radiusM = circleLayer.getRadius();
       const radiusKm = (radiusM / 1000).toFixed(3);
-      const areaSqKm = (Math.PI * radiusM * radiusM / 1_000_000).toFixed(3);
+      const areaSqKm = ((Math.PI * radiusM * radiusM) / 1_000_000).toFixed(3);
       circleLayer.bindPopup(`Radius: ${radiusKm} km | Area: ${areaSqKm} km^2`);
     };
 
-    const bindMarkerPopup = (markerLayer: L.Marker, bookmarkText: string, createdAt: string) => {
-      const markerWithMeta = markerLayer as L.Marker & { __bookmarkText?: string; __bookmarkCreatedAt?: string };
+    const bindMarkerPopup = (
+      markerLayer: L.Marker,
+      bookmarkText: string,
+      createdAt: string,
+    ) => {
+      const markerWithMeta = markerLayer as L.Marker & {
+        __bookmarkText?: string;
+        __bookmarkCreatedAt?: string;
+      };
       markerWithMeta.__bookmarkText = bookmarkText;
       markerWithMeta.__bookmarkCreatedAt = createdAt;
 
@@ -501,7 +574,10 @@ function DrawMeasureControl({
     };
 
     const syncShapePresentation = (shapeLayer: L.Layer) => {
-      if (shapeLayer instanceof L.Polyline && !(shapeLayer instanceof L.Polygon)) {
+      if (
+        shapeLayer instanceof L.Polyline &&
+        !(shapeLayer instanceof L.Polygon)
+      ) {
         renderLineNodeDetails(shapeLayer as L.Polyline);
         bindPolylinePopup(shapeLayer as L.Polyline);
         return;
@@ -522,7 +598,10 @@ function DrawMeasureControl({
       const persistedShapes: PersistedDrawShape[] = [];
 
       editableLayers.eachLayer((currentLayer: L.Layer) => {
-        if (currentLayer instanceof L.Polyline && !(currentLayer instanceof L.Polygon)) {
+        if (
+          currentLayer instanceof L.Polyline &&
+          !(currentLayer instanceof L.Polygon)
+        ) {
           const latLngs = currentLayer.getLatLngs() as L.LatLng[];
           persistedShapes.push({
             type: "polyline",
@@ -554,10 +633,16 @@ function DrawMeasureControl({
         }
 
         if (currentLayer instanceof L.Marker) {
-          const markerLayer = currentLayer as L.Marker & { __bookmarkText?: string; __bookmarkCreatedAt?: string };
+          const markerLayer = currentLayer as L.Marker & {
+            __bookmarkText?: string;
+            __bookmarkCreatedAt?: string;
+          };
           const latLng = markerLayer.getLatLng();
-          const bookmarkText = markerLayer.__bookmarkText ?? String(markerLayer.getTooltip()?.getContent() ?? "Bookmark Pin");
-          const createdAt = markerLayer.__bookmarkCreatedAt ?? new Date().toLocaleString();
+          const bookmarkText =
+            markerLayer.__bookmarkText ??
+            String(markerLayer.getTooltip()?.getContent() ?? "Bookmark Pin");
+          const createdAt =
+            markerLayer.__bookmarkCreatedAt ?? new Date().toLocaleString();
           persistedShapes.push({
             type: "marker",
             center: [latLng.lat, latLng.lng],
@@ -567,7 +652,10 @@ function DrawMeasureControl({
         }
       });
 
-      localStorage.setItem(DRAW_SHAPES_STORAGE_KEY, JSON.stringify(persistedShapes));
+      localStorage.setItem(
+        DRAW_SHAPES_STORAGE_KEY,
+        JSON.stringify(persistedShapes),
+      );
     };
 
     const restoreDrawingsFromStorage = () => {
@@ -586,7 +674,11 @@ function DrawMeasureControl({
       }
 
       for (const shape of persistedShapes) {
-        if (shape.type === "polyline" && Array.isArray(shape.points) && shape.points.length >= 2) {
+        if (
+          shape.type === "polyline" &&
+          Array.isArray(shape.points) &&
+          shape.points.length >= 2
+        ) {
           const polylineLayer = L.polyline(
             shape.points.map(([lat, lng]) => [lat, lng] as [number, number]),
             { color: shape.color ?? polylineColor, weight: 3 },
@@ -596,7 +688,11 @@ function DrawMeasureControl({
           continue;
         }
 
-        if (shape.type === "polygon" && Array.isArray(shape.points) && shape.points.length >= 3) {
+        if (
+          shape.type === "polygon" &&
+          Array.isArray(shape.points) &&
+          shape.points.length >= 3
+        ) {
           const polygonLayer = L.polygon(
             shape.points.map(([lat, lng]) => [lat, lng] as [number, number]),
             { color: shape.color ?? polygonColor, weight: 2 },
@@ -606,7 +702,11 @@ function DrawMeasureControl({
           continue;
         }
 
-        if (shape.type === "circle" && shape.center && typeof shape.radiusM === "number") {
+        if (
+          shape.type === "circle" &&
+          shape.center &&
+          typeof shape.radiusM === "number"
+        ) {
           const circleLayer = L.circle(shape.center, {
             radius: shape.radiusM,
             color: shape.color ?? circleColor,
@@ -619,7 +719,8 @@ function DrawMeasureControl({
 
         if (shape.type === "marker" && shape.center) {
           const markerLayer = L.marker(shape.center);
-          const bookmarkText = (shape.bookmarkText ?? "Bookmark Pin").trim() || "Bookmark Pin";
+          const bookmarkText =
+            (shape.bookmarkText ?? "Bookmark Pin").trim() || "Bookmark Pin";
           const createdAt = shape.createdAt ?? new Date().toLocaleString();
           bindMarkerPopup(markerLayer, bookmarkText, createdAt);
           editableLayers.addLayer(markerLayer);
@@ -664,7 +765,9 @@ function DrawMeasureControl({
       if (drawEvent.layerType === "marker") {
         const marker = layer as L.Marker;
         const createdAt = new Date().toLocaleString();
-        const bookmarkTextInput = window.prompt("Enter bookmark text", "Bookmark Pin") ?? "Bookmark Pin";
+        const bookmarkTextInput =
+          window.prompt("Enter bookmark text", "Bookmark Pin") ??
+          "Bookmark Pin";
         const bookmarkText = bookmarkTextInput.trim() || "Bookmark Pin";
         bindMarkerPopup(marker, bookmarkText, createdAt);
         marker.openPopup();
@@ -719,7 +822,14 @@ function DrawMeasureControl({
       map.removeControl(drawControl);
       map.removeLayer(editableLayers);
     };
-  }, [map, polygonColor, polylineColor, circleColor, showNodeLabels, onActiveShapeChange]);
+  }, [
+    map,
+    polygonColor,
+    polylineColor,
+    circleColor,
+    showNodeLabels,
+    onActiveShapeChange,
+  ]);
 
   return null;
 }
@@ -750,7 +860,11 @@ function MapResetController({
         map.setView(savedView.center, savedView.zoom, { animate: false });
       } else if (fitPoints.length > 0) {
         const bounds = L.latLngBounds(fitPoints);
-        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16, animate: false });
+        map.fitBounds(bounds, {
+          padding: [30, 30],
+          maxZoom: 16,
+          animate: false,
+        });
       } else {
         map.setView(center, 13, { animate: false });
       }
@@ -804,11 +918,17 @@ function MapResizeController() {
   return null;
 }
 
-function MapRefCapture({ mapRef }: { mapRef: React.MutableRefObject<L.Map | null> }) {
+function MapRefCapture({
+  mapRef,
+}: {
+  mapRef: React.MutableRefObject<L.Map | null>;
+}) {
   const map = useMap();
   useEffect(() => {
     mapRef.current = map;
-    return () => { mapRef.current = null; };
+    return () => {
+      mapRef.current = null;
+    };
   }, [map, mapRef]);
   return null;
 }
@@ -821,6 +941,8 @@ export default function MapView({
   heatCells = [],
   coveragePoints = [],
   triangulation = null,
+  dfBearingLines = [],
+  dfSensorMarkers = [],
   assetConnectionMode = "none",
   mapHeight = "500px",
   showOnlyDirectionFinders = false,
@@ -834,14 +956,39 @@ export default function MapView({
   const defaultCenter = DELHI_CENTER;
   const [blinkOn, setBlinkOn] = useState(true);
   const [mapZoom, setMapZoom] = useState(13);
-  const [mousePosition, setMousePosition] = useState<[number, number] | null>(null);
+  const [mousePosition, setMousePosition] = useState<[number, number] | null>(
+    null,
+  );
+
+  console.log("DF LINES IN MAPVIEW:", dfBearingLines);
+
+  // 👇 ADD THIS HERE
+  function getColorFromId(id: string) {
+    const colors = [
+      "#22c55e",
+      "#3b82f6",
+      "#f59e0b",
+      "#ef4444",
+      "#a855f7",
+      "#06b6d4",
+      "#84cc16",
+    ];
+
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+      hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    return colors[Math.abs(hash) % colors.length];
+  }
   const [resetCounter, setResetCounter] = useState(0);
   const [showAssets, setShowAssets] = useState(true);
   const [showAlerts, setShowAlerts] = useState(initialShowAlerts);
   const [showSignals, setShowSignals] = useState(initialShowSignals);
   const [showRangeOverlays, setShowRangeOverlays] = useState(true);
   const [showHeatOverlay, setShowHeatOverlay] = useState(true);
-  const [showTriangulationOverlay, setShowTriangulationOverlay] = useState(true);
+  const [showTriangulationOverlay, setShowTriangulationOverlay] =
+    useState(true);
   const [showNodeLabels, setShowNodeLabels] = useState<boolean>(() => {
     const raw = localStorage.getItem(MAP_NODE_LABELS_VISIBLE_KEY);
     if (raw === "true") return true;
@@ -851,7 +998,9 @@ export default function MapView({
   const [polygonColor, setPolygonColor] = useState("#0ea5e9");
   const [polylineColor, setPolylineColor] = useState("#16a34a");
   const [circleColor, setCircleColor] = useState("#f59e0b");
-  const [activeDrawShape, setActiveDrawShape] = useState<DrawShapeType | null>(null);
+  const [activeDrawShape, setActiveDrawShape] = useState<DrawShapeType | null>(
+    null,
+  );
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const drawControlRef = useRef<any>(null);
@@ -865,35 +1014,40 @@ export default function MapView({
     drawControlRef.current = ctrl;
   }, []);
 
-  const handleDrawTool = useCallback((tool: string) => {
-    const ctrl = drawControlRef.current;
-    if (!ctrl) return;
-    const drawModes = ctrl._toolbars?.draw?._modes;
-    const editModes = ctrl._toolbars?.edit?._modes;
+  const handleDrawTool = useCallback(
+    (tool: string) => {
+      const ctrl = drawControlRef.current;
+      if (!ctrl) return;
+      const drawModes = ctrl._toolbars?.draw?._modes;
+      const editModes = ctrl._toolbars?.edit?._modes;
 
-    // Disable current tool
-    if (activeTool) {
-      if (activeTool === "edit") editModes?.edit?.handler?.disable?.();
-      else if (activeTool === "delete") editModes?.remove?.handler?.disable?.();
-      else drawModes?.[activeTool]?.handler?.disable?.();
-    }
+      // Disable current tool
+      if (activeTool) {
+        if (activeTool === "edit") editModes?.edit?.handler?.disable?.();
+        else if (activeTool === "delete")
+          editModes?.remove?.handler?.disable?.();
+        else drawModes?.[activeTool]?.handler?.disable?.();
+      }
 
-    if (activeTool === tool) {
-      setActiveTool(null);
-      return;
-    }
+      if (activeTool === tool) {
+        setActiveTool(null);
+        return;
+      }
 
-    // Enable new tool
-    if (tool === "edit") editModes?.edit?.handler?.enable?.();
-    else if (tool === "delete") editModes?.remove?.handler?.enable?.();
-    else drawModes?.[tool]?.handler?.enable?.();
-    setActiveTool(tool);
-  }, [activeTool]);
+      // Enable new tool
+      if (tool === "edit") editModes?.edit?.handler?.enable?.();
+      else if (tool === "delete") editModes?.remove?.handler?.enable?.();
+      else drawModes?.[tool]?.handler?.enable?.();
+      setActiveTool(tool);
+    },
+    [activeTool],
+  );
   const [baseMapId, setBaseMapId] = useState<string>("osm");
   const [showBaseMapSelector, setShowBaseMapSelector] = useState(false);
   const [baseMapTileErrors, setBaseMapTileErrors] = useState(0);
   const [baseMapTileLoads, setBaseMapTileLoads] = useState(0);
-  const [autoOfflineFallbackActive, setAutoOfflineFallbackActive] = useState(false);
+  const [autoOfflineFallbackActive, setAutoOfflineFallbackActive] =
+    useState(false);
   const [showAssetLegend, setShowAssetLegend] = useState(false);
   const [showColorPanel, setShowColorPanel] = useState(false);
   const [showTransparencySlider, setShowTransparencySlider] = useState(false);
@@ -910,7 +1064,10 @@ export default function MapView({
       return DEFAULT_JAMMER_POPUP_ALPHA;
     }
 
-    return Math.max(MIN_JAMMER_POPUP_ALPHA, Math.min(MAX_JAMMER_POPUP_ALPHA, parsed));
+    return Math.max(
+      MIN_JAMMER_POPUP_ALPHA,
+      Math.min(MAX_JAMMER_POPUP_ALPHA, parsed),
+    );
   });
   const [jammerRangeColor, setJammerRangeColor] = useState<string>(() => {
     const raw = localStorage.getItem(JAMMER_RANGE_COLOR_KEY);
@@ -938,7 +1095,9 @@ export default function MapView({
 
     return normalized;
   });
-  const [assetIconColorOverrides, setAssetIconColorOverrides] = useState<Record<string, string>>(() => {
+  const [assetIconColorOverrides, setAssetIconColorOverrides] = useState<
+    Record<string, string>
+  >(() => {
     try {
       const raw = localStorage.getItem(ASSET_ICON_COLOR_OVERRIDES_KEY);
       if (!raw) {
@@ -956,7 +1115,9 @@ export default function MapView({
       return {};
     }
   });
-  const [jammerControlByAssetId, setJammerControlByAssetId] = useState<Record<string, JammerPopupControlState>>({});
+  const [jammerControlByAssetId, setJammerControlByAssetId] = useState<
+    Record<string, JammerPopupControlState>
+  >({});
   const [currentView, setCurrentView] = useState<SavedMapView | null>(null);
   const [savedView, setSavedView] = useState<SavedMapView | null>(() => {
     try {
@@ -1005,7 +1166,10 @@ export default function MapView({
   }, [dfRangeColor]);
 
   useEffect(() => {
-    localStorage.setItem(ASSET_ICON_COLOR_OVERRIDES_KEY, JSON.stringify(assetIconColorOverrides));
+    localStorage.setItem(
+      ASSET_ICON_COLOR_OVERRIDES_KEY,
+      JSON.stringify(assetIconColorOverrides),
+    );
   }, [assetIconColorOverrides]);
 
   useEffect(() => {
@@ -1016,9 +1180,12 @@ export default function MapView({
   const visibleAssets = useMemo(
     () =>
       showOnlyDirectionFinders
-        ? assets.filter((asset) => (asset.type ?? "").trim().toUpperCase() === "DIRECTION_FINDER")
+        ? assets.filter(
+            (asset) =>
+              (asset.type ?? "").trim().toUpperCase() === "DIRECTION_FINDER",
+          )
         : assets,
-    [assets, showOnlyDirectionFinders]
+    [assets, showOnlyDirectionFinders],
   );
 
   const setJammerControlField = useCallback(
@@ -1031,7 +1198,7 @@ export default function MapView({
         },
       }));
     },
-    []
+    [],
   );
 
   const alertMarkers = alerts.filter((alert) => {
@@ -1043,20 +1210,26 @@ export default function MapView({
     );
   });
   const directionFinderAssets = visibleAssets.filter(
-    (asset) => (asset.type ?? "").trim().toUpperCase() === "DIRECTION_FINDER"
+    (asset) => (asset.type ?? "").trim().toUpperCase() === "DIRECTION_FINDER",
   );
   const pointerAnchorAsset =
-    directionFinderAssets.find((asset) => asset.name?.toLowerCase().includes("bravo east"))
-    ?? directionFinderAssets[0]
-    ?? null;
+    directionFinderAssets.find((asset) =>
+      asset.name?.toLowerCase().includes("bravo east"),
+    ) ??
+    directionFinderAssets[0] ??
+    null;
   const latestTcpFrame = useMemo(() => {
     if (tcpRecentMessages.length === 0) {
       return null;
     }
 
     return tcpRecentMessages.reduce((latest, current) => {
-      const latestTs = latest.received_at ? new Date(latest.received_at).getTime() : Number.NEGATIVE_INFINITY;
-      const currentTs = current.received_at ? new Date(current.received_at).getTime() : Number.NEGATIVE_INFINITY;
+      const latestTs = latest.received_at
+        ? new Date(latest.received_at).getTime()
+        : Number.NEGATIVE_INFINITY;
+      const currentTs = current.received_at
+        ? new Date(current.received_at).getTime()
+        : Number.NEGATIVE_INFINITY;
       return currentTs > latestTs ? current : latest;
     });
   }, [tcpRecentMessages]);
@@ -1080,7 +1253,10 @@ export default function MapView({
       return null;
     }
 
-    const start: [number, number] = [pointerAnchorAsset.latitude, pointerAnchorAsset.longitude];
+    const start: [number, number] = [
+      pointerAnchorAsset.latitude,
+      pointerAnchorAsset.longitude,
+    ];
     const end = destinationPointFromBearing(
       start,
       latestTcpFrameWithBearing.bearingDeg,
@@ -1092,11 +1268,15 @@ export default function MapView({
       end,
     };
   }, [pointerAnchorAsset, latestTcpFrameWithBearing]);
-  const jammerAssets = visibleAssets.filter((asset) => isJammerAssetType(asset.type));
+  const jammerAssets = visibleAssets.filter((asset) =>
+    isJammerAssetType(asset.type),
+  );
   const activeJammerAssets = useMemo(
     () =>
       jammerAssets.filter((asset) => {
-        const lifecycleState = String(jammerLifecycleByAssetId[asset.id] ?? "").toUpperCase();
+        const lifecycleState = String(
+          jammerLifecycleByAssetId[asset.id] ?? "",
+        ).toUpperCase();
         return lifecycleState === "JAMMING";
       }),
     [jammerAssets, jammerLifecycleByAssetId],
@@ -1118,7 +1298,11 @@ export default function MapView({
         const center: [number, number] = [asset.latitude, asset.longitude];
         return Array.from({ length: JAMMER_RANGE_SPOKE_COUNT }, (_, index) => {
           const bearing = (360 / JAMMER_RANGE_SPOKE_COUNT) * index;
-          const perimeter = destinationPointFromBearing(center, bearing, radiusM);
+          const perimeter = destinationPointFromBearing(
+            center,
+            bearing,
+            radiusM,
+          );
           return {
             key: `jammer-spoke-${asset.id}-${index}`,
             center,
@@ -1135,14 +1319,18 @@ export default function MapView({
       seen.add(typeKey);
     }
 
-    const orderedKnown = ASSET_TYPE_ORDER.filter((typeKey) => seen.has(typeKey)).map((typeKey) => {
+    const orderedKnown = ASSET_TYPE_ORDER.filter((typeKey) =>
+      seen.has(typeKey),
+    ).map((typeKey) => {
       const base = ASSET_TYPE_SETTINGS[typeKey];
       const overrideColor = assetIconColorOverrides[typeKey];
       return [
         typeKey,
         {
           ...base,
-          markerColor: overrideColor ?? (typeKey === "DIRECTION_FINDER" ? dfRangeColor : base.markerColor),
+          markerColor:
+            overrideColor ??
+            (typeKey === "DIRECTION_FINDER" ? dfRangeColor : base.markerColor),
         },
       ] as [string, AssetTypeSettings];
     });
@@ -1169,17 +1357,24 @@ export default function MapView({
   const hasHeatCells = heatCells.length > 0;
   const hasCoverage = coveragePoints.length > 0;
   const triangulationCentroid: [number, number] | null =
-    typeof triangulation?.centroid_latitude === "number" && typeof triangulation?.centroid_longitude === "number"
+    typeof triangulation?.centroid_latitude === "number" &&
+    typeof triangulation?.centroid_longitude === "number"
       ? [triangulation.centroid_latitude, triangulation.centroid_longitude]
       : null;
-  const triangulationPolygon = triangulation?.roi_polygon?.map((point) => [point.latitude, point.longitude] as [number, number]) ?? [];
+  const triangulationPolygon =
+    triangulation?.roi_polygon?.map(
+      (point) => [point.latitude, point.longitude] as [number, number],
+    ) ?? [];
   const triangulationIntersections = triangulation?.intersections ?? [];
   const triangulationRayColorBySource = useMemo(() => {
     const bySource = new Map<string, string>();
     let index = 0;
     for (const ray of triangulation?.rays ?? []) {
       if (!bySource.has(ray.source_id)) {
-        bySource.set(ray.source_id, TRIANGULATION_RAY_COLORS[index % TRIANGULATION_RAY_COLORS.length]);
+        bySource.set(
+          ray.source_id,
+          TRIANGULATION_RAY_COLORS[index % TRIANGULATION_RAY_COLORS.length],
+        );
         index += 1;
       }
     }
@@ -1190,7 +1385,7 @@ export default function MapView({
       Array.from(triangulationRayColorBySource.entries())
         .map(([sourceId, color]) => ({ sourceId, color }))
         .sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
-    [triangulationRayColorBySource]
+    [triangulationRayColorBySource],
   );
   const lowZoomStyleScale = useMemo(() => {
     if (mapZoom <= 9) return 1.5;
@@ -1203,16 +1398,19 @@ export default function MapView({
       triangulationCentroid
         ? triangulationCentroid
         : hasAlertMarkers
-        ? [alertMarkers[0].latitude as number, alertMarkers[0].longitude as number]
-        : hasAssets
-        ? [visibleAssets[0].latitude, visibleAssets[0].longitude]
-        : hasSignals
-          ? [signals[0].latitude, signals[0].longitude]
-        : hasHeatCells
-          ? [heatCells[0].latitude_bucket, heatCells[0].longitude_bucket]
-        : hasCoverage
-            ? [coveragePoints[0].latitude, coveragePoints[0].longitude]
-            : defaultCenter,
+          ? [
+              alertMarkers[0].latitude as number,
+              alertMarkers[0].longitude as number,
+            ]
+          : hasAssets
+            ? [visibleAssets[0].latitude, visibleAssets[0].longitude]
+            : hasSignals
+              ? [signals[0].latitude, signals[0].longitude]
+              : hasHeatCells
+                ? [heatCells[0].latitude_bucket, heatCells[0].longitude_bucket]
+                : hasCoverage
+                  ? [coveragePoints[0].latitude, coveragePoints[0].longitude]
+                  : defaultCenter,
     [
       triangulationCentroid,
       hasAlertMarkers,
@@ -1229,19 +1427,45 @@ export default function MapView({
     ],
   );
   const hasSavedView = savedView !== null;
-  const initialMapCenter: [number, number] = hasSavedView ? (savedView as SavedMapView).center : mapCenter;
+  const initialMapCenter: [number, number] = hasSavedView
+    ? (savedView as SavedMapView).center
+    : mapCenter;
   const initialMapZoom = hasSavedView ? (savedView as SavedMapView).zoom : 13;
-  const selectedBaseMap = BASE_MAP_OPTIONS.find((option) => option.id === baseMapId) ?? BASE_MAP_OPTIONS[0];
-  const selectedBaseMapUrl = mode === "dark" && selectedBaseMap.darkUrl ? selectedBaseMap.darkUrl : selectedBaseMap.url;
-  const selectedBaseMapClassName = mode === "dark" && selectedBaseMap.useDarkFilter ? "map-tiles-dark-filter" : undefined;
-  const mapDarkFilterClass = mode === "dark" && selectedBaseMap.useDarkFilter ? "map-theme-dark" : "";
-  const isOfflineBaseMap = baseMapId === "offline-local" || baseMapId === "offline-blank";
+  const selectedBaseMap =
+    BASE_MAP_OPTIONS.find((option) => option.id === baseMapId) ??
+    BASE_MAP_OPTIONS[0];
+  const selectedBaseMapUrl =
+    mode === "dark" && selectedBaseMap.darkUrl
+      ? selectedBaseMap.darkUrl
+      : selectedBaseMap.url;
+  const selectedBaseMapClassName =
+    mode === "dark" && selectedBaseMap.useDarkFilter
+      ? "map-tiles-dark-filter"
+      : undefined;
+  const mapDarkFilterClass =
+    mode === "dark" && selectedBaseMap.useDarkFilter ? "map-theme-dark" : "";
+  const isOfflineBaseMap =
+    baseMapId === "offline-local" || baseMapId === "offline-blank";
   const activeShapeMenuTop =
-    activeDrawShape === "polyline" ? 50 : activeDrawShape === "polygon" ? 80 : activeDrawShape === "circle" ? 110 : 50;
+    activeDrawShape === "polyline"
+      ? 50
+      : activeDrawShape === "polygon"
+        ? 80
+        : activeDrawShape === "circle"
+          ? 110
+          : 50;
   const activeShapeColor =
-    activeDrawShape === "polygon" ? polygonColor : activeDrawShape === "polyline" ? polylineColor : circleColor;
+    activeDrawShape === "polygon"
+      ? polygonColor
+      : activeDrawShape === "polyline"
+        ? polylineColor
+        : circleColor;
   const activeShapeLabel =
-    activeDrawShape === "polygon" ? "Polygon" : activeDrawShape === "polyline" ? "Line" : "Circle";
+    activeDrawShape === "polygon"
+      ? "Polygon"
+      : activeDrawShape === "polyline"
+        ? "Line"
+        : "Circle";
   const handleBaseMapTileError = useCallback(() => {
     setBaseMapTileErrors((current) => current + 1);
   }, []);
@@ -1393,668 +1617,1215 @@ export default function MapView({
     showTriangulationOverlay,
   ]);
 
- return (
-  <div
-    style={
-      {
-        position: "relative",
-        height: mapHeight,
-        width: "100%",
-        borderRadius: "12px",
-        overflow: "hidden",
-        border: "1px solid rgba(56, 189, 248, 0.3)", // Sky blue border
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-        ["--jammer-popup-alpha" as string]: jammerPopupAlpha,
-      } as React.CSSProperties
-    }
-  >
-    <MapContainer 
-      className={mapDarkFilterClass} 
-      center={initialMapCenter} 
-      zoom={initialMapZoom} 
-      zoomControl={false} 
-      style={{ height: "100%", width: "100%" }}
+  return (
+    <div
+      style={
+        {
+          position: "relative",
+          height: mapHeight,
+          width: "100%",
+          borderRadius: "12px",
+          overflow: "hidden",
+          border: "1px solid rgba(56, 189, 248, 0.3)", // Sky blue border
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+          ["--jammer-popup-alpha" as string]: jammerPopupAlpha,
+        } as React.CSSProperties
+      }
     >
-      <MapCenterController center={mapCenter} onZoomChange={setMapZoom} shouldFollowCenter={!hasSavedView} />
-      <MapResetController center={mapCenter} fitPoints={resetFitPoints} savedView={savedView} resetCounter={resetCounter} />
-      <MapResizeController />
-      <MousePositionTracker onPositionChange={setMousePosition} />
-      <MapViewportTracker onViewChange={setCurrentView} />
-      <AttributionPrefixController />
-      <MapRefCapture mapRef={mapRef} />
-      <DrawMeasureControl
-        polygonColor={polygonColor}
-        polylineColor={polylineColor}
-        circleColor={circleColor}
-        showNodeLabels={showNodeLabels}
-        onActiveShapeChange={handleActiveShapeChange}
-        onDrawControlReady={handleDrawControlReady}
-      />
-      <ScaleControl position="bottomleft" />
-      
-      {selectedBaseMap.requiresQuadKey ? (
-        <BingTileLayer
-          key={`${selectedBaseMap.id}-${mode}`}
-          option={selectedBaseMap}
-          url={selectedBaseMapUrl}
-          className={selectedBaseMapClassName}
-          onTileError={handleBaseMapTileError}
-          onTileLoad={handleBaseMapTileLoad}
+      <MapContainer
+        className={mapDarkFilterClass}
+        center={initialMapCenter}
+        zoom={initialMapZoom}
+        zoomControl={false}
+        style={{ height: "100%", width: "100%" }}
+      >
+        <MapCenterController
+          center={mapCenter}
+          onZoomChange={setMapZoom}
+          shouldFollowCenter={!hasSavedView}
         />
-      ) : (
-        <TileLayer
-          key={`${selectedBaseMap.id}-${mode}`}
-          attribution={selectedBaseMap.attribution}
-          url={selectedBaseMapUrl}
-          subdomains={selectedBaseMap.subdomains}
-          maxZoom={selectedBaseMap.maxZoom}
-          className={selectedBaseMapClassName}
-          eventHandlers={{
-            tileerror: handleBaseMapTileError,
-            tileload: handleBaseMapTileLoad,
-          }}
+        <MapResetController
+          center={mapCenter}
+          fitPoints={resetFitPoints}
+          savedView={savedView}
+          resetCounter={resetCounter}
         />
-      )}
+        <MapResizeController />
+        <MousePositionTracker onPositionChange={setMousePosition} />
+        <MapViewportTracker onViewChange={setCurrentView} />
+        <AttributionPrefixController />
+        <MapRefCapture mapRef={mapRef} />
+        <DrawMeasureControl
+          polygonColor={polygonColor}
+          polylineColor={polylineColor}
+          circleColor={circleColor}
+          showNodeLabels={showNodeLabels}
+          onActiveShapeChange={handleActiveShapeChange}
+          onDrawControlReady={handleDrawControlReady}
+        />
+        <ScaleControl position="bottomleft" />
 
-      {showAssets && visibleAssets.map((asset) => {
-        const assetTypeKey = (asset.type ?? "UNKNOWN").trim().toUpperCase();
-        const jammerLifecycleState = jammerLifecycleByAssetId[asset.id] ?? "ACTIVE_SERVICE";
-        const isJammer = assetTypeKey === "JAMMER";
-        const isJamming = jammerLifecycleState.toUpperCase() === "JAMMING";
-        const actionPending = jammerActionInProgressId === asset.id;
-        const markerStatus = isJammer && isJamming ? "JAMMING" : asset.status;
-        const baseAssetSettings = getAssetTypeSettings(asset.type);
-        const overrideColor = assetIconColorOverrides[assetTypeKey];
-        const assetSettings = {
-          ...baseAssetSettings,
-          markerColor:
-            overrideColor ?? (assetTypeKey === "DIRECTION_FINDER" ? dfRangeColor : baseAssetSettings.markerColor),
-        } as AssetTypeSettings;
-        const jammerControl = jammerControlByAssetId[asset.id] ?? DEFAULT_JAMMER_POPUP_CONTROL_STATE;
-
-        return (
-          <Marker
-            key={asset.id}
-            position={[asset.latitude, asset.longitude]}
-            icon={buildAssetIcon(assetSettings, markerStatus, mapZoom)}
-          >
-           <Popup className={isJammer ? "jammer-flash-popup" : undefined}>
-  <div style={{ 
-    minWidth: isJammer ? 280 : 200, 
-    color: "#f8fafc", 
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    background: "rgba(15, 23, 42, 0.95)", // Deep navy glass effect
-    padding: "12px",
-    borderRadius: "8px",
-    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
-    border: "1px solid rgba(56, 189, 248, 0.3)"
-  }}>
-    {/* Header Section */}
-    <div style={{ marginBottom: "10px", borderBottom: "1px solid rgba(56, 189, 248, 0.2)", paddingBottom: "8px" }}>
-      <strong style={{ 
-        color: "#38bdf8", 
-        fontSize: "15px", 
-        letterSpacing: "0.5px", 
-        textTransform: "uppercase" 
-      }}>
-        {asset.name}
-      </strong>
-    </div>
-
-    {/* Metadata Grid */}
-    <div style={{ display: "grid", gap: "6px" }}>
-      <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between" }}>
-        <span style={{ color: "#94a3b8" }}>Type:</span>
-        <span style={{ fontWeight: 500 }}>{asset.type ?? "UNKNOWN"}</span>
-      </div>
-      
-      <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between" }}>
-        <span style={{ color: "#94a3b8" }}>Status:</span>
-        <span style={{ 
-          color: asset.status === 'ACTIVE' ? '#4ade80' : '#fb7185',
-          fontWeight: "bold",
-          fontSize: "11px",
-          background: asset.status === 'ACTIVE' ? "rgba(74, 222, 128, 0.1)" : "rgba(251, 113, 133, 0.1)",
-          padding: "1px 6px",
-          borderRadius: "10px"
-        }}>
-          {asset.status}
-        </span>
-      </div>
-
-      <div style={{ fontSize: "12px", display: "flex", justifyContent: "space-between" }}>
-        <span style={{ color: "#94a3b8" }}>Profile:</span>
-        <span style={{ color: "#e2e8f0" }}>{assetSettings.label}</span>
-      </div>
-
-      {isJammer && (
-        <div style={{ 
-          fontSize: "11px", 
-          fontWeight: "bold", 
-          marginTop: "4px",
-          color: isJamming ? "#f87171" : "#38bdf8",
-          display: "flex",
-          alignItems: "center",
-          gap: "4px"
-        }}>
-          <span style={{ 
-            width: "6px", height: "6px", borderRadius: "50%", 
-            background: isJamming ? "#f87171" : "#38bdf8",
-            boxShadow: isJamming ? "0 0 8px #ef4444" : "none"
-          }} />
-          State: {jammerLifecycleState}
-        </div>
-      )}
-    </div>
-
-    {/* Controls Section */}
-    {isJammer && onJammerToggle && (
-      <div style={{ 
-        marginTop: 12, 
-        display: "grid", 
-        gap: 10, 
-        borderTop: "1px solid rgba(56, 189, 248, 0.2)", 
-        paddingTop: 12 
-      }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <label style={{ display: "grid", gap: 4, fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
-            Module
-            <select
-              style={{ 
-                background: "#1e293b", color: "#f8fafc", border: "1px solid #334155", 
-                borderRadius: "4px", padding: "4px", cursor: "pointer", fontSize: "11px"
-              }}
-              value={jammerControl.moduleId}
-              onChange={(event) => setJammerControlField(asset.id, "moduleId", event.target.value)}
-              disabled={actionPending}
-            >
-              {MODULE_ID_OPTIONS.map((moduleId) => (
-                <option key={moduleId} value={moduleId}>{moduleId}</option>
-              ))}
-            </select>
-          </label>
-
-          <label style={{ display: "grid", gap: 4, fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
-            Freq (MHz)
-            <input
-              style={{ 
-                background: "#1e293b", color: "#f8fafc", border: "1px solid #334155", 
-                borderRadius: "4px", padding: "4px", fontSize: "11px"
-              }}
-              type="number" step="0.1"
-              value={jammerControl.frequency}
-              onChange={(event) => setJammerControlField(asset.id, "frequency", event.target.value)}
-              disabled={actionPending}
-            />
-          </label>
-        </div>
-
-        <label style={{ display: "grid", gap: 4, fontSize: 10, color: "#94a3b8", textTransform: "uppercase" }}>
-          Jamming Code
-          <select
-            style={{ 
-              background: "#1e293b", color: "#f8fafc", border: "1px solid #334155", 
-              borderRadius: "4px", padding: "4px", cursor: "pointer", fontSize: "11px"
-            }}
-            value={jammerControl.jammingCode}
-            onChange={(event) => setJammerControlField(asset.id, "jammingCode", event.target.value)}
-            disabled={actionPending}
-          >
-            {JAMMING_CODE_OPTIONS.map((option) => (
-              <option key={option.code} value={String(option.code)}>{option.code} - {option.name}</option>
-            ))}
-          </select>
-        </label>
-
-        <button
-          type="button"
-          onClick={() => {
-            if (isJamming) { onJammerToggle(asset.id, "stop"); return; }
-            const parsedFrequency = jammerControl.frequency.trim() ? Number(jammerControl.frequency) : undefined;
-            onJammerToggle(asset.id, "start", {
-              moduleId: Number(jammerControl.moduleId),
-              jammingCode: Number(jammerControl.jammingCode),
-              frequency: Number.isFinite(parsedFrequency as number) ? parsedFrequency : undefined,
-              gain: Number(jammerControl.gain),
-            });
-          }}
-          disabled={actionPending}
-          style={{
-            marginTop: 4, padding: "8px", borderRadius: 4, border: "none",
-            background: isJamming 
-              ? "linear-gradient(to right, #ef4444, #b91c1c)" 
-              : "linear-gradient(to right, #0ea5e9, #2563eb)",
-            color: "#ffffff", fontWeight: "bold", fontSize: "11px",
-            cursor: actionPending ? "not-allowed" : "pointer",
-            transition: "all 0.2s ease",
-            boxShadow: isJamming ? "0 4px 12px rgba(239, 68, 68, 0.3)" : "0 4px 12px rgba(14, 165, 233, 0.3)",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px"
-          }}
-        >
-          {actionPending ? "SYNCING..." : isJamming ? "STOP JAMMING" : "START JAMMING"}
-        </button>
-      </div>
-    )}
-  </div>
-</Popup>
-          </Marker>
-        );
-      })}
-
-      {/* Shapes & Overlays */}
-      {showAssets && showRangeOverlays && directionFinderAssets.map((asset) => {
-        const radiusM = getAssetCircleRadiusMeters(asset);
-        return radiusM ? (
-          <Circle key={`df-circle-${asset.id}`} center={[asset.latitude, asset.longitude]} radius={radiusM}
-            pathOptions={{ color: dfRangeColor, weight: 2, fillColor: dfRangeColor, fillOpacity: 0.08 }} />
-        ) : null;
-      })}
-
-      {showAssets && showRangeOverlays && activeJammerAssetsWithRange.map(({ asset, radiusM }) => (
-        <Circle key={`jammer-range-${asset.id}`} center={[asset.latitude, asset.longitude]} radius={radiusM}
-          pathOptions={{ color: jammerRangeColor, weight: 3, dashArray: "8 5", fillColor: jammerRangeColor, fillOpacity: 0.05, opacity: blinkOn ? 0.95 : 0.6 }} />
-      ))}
-
-      {showAssets && showRangeOverlays && activeJammerAssetsWithRange.flatMap(({ asset, radiusM }) => Array.from({ length: JAMMER_SIGNAL_RING_COUNT }, (_, ringIndex) => (
-        <Circle key={`jammer-inner-${asset.id}-${ringIndex}`} center={[asset.latitude, asset.longitude]} radius={((ringIndex + 1) / (JAMMER_SIGNAL_RING_COUNT + 1)) * radiusM} 
-          pathOptions={{ color: jammerRangeColor, weight: blinkOn ? (ringIndex % 2 === 0 ? 2.2 : 1.4) : (ringIndex % 2 === 0 ? 1.4 : 2.2), opacity: blinkOn ? 0.7 : 0.2, dashArray: "6 6", fillOpacity: 0 }} />
-      )))}
-
-      {showAlerts && alertMarkers.map((alert) => (
-        <CircleMarker key={`alert-${alert.id}`} center={[alert.latitude as number, alert.longitude as number]} 
-          radius={String(alert.status).toUpperCase() === "NEW" ? (blinkOn ? 12 : 6) : 8}
-          pathOptions={{ color: String(alert.status).toUpperCase() === "NEW" ? "#ef4444" : "#f59e0b", fillOpacity: 0.6 }} />
-      ))}
-
-      {showSignals && showHeatOverlay && heatCells.map((cell, index) => (
-        <CircleMarker
-          key={`heat-${cell.latitude_bucket}-${cell.longitude_bucket}-${index}`}
-          center={[cell.latitude_bucket, cell.longitude_bucket]}
-          radius={Math.max(4, 10 * cell.density) * lowZoomStyleScale}
-          pathOptions={{
-            color: getHeatCellColor(cell.density),
-            fillColor: getHeatCellColor(cell.density),
-            fillOpacity: Math.min(0.55, 0.1 + cell.density * 0.4),
-            weight: 1.2,
-            opacity: 0.7,
-          }}
-        >
-          <Popup>
-            <div>
-              <strong>Probability Cell</strong>
-              <div>Density: {cell.density.toFixed(2)}</div>
-              <div>{cell.latitude_bucket.toFixed(5)}, {cell.longitude_bucket.toFixed(5)}</div>
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
-
-      {showSignals && showTriangulationOverlay && triangulation?.rays.map((ray) => (
-        <Fragment key={`tri-ray-group-${ray.source_id}`}>
-          <Polyline
-            key={`tri-ray-halo-${ray.source_id}`}
-            positions={[
-              [ray.source_latitude, ray.source_longitude],
-              [ray.end_latitude, ray.end_longitude],
-            ]}
-            pathOptions={{
-              color: "#f8fafc",
-              weight: Math.min(6.8, 4.2 * lowZoomStyleScale),
-              opacity: 0.5,
+        {selectedBaseMap.requiresQuadKey ? (
+          <BingTileLayer
+            key={`${selectedBaseMap.id}-${mode}`}
+            option={selectedBaseMap}
+            url={selectedBaseMapUrl}
+            className={selectedBaseMapClassName}
+            onTileError={handleBaseMapTileError}
+            onTileLoad={handleBaseMapTileLoad}
+          />
+        ) : (
+          <TileLayer
+            key={`${selectedBaseMap.id}-${mode}`}
+            attribution={selectedBaseMap.attribution}
+            url={selectedBaseMapUrl}
+            subdomains={selectedBaseMap.subdomains}
+            maxZoom={selectedBaseMap.maxZoom}
+            className={selectedBaseMapClassName}
+            eventHandlers={{
+              tileerror: handleBaseMapTileError,
+              tileload: handleBaseMapTileLoad,
             }}
           />
+        )}
+
+        {showAssets &&
+          visibleAssets.map((asset) => {
+            const assetTypeKey = (asset.type ?? "UNKNOWN").trim().toUpperCase();
+            const jammerLifecycleState =
+              jammerLifecycleByAssetId[asset.id] ?? "ACTIVE_SERVICE";
+            const isJammer = assetTypeKey === "JAMMER";
+            const isJamming = jammerLifecycleState.toUpperCase() === "JAMMING";
+            const actionPending = jammerActionInProgressId === asset.id;
+            const markerStatus =
+              isJammer && isJamming ? "JAMMING" : asset.status;
+            const baseAssetSettings = getAssetTypeSettings(asset.type);
+            const overrideColor = assetIconColorOverrides[assetTypeKey];
+            const assetSettings = {
+              ...baseAssetSettings,
+              markerColor:
+                overrideColor ??
+                (assetTypeKey === "DIRECTION_FINDER"
+                  ? dfRangeColor
+                  : baseAssetSettings.markerColor),
+            } as AssetTypeSettings;
+            const jammerControl =
+              jammerControlByAssetId[asset.id] ??
+              DEFAULT_JAMMER_POPUP_CONTROL_STATE;
+
+            return (
+              <Marker
+                key={asset.id}
+                position={[asset.latitude, asset.longitude]}
+                icon={buildAssetIcon(assetSettings, markerStatus, mapZoom)}
+              >
+                <Popup className={isJammer ? "jammer-flash-popup" : undefined}>
+                  <div
+                    style={{
+                      minWidth: isJammer ? 280 : 200,
+                      color: "#f8fafc",
+                      fontFamily: "'Inter', 'Segoe UI', sans-serif",
+                      background: "rgba(15, 23, 42, 0.95)", // Deep navy glass effect
+                      padding: "12px",
+                      borderRadius: "8px",
+                      boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
+                      border: "1px solid rgba(56, 189, 248, 0.3)",
+                    }}
+                  >
+                    {/* Header Section */}
+                    <div
+                      style={{
+                        marginBottom: "10px",
+                        borderBottom: "1px solid rgba(56, 189, 248, 0.2)",
+                        paddingBottom: "8px",
+                      }}
+                    >
+                      <strong
+                        style={{
+                          color: "#38bdf8",
+                          fontSize: "15px",
+                          letterSpacing: "0.5px",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {asset.name}
+                      </strong>
+                    </div>
+
+                    {/* Metadata Grid */}
+                    <div style={{ display: "grid", gap: "6px" }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span style={{ color: "#94a3b8" }}>Type:</span>
+                        <span style={{ fontWeight: 500 }}>
+                          {asset.type ?? "UNKNOWN"}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span style={{ color: "#94a3b8" }}>Status:</span>
+                        <span
+                          style={{
+                            color:
+                              asset.status === "ACTIVE" ? "#4ade80" : "#fb7185",
+                            fontWeight: "bold",
+                            fontSize: "11px",
+                            background:
+                              asset.status === "ACTIVE"
+                                ? "rgba(74, 222, 128, 0.1)"
+                                : "rgba(251, 113, 133, 0.1)",
+                            padding: "1px 6px",
+                            borderRadius: "10px",
+                          }}
+                        >
+                          {asset.status}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span style={{ color: "#94a3b8" }}>Profile:</span>
+                        <span style={{ color: "#e2e8f0" }}>
+                          {assetSettings.label}
+                        </span>
+                      </div>
+
+                      {isJammer && (
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "bold",
+                            marginTop: "4px",
+                            color: isJamming ? "#f87171" : "#38bdf8",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "6px",
+                              height: "6px",
+                              borderRadius: "50%",
+                              background: isJamming ? "#f87171" : "#38bdf8",
+                              boxShadow: isJamming ? "0 0 8px #ef4444" : "none",
+                            }}
+                          />
+                          State: {jammerLifecycleState}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Controls Section */}
+                    {isJammer && onJammerToggle && (
+                      <div
+                        style={{
+                          marginTop: 12,
+                          display: "grid",
+                          gap: 10,
+                          borderTop: "1px solid rgba(56, 189, 248, 0.2)",
+                          paddingTop: 12,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: 8,
+                          }}
+                        >
+                          <label
+                            style={{
+                              display: "grid",
+                              gap: 4,
+                              fontSize: 10,
+                              color: "#94a3b8",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Module
+                            <select
+                              style={{
+                                background: "#1e293b",
+                                color: "#f8fafc",
+                                border: "1px solid #334155",
+                                borderRadius: "4px",
+                                padding: "4px",
+                                cursor: "pointer",
+                                fontSize: "11px",
+                              }}
+                              value={jammerControl.moduleId}
+                              onChange={(event) =>
+                                setJammerControlField(
+                                  asset.id,
+                                  "moduleId",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={actionPending}
+                            >
+                              {MODULE_ID_OPTIONS.map((moduleId) => (
+                                <option key={moduleId} value={moduleId}>
+                                  {moduleId}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label
+                            style={{
+                              display: "grid",
+                              gap: 4,
+                              fontSize: 10,
+                              color: "#94a3b8",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Freq (MHz)
+                            <input
+                              style={{
+                                background: "#1e293b",
+                                color: "#f8fafc",
+                                border: "1px solid #334155",
+                                borderRadius: "4px",
+                                padding: "4px",
+                                fontSize: "11px",
+                              }}
+                              type="number"
+                              step="0.1"
+                              value={jammerControl.frequency}
+                              onChange={(event) =>
+                                setJammerControlField(
+                                  asset.id,
+                                  "frequency",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={actionPending}
+                            />
+                          </label>
+                        </div>
+
+                        <label
+                          style={{
+                            display: "grid",
+                            gap: 4,
+                            fontSize: 10,
+                            color: "#94a3b8",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Jamming Code
+                          <select
+                            style={{
+                              background: "#1e293b",
+                              color: "#f8fafc",
+                              border: "1px solid #334155",
+                              borderRadius: "4px",
+                              padding: "4px",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                            }}
+                            value={jammerControl.jammingCode}
+                            onChange={(event) =>
+                              setJammerControlField(
+                                asset.id,
+                                "jammingCode",
+                                event.target.value,
+                              )
+                            }
+                            disabled={actionPending}
+                          >
+                            {JAMMING_CODE_OPTIONS.map((option) => (
+                              <option
+                                key={option.code}
+                                value={String(option.code)}
+                              >
+                                {option.code} - {option.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isJamming) {
+                              onJammerToggle(asset.id, "stop");
+                              return;
+                            }
+                            const parsedFrequency =
+                              jammerControl.frequency.trim()
+                                ? Number(jammerControl.frequency)
+                                : undefined;
+                            onJammerToggle(asset.id, "start", {
+                              moduleId: Number(jammerControl.moduleId),
+                              jammingCode: Number(jammerControl.jammingCode),
+                              frequency: Number.isFinite(
+                                parsedFrequency as number,
+                              )
+                                ? parsedFrequency
+                                : undefined,
+                              gain: Number(jammerControl.gain),
+                            });
+                          }}
+                          disabled={actionPending}
+                          style={{
+                            marginTop: 4,
+                            padding: "8px",
+                            borderRadius: 4,
+                            border: "none",
+                            background: isJamming
+                              ? "linear-gradient(to right, #ef4444, #b91c1c)"
+                              : "linear-gradient(to right, #0ea5e9, #2563eb)",
+                            color: "#ffffff",
+                            fontWeight: "bold",
+                            fontSize: "11px",
+                            cursor: actionPending ? "not-allowed" : "pointer",
+                            transition: "all 0.2s ease",
+                            boxShadow: isJamming
+                              ? "0 4px 12px rgba(239, 68, 68, 0.3)"
+                              : "0 4px 12px rgba(14, 165, 233, 0.3)",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          {actionPending
+                            ? "SYNCING..."
+                            : isJamming
+                              ? "STOP JAMMING"
+                              : "START JAMMING"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })}
+
+        {/* Shapes & Overlays */}
+        {showAssets &&
+          showRangeOverlays &&
+          directionFinderAssets.map((asset) => {
+            const radiusM = getAssetCircleRadiusMeters(asset);
+            return radiusM ? (
+              <Circle
+                key={`df-circle-${asset.id}`}
+                center={[asset.latitude, asset.longitude]}
+                radius={radiusM}
+                pathOptions={{
+                  color: dfRangeColor,
+                  weight: 2,
+                  fillColor: dfRangeColor,
+                  fillOpacity: 0.08,
+                }}
+              />
+            ) : null;
+          })}
+
+        {showAssets &&
+          showRangeOverlays &&
+          activeJammerAssetsWithRange.map(({ asset, radiusM }) => (
+            <Circle
+              key={`jammer-range-${asset.id}`}
+              center={[asset.latitude, asset.longitude]}
+              radius={radiusM}
+              pathOptions={{
+                color: jammerRangeColor,
+                weight: 3,
+                dashArray: "8 5",
+                fillColor: jammerRangeColor,
+                fillOpacity: 0.05,
+                opacity: blinkOn ? 0.95 : 0.6,
+              }}
+            />
+          ))}
+
+        {showAssets &&
+          showRangeOverlays &&
+          activeJammerAssetsWithRange.flatMap(({ asset, radiusM }) =>
+            Array.from({ length: JAMMER_SIGNAL_RING_COUNT }, (_, ringIndex) => (
+              <Circle
+                key={`jammer-inner-${asset.id}-${ringIndex}`}
+                center={[asset.latitude, asset.longitude]}
+                radius={
+                  ((ringIndex + 1) / (JAMMER_SIGNAL_RING_COUNT + 1)) * radiusM
+                }
+                pathOptions={{
+                  color: jammerRangeColor,
+                  weight: blinkOn
+                    ? ringIndex % 2 === 0
+                      ? 2.2
+                      : 1.4
+                    : ringIndex % 2 === 0
+                      ? 1.4
+                      : 2.2,
+                  opacity: blinkOn ? 0.7 : 0.2,
+                  dashArray: "6 6",
+                  fillOpacity: 0,
+                }}
+              />
+            )),
+          )}
+
+        {showAlerts &&
+          alertMarkers.map((alert) => (
+            <CircleMarker
+              key={`alert-${alert.id}`}
+              center={[alert.latitude as number, alert.longitude as number]}
+              radius={
+                String(alert.status).toUpperCase() === "NEW"
+                  ? blinkOn
+                    ? 12
+                    : 6
+                  : 8
+              }
+              pathOptions={{
+                color:
+                  String(alert.status).toUpperCase() === "NEW"
+                    ? "#ef4444"
+                    : "#f59e0b",
+                fillOpacity: 0.6,
+              }}
+            />
+          ))}
+
+        {showSignals &&
+          showHeatOverlay &&
+          heatCells.map((cell, index) => (
+            <CircleMarker
+              key={`heat-${cell.latitude_bucket}-${cell.longitude_bucket}-${index}`}
+              center={[cell.latitude_bucket, cell.longitude_bucket]}
+              radius={Math.max(4, 10 * cell.density) * lowZoomStyleScale}
+              pathOptions={{
+                color: getHeatCellColor(cell.density),
+                fillColor: getHeatCellColor(cell.density),
+                fillOpacity: Math.min(0.55, 0.1 + cell.density * 0.4),
+                weight: 1.2,
+                opacity: 0.7,
+              }}
+            >
+              <Popup>
+                <div>
+                  <strong>Probability Cell</strong>
+                  <div>Density: {cell.density.toFixed(2)}</div>
+                  <div>
+                    {cell.latitude_bucket.toFixed(5)},{" "}
+                    {cell.longitude_bucket.toFixed(5)}
+                  </div>
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
+
+        {showSignals &&
+          showTriangulationOverlay &&
+          triangulation?.rays.map((ray) => (
+            <Fragment key={`tri-ray-group-${ray.source_id}`}>
+              <Polyline
+                key={`tri-ray-halo-${ray.source_id}`}
+                positions={[
+                  [ray.source_latitude, ray.source_longitude],
+                  [ray.end_latitude, ray.end_longitude],
+                ]}
+                pathOptions={{
+                  color: "#f8fafc",
+                  weight: Math.min(6.8, 4.2 * lowZoomStyleScale),
+                  opacity: 0.5,
+                }}
+              />
+              <Polyline
+                key={`tri-ray-${ray.source_id}`}
+                positions={[
+                  [ray.source_latitude, ray.source_longitude],
+                  [ray.end_latitude, ray.end_longitude],
+                ]}
+                pathOptions={{
+                  color:
+                    triangulationRayColorBySource.get(ray.source_id) ??
+                    "#ef4444",
+                  weight: Math.min(5.4, 3.2 * lowZoomStyleScale),
+                  dashArray: "8 6",
+                  opacity: 0.9,
+                }}
+              >
+                <Popup>
+                  <div>
+                    <strong>{ray.source_id}</strong>
+                    <div>Bearing: {ray.bearing_deg.toFixed(1)} deg</div>
+                    <div>Confidence: {(ray.confidence * 100).toFixed(1)}%</div>
+                  </div>
+                </Popup>
+              </Polyline>
+            </Fragment>
+          ))}
+
+        {showSignals &&
+          showTriangulationOverlay &&
+          triangulationIntersections.map((point, index) => (
+            <CircleMarker
+              key={`tri-x-${index}`}
+              center={[point.latitude, point.longitude]}
+              radius={4.2 * lowZoomStyleScale}
+              pathOptions={{
+                color: "#f8fafc",
+                fillColor: "#f59e0b",
+                fillOpacity: 0.92,
+                weight: 1.5,
+              }}
+            >
+              <Popup>
+                <div>
+                  <strong>Triangulation Intersection</strong>
+                  <div>
+                    {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
+                  </div>
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
+
+        {showSignals && showTriangulationOverlay && triangulationCentroid && (
+          <>
+            <CircleMarker
+              center={triangulationCentroid}
+              radius={12 * lowZoomStyleScale}
+              pathOptions={{
+                color: "#22c55e",
+                fillColor: "#22c55e",
+                fillOpacity: 0.12,
+                weight: 1,
+              }}
+            />
+            <CircleMarker
+              center={triangulationCentroid}
+              radius={7 * lowZoomStyleScale}
+              pathOptions={{
+                color: "#22c55e",
+                fillColor: "#22c55e",
+                fillOpacity: 0.88,
+                weight: 2,
+              }}
+            >
+              <Popup>
+                <div>
+                  <strong>Estimated Emitter</strong>
+                  <div>
+                    {triangulationCentroid[0].toFixed(5)},{" "}
+                    {triangulationCentroid[1].toFixed(5)}
+                  </div>
+                  {typeof triangulation?.confidence_level === "number" && (
+                    <div>
+                      Confidence:{" "}
+                      {(triangulation.confidence_level * 100).toFixed(1)}%
+                    </div>
+                  )}
+                  {triangulation?.warning && <div>{triangulation.warning}</div>}
+                </div>
+              </Popup>
+            </CircleMarker>
+          </>
+        )}
+
+        {showSignals &&
+          showTriangulationOverlay &&
+          triangulationPolygon.length > 2 && (
+            <Polygon
+              positions={triangulationPolygon}
+              pathOptions={{
+                color: "#22c55e",
+                weight: Math.min(3.8, 2.4 * lowZoomStyleScale),
+                dashArray: "11 7",
+                fillOpacity: 0.16,
+              }}
+            />
+          )}
+
+        {showSignals &&
+          signals.map((signal) => (
+            <CircleMarker
+              key={`sig-${signal.id}`}
+              center={[signal.latitude, signal.longitude]}
+              radius={5 * lowZoomStyleScale}
+              pathOptions={{
+                color: "#0ea5e9",
+                fillColor: "#0ea5e9",
+                fillOpacity: 0.8,
+              }}
+            >
+              <Popup>
+                <div>
+                  <div>Frequency: {signal.frequency}</div>
+                  <div>Modulation: {signal.modulation}</div>
+                  <div>Power: {signal.power_level}</div>
+                  <div>
+                    Detected: {new Date(signal.detected_at).toLocaleString()}
+                  </div>
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
+
+        {tcpPointerLine && (
           <Polyline
-            key={`tri-ray-${ray.source_id}`}
-            positions={[
-              [ray.source_latitude, ray.source_longitude],
-              [ray.end_latitude, ray.end_longitude],
-            ]}
+            positions={[tcpPointerLine.start, tcpPointerLine.end]}
             pathOptions={{
-              color: triangulationRayColorBySource.get(ray.source_id) ?? "#ef4444",
-              weight: Math.min(5.4, 3.2 * lowZoomStyleScale),
-              dashArray: "8 6",
+              color: "#f43f5e",
+              weight: 3,
+              dashArray: "10 5",
               opacity: 0.9,
             }}
-          >
-            <Popup>
-              <div>
-                <strong>{ray.source_id}</strong>
-                <div>Bearing: {ray.bearing_deg.toFixed(1)} deg</div>
-                <div>Confidence: {(ray.confidence * 100).toFixed(1)}%</div>
-              </div>
-            </Popup>
-          </Polyline>
-        </Fragment>
-      ))}
-
-      {showSignals && showTriangulationOverlay && triangulationIntersections.map((point, index) => (
-        <CircleMarker
-          key={`tri-x-${index}`}
-          center={[point.latitude, point.longitude]}
-          radius={4.2 * lowZoomStyleScale}
-          pathOptions={{ color: "#f8fafc", fillColor: "#f59e0b", fillOpacity: 0.92, weight: 1.5 }}
-        >
-          <Popup>
-            <div>
-              <strong>Triangulation Intersection</strong>
-              <div>{point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}</div>
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
-
-      {showSignals && showTriangulationOverlay && triangulationCentroid && (
-        <>
-          <CircleMarker
-            center={triangulationCentroid}
-            radius={12 * lowZoomStyleScale}
-            pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 0.12, weight: 1 }}
           />
-          <CircleMarker
-            center={triangulationCentroid}
-            radius={7 * lowZoomStyleScale}
-            pathOptions={{ color: "#22c55e", fillColor: "#22c55e", fillOpacity: 0.88, weight: 2 }}
-          >
-            <Popup>
-              <div>
-                <strong>Estimated Emitter</strong>
-                <div>{triangulationCentroid[0].toFixed(5)}, {triangulationCentroid[1].toFixed(5)}</div>
-                {typeof triangulation?.confidence_level === "number" && (
-                  <div>Confidence: {(triangulation.confidence_level * 100).toFixed(1)}%</div>
-                )}
-                {triangulation?.warning && <div>{triangulation.warning}</div>}
-              </div>
-            </Popup>
-          </CircleMarker>
-        </>
-      )}
+        )}
+        {/* 🔥 DF BEARING LINES (NEW) */}
+        {dfBearingLines &&
+          dfBearingLines.map((line) => {
+            const color = getColorFromId(line.key); // 👈 ADD THIS
 
-      {showSignals && showTriangulationOverlay && triangulationPolygon.length > 2 && (
-        <Polygon
-          positions={triangulationPolygon}
-          pathOptions={{
-            color: "#22c55e",
-            weight: Math.min(3.8, 2.4 * lowZoomStyleScale),
-            dashArray: "11 7",
-            fillOpacity: 0.16,
-          }}
-        />
-      )}
+            return (
+              <Polyline
+                key={line.key}
+                positions={line.positions}
+                pathOptions={{
+                  color, // 👈 USE THIS
+                  weight: 4,
+                  dashArray: "10 6",
+                  opacity: 0.95,
+                }}
+              />
+            );
+          })}
+        {/* 🔥 DF SENSOR MARKERS */}
+        {dfSensorMarkers &&
+          dfSensorMarkers.map((sensor) => (
+            <CircleMarker
+              key={sensor.id}
+              center={[sensor.latitude, sensor.longitude]}
+              radius={6}
+              pathOptions={{
+                color: "#22c55e",
+                fillColor: "#22c55e",
+                fillOpacity: 0.5,
+                weight: 2,
+              }}
+            >
+              <Popup>
+                <div>
+                  <strong>{sensor.name}</strong>
+                  <br />
+                  Power: {sensor.power.toFixed(1)} dBm
+                </div>
+              </Popup>
+            </CircleMarker>
+          ))}
+      </MapContainer>
 
-      {showSignals && signals.map((signal) => (
-        <CircleMarker
-          key={`sig-${signal.id}`}
-          center={[signal.latitude, signal.longitude]}
-          radius={5 * lowZoomStyleScale}
-          pathOptions={{ color: "#0ea5e9", fillColor: "#0ea5e9", fillOpacity: 0.8 }}
-        >
-          <Popup>
-            <div>
-              <div>Frequency: {signal.frequency}</div>
-              <div>Modulation: {signal.modulation}</div>
-              <div>Power: {signal.power_level}</div>
-              <div>Detected: {new Date(signal.detected_at).toLocaleString()}</div>
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
-
-      {tcpPointerLine && (
-        <Polyline positions={[tcpPointerLine.start, tcpPointerLine.end]} pathOptions={{ color: '#f43f5e', weight: 3, dashArray: '10 5', opacity: 0.9 }} />
-      )}
-    </MapContainer>
-
-    {/* --- TACTICAL GLASS TOOLBAR (TOP HORIZONTAL) --- */}
-    <div
-      style={{
-        position: "absolute", left: 16, top: 16, zIndex: 1000,
-        display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 8,
-        padding: "8px 12px", borderRadius: "16px",
-        background: "rgba(15, 23, 42, 0.7)", backdropFilter: "blur(12px)",
-        border: "1px solid rgba(56, 189, 248, 0.3)", boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
-      }}
-    >
-      {[
-        { icon: Save, title: "Save View", onClick: () => currentView && setSavedView(currentView), active: !!savedView },
-        { icon: RotateCcw, title: "Reset View", onClick: () => setResetCounter(c => c + 1) },
-        { icon: Crosshair, title: "Assets", onClick: () => setShowAssets(!showAssets), active: showAssets, color: "#38bdf8" },
-        {
-          icon: Ruler,
-          title: showRangeOverlays ? "Hide Ranges" : "Show Ranges",
-          onClick: () => setShowRangeOverlays(!showRangeOverlays),
-          active: showRangeOverlays,
-          color: "#38bdf8",
-        },
-        { icon: Radio, title: "Signals", onClick: () => setShowSignals(!showSignals), active: showSignals, color: "#38bdf8" },
-        { icon: AlertTriangle, title: "Alerts", onClick: () => setShowAlerts(!showAlerts), active: showAlerts, color: "#fb7185" },
-        {
-          icon: showNodeLabels ? EyeOff : Eye,
-          title: showNodeLabels ? "Hide Shape Labels" : "Show Shape Labels",
-          onClick: () => setShowNodeLabels(!showNodeLabels),
-          active: showNodeLabels,
-        },
-        { icon: Palette, title: "Colors", onClick: () => setShowColorPanel(!showColorPanel), active: showColorPanel },
-        { icon: Layers, title: "Map Layers", onClick: () => setShowBaseMapSelector(!showBaseMapSelector), active: showBaseMapSelector },
-      ].map((btn, idx) => (
-        <button
-          key={idx} type="button" title={btn.title} onClick={btn.onClick}
-          style={{
-            width: 36, height: 36, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            background: btn.active ? "rgba(56, 189, 248, 0.2)" : "rgba(255,255,255,0.05)",
-            border: `1px solid ${btn.active ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
-            color: btn.color || "#f8fafc", transition: "all 0.2s"
-          }}
-        >
-          <btn.icon size={16} strokeWidth={2.2} />
-        </button>
-      ))}
-
-      {/* Separator */}
-      <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.15)", margin: "0 2px", alignSelf: "center" }} />
-
-      {/* Zoom buttons */}
-      {[
-        { icon: ZoomIn, title: "Zoom In", onClick: () => mapRef.current?.zoomIn() },
-        { icon: ZoomOut, title: "Zoom Out", onClick: () => mapRef.current?.zoomOut() },
-      ].map((btn, idx) => (
-        <button
-          key={`zoom-${idx}`} type="button" title={btn.title} onClick={btn.onClick}
-          style={{
-            width: 36, height: 36, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-            color: "#f8fafc", transition: "all 0.2s",
-          }}
-        >
-          <btn.icon size={16} strokeWidth={2.2} />
-        </button>
-      ))}
-
-      {/* Separator */}
-      <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.15)", margin: "0 2px", alignSelf: "center" }} />
-
-      {/* Draw tool buttons */}
-      {[
-        { icon: Spline, title: "Draw Line", tool: "polyline" },
-        { icon: Pentagon, title: "Draw Polygon", tool: "polygon" },
-        { icon: CircleIcon, title: "Draw Circle", tool: "circle" },
-        { icon: MapPin, title: "Place Marker", tool: "marker" },
-        { icon: Edit2, title: "Edit Shapes", tool: "edit" },
-        { icon: Trash2, title: "Delete Shapes", tool: "delete" },
-      ].map(({ icon: Icon, title, tool }) => (
-        <button
-          key={tool} type="button" title={title} onClick={() => handleDrawTool(tool)}
-          style={{
-            width: 36, height: 36, borderRadius: "8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            background: activeTool === tool ? "rgba(56, 189, 248, 0.2)" : "rgba(255,255,255,0.05)",
-            border: `1px solid ${activeTool === tool ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
-            color: activeTool === tool ? "#38bdf8" : "#f8fafc", transition: "all 0.2s",
-          }}
-        >
-          <Icon size={16} strokeWidth={2.2} />
-        </button>
-      ))}
-    </div>
-
-    {showColorPanel && (
+      {/* --- TACTICAL GLASS TOOLBAR (TOP HORIZONTAL) --- */}
       <div
         style={{
           position: "absolute",
           left: 16,
-          top: 80,
-          zIndex: 1100,
-          width: 260,
-          maxHeight: 380,
-          overflowY: "auto",
-          borderRadius: 12,
-          padding: 12,
-          background: "rgba(15, 23, 42, 0.92)",
-          border: "1px solid rgba(56, 189, 248, 0.35)",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
-          display: "grid",
-          gap: 10,
+          top: 16,
+          zIndex: 1000,
+          display: "flex",
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: 8,
+          padding: "8px 12px",
+          borderRadius: "16px",
+          background: "rgba(15, 23, 42, 0.7)",
+          backdropFilter: "blur(12px)",
+          border: "1px solid rgba(56, 189, 248, 0.3)",
+          boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
         }}
       >
-        <div style={{ color: "#f8fafc", fontWeight: 700, fontSize: 13 }}>Map Colors</div>
-        <div style={{ color: "#94a3b8", fontSize: 11 }}>Shape Colors</div>
         {[
-          { label: "Polygon", value: polygonColor, onChange: setPolygonColor },
-          { label: "Polyline", value: polylineColor, onChange: setPolylineColor },
-          { label: "Circle", value: circleColor, onChange: setCircleColor },
-          { label: "Jammer Ring", value: jammerRangeColor, onChange: setJammerRangeColor },
-          { label: "DF Ring", value: dfRangeColor, onChange: setDfRangeColor },
-        ].map((entry) => (
-          <label key={entry.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "#e2e8f0", fontSize: 12 }}>
-            <span>{entry.label}</span>
-            <input
-              type="color"
-              value={entry.value}
-              onChange={(event) => entry.onChange(event.target.value)}
-              style={{ width: 28, height: 20, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-            />
-          </label>
+          {
+            icon: Save,
+            title: "Save View",
+            onClick: () => currentView && setSavedView(currentView),
+            active: !!savedView,
+          },
+          {
+            icon: RotateCcw,
+            title: "Reset View",
+            onClick: () => setResetCounter((c) => c + 1),
+          },
+          {
+            icon: Crosshair,
+            title: "Assets",
+            onClick: () => setShowAssets(!showAssets),
+            active: showAssets,
+            color: "#38bdf8",
+          },
+          {
+            icon: Ruler,
+            title: showRangeOverlays ? "Hide Ranges" : "Show Ranges",
+            onClick: () => setShowRangeOverlays(!showRangeOverlays),
+            active: showRangeOverlays,
+            color: "#38bdf8",
+          },
+          {
+            icon: Radio,
+            title: "Signals",
+            onClick: () => setShowSignals(!showSignals),
+            active: showSignals,
+            color: "#38bdf8",
+          },
+          {
+            icon: AlertTriangle,
+            title: "Alerts",
+            onClick: () => setShowAlerts(!showAlerts),
+            active: showAlerts,
+            color: "#fb7185",
+          },
+          {
+            icon: showNodeLabels ? EyeOff : Eye,
+            title: showNodeLabels ? "Hide Shape Labels" : "Show Shape Labels",
+            onClick: () => setShowNodeLabels(!showNodeLabels),
+            active: showNodeLabels,
+          },
+          {
+            icon: Palette,
+            title: "Colors",
+            onClick: () => setShowColorPanel(!showColorPanel),
+            active: showColorPanel,
+          },
+          {
+            icon: Layers,
+            title: "Map Layers",
+            onClick: () => setShowBaseMapSelector(!showBaseMapSelector),
+            active: showBaseMapSelector,
+          },
+        ].map((btn, idx) => (
+          <button
+            key={idx}
+            type="button"
+            title={btn.title}
+            onClick={btn.onClick}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "8px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: btn.active
+                ? "rgba(56, 189, 248, 0.2)"
+                : "rgba(255,255,255,0.05)",
+              border: `1px solid ${btn.active ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
+              color: btn.color || "#f8fafc",
+              transition: "all 0.2s",
+            }}
+          >
+            <btn.icon size={16} strokeWidth={2.2} />
+          </button>
         ))}
 
-        <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 4 }}>Asset Icon Colors</div>
-        {assetTypeLegend.map(([typeKey, settings]) => (
-          <label key={typeKey} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "#e2e8f0", fontSize: 12 }}>
-            <span>{settings.label}</span>
-            <input
-              type="color"
-              value={settings.markerColor}
-              onChange={(event) => {
-                const nextColor = event.target.value;
-                setAssetIconColorOverrides((current) => ({
-                  ...current,
-                  [typeKey]: nextColor,
-                }));
-              }}
-              style={{ width: 28, height: 20, border: "none", padding: 0, background: "transparent", cursor: "pointer" }}
-            />
-          </label>
+        {/* Separator */}
+        <div
+          style={{
+            width: 1,
+            height: 28,
+            background: "rgba(255,255,255,0.15)",
+            margin: "0 2px",
+            alignSelf: "center",
+          }}
+        />
+
+        {/* Zoom buttons */}
+        {[
+          {
+            icon: ZoomIn,
+            title: "Zoom In",
+            onClick: () => mapRef.current?.zoomIn(),
+          },
+          {
+            icon: ZoomOut,
+            title: "Zoom Out",
+            onClick: () => mapRef.current?.zoomOut(),
+          },
+        ].map((btn, idx) => (
+          <button
+            key={`zoom-${idx}`}
+            type="button"
+            title={btn.title}
+            onClick={btn.onClick}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "8px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "#f8fafc",
+              transition: "all 0.2s",
+            }}
+          >
+            <btn.icon size={16} strokeWidth={2.2} />
+          </button>
+        ))}
+
+        {/* Separator */}
+        <div
+          style={{
+            width: 1,
+            height: 28,
+            background: "rgba(255,255,255,0.15)",
+            margin: "0 2px",
+            alignSelf: "center",
+          }}
+        />
+
+        {/* Draw tool buttons */}
+        {[
+          { icon: Spline, title: "Draw Line", tool: "polyline" },
+          { icon: Pentagon, title: "Draw Polygon", tool: "polygon" },
+          { icon: CircleIcon, title: "Draw Circle", tool: "circle" },
+          { icon: MapPin, title: "Place Marker", tool: "marker" },
+          { icon: Edit2, title: "Edit Shapes", tool: "edit" },
+          { icon: Trash2, title: "Delete Shapes", tool: "delete" },
+        ].map(({ icon: Icon, title, tool }) => (
+          <button
+            key={tool}
+            type="button"
+            title={title}
+            onClick={() => handleDrawTool(tool)}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "8px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background:
+                activeTool === tool
+                  ? "rgba(56, 189, 248, 0.2)"
+                  : "rgba(255,255,255,0.05)",
+              border: `1px solid ${activeTool === tool ? "#38bdf8" : "rgba(255,255,255,0.1)"}`,
+              color: activeTool === tool ? "#38bdf8" : "#f8fafc",
+              transition: "all 0.2s",
+            }}
+          >
+            <Icon size={16} strokeWidth={2.2} />
+          </button>
         ))}
       </div>
-    )}
 
-    {/* --- FLOATING STATUS BAR (BOTTOM LEFT) --- */}
-    <div style={{ position: "absolute", left: 92, bottom: 20, zIndex: 1000, display: "flex", gap: "10px", alignItems: "flex-end" }}>
-       {/* Glass Coordinates */}
-      {mousePosition && (
-        <div style={{ 
-          background: "rgba(15, 23, 42, 0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(56, 189, 248, 0.4)",
-          padding: "6px 12px", borderRadius: "8px", color: "#38bdf8", fontSize: "11px", fontFamily: "monospace", letterSpacing: "0.5px"
-        }}>
-          LAT: {mousePosition[0].toFixed(6)} | LON: {mousePosition[1].toFixed(6)}
+      {showColorPanel && (
+        <div
+          style={{
+            position: "absolute",
+            left: 16,
+            top: 80,
+            zIndex: 1100,
+            width: 260,
+            maxHeight: 380,
+            overflowY: "auto",
+            borderRadius: 12,
+            padding: 12,
+            background: "rgba(15, 23, 42, 0.92)",
+            border: "1px solid rgba(56, 189, 248, 0.35)",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.35)",
+            display: "grid",
+            gap: 10,
+          }}
+        >
+          <div style={{ color: "#f8fafc", fontWeight: 700, fontSize: 13 }}>
+            Map Colors
+          </div>
+          <div style={{ color: "#94a3b8", fontSize: 11 }}>Shape Colors</div>
+          {[
+            {
+              label: "Polygon",
+              value: polygonColor,
+              onChange: setPolygonColor,
+            },
+            {
+              label: "Polyline",
+              value: polylineColor,
+              onChange: setPolylineColor,
+            },
+            { label: "Circle", value: circleColor, onChange: setCircleColor },
+            {
+              label: "Jammer Ring",
+              value: jammerRangeColor,
+              onChange: setJammerRangeColor,
+            },
+            {
+              label: "DF Ring",
+              value: dfRangeColor,
+              onChange: setDfRangeColor,
+            },
+          ].map((entry) => (
+            <label
+              key={entry.label}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                color: "#e2e8f0",
+                fontSize: 12,
+              }}
+            >
+              <span>{entry.label}</span>
+              <input
+                type="color"
+                value={entry.value}
+                onChange={(event) => entry.onChange(event.target.value)}
+                style={{
+                  width: 28,
+                  height: 20,
+                  border: "none",
+                  padding: 0,
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              />
+            </label>
+          ))}
+
+          <div style={{ color: "#94a3b8", fontSize: 11, marginTop: 4 }}>
+            Asset Icon Colors
+          </div>
+          {assetTypeLegend.map(([typeKey, settings]) => (
+            <label
+              key={typeKey}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                color: "#e2e8f0",
+                fontSize: 12,
+              }}
+            >
+              <span>{settings.label}</span>
+              <input
+                type="color"
+                value={settings.markerColor}
+                onChange={(event) => {
+                  const nextColor = event.target.value;
+                  setAssetIconColorOverrides((current) => ({
+                    ...current,
+                    [typeKey]: nextColor,
+                  }));
+                }}
+                style={{
+                  width: 28,
+                  height: 20,
+                  border: "none",
+                  padding: 0,
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* --- FLOATING STATUS BAR (BOTTOM LEFT) --- */}
+      <div
+        style={{
+          position: "absolute",
+          left: 92,
+          bottom: 20,
+          zIndex: 1000,
+          display: "flex",
+          gap: "10px",
+          alignItems: "flex-end",
+        }}
+      >
+        {/* Glass Coordinates */}
+        {mousePosition && (
+          <div
+            style={{
+              background: "rgba(15, 23, 42, 0.8)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid rgba(56, 189, 248, 0.4)",
+              padding: "6px 12px",
+              borderRadius: "8px",
+              color: "#38bdf8",
+              fontSize: "11px",
+              fontFamily: "monospace",
+              letterSpacing: "0.5px",
+            }}
+          >
+            LAT: {mousePosition[0].toFixed(6)} | LON:{" "}
+            {mousePosition[1].toFixed(6)}
+          </div>
+        )}
+      </div>
+
+      {/* Compact Tactical Compass (BOTTOM RIGHT, RESOLUTION AWARE) */}
+      <div
+        style={{
+          position: "absolute",
+          right: "clamp(10px, 1.8vw, 24px)",
+          bottom: "clamp(10px, 2.2vh, 24px)",
+          zIndex: 1000,
+        }}
+      >
+        <div
+          style={{
+            width: "clamp(48px, 5.5vw, 64px)",
+            height: "clamp(48px, 5.5vw, 64px)",
+            borderRadius: "50%",
+            background: "rgba(15, 23, 42, 0.8)",
+            border: "2px solid #38bdf8",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 0 15px rgba(56, 189, 248, 0.2)",
+          }}
+        >
+          <svg width="72%" height="72%" viewBox="0 0 64 64">
+            <circle
+              cx="32"
+              cy="32"
+              r="28"
+              fill="none"
+              stroke="rgba(56, 189, 248, 0.2)"
+              strokeWidth="1"
+            />
+            <path d="M32 10 L36 32 L32 35 L28 32 Z" fill="#ef4444" />
+            <path d="M32 54 L28 32 L32 29 L36 32 Z" fill="#94a3b8" />
+            <text
+              x="32"
+              y="16"
+              textAnchor="middle"
+              fontSize="9"
+              fill="#ef4444"
+              fontWeight="bold"
+            >
+              N
+            </text>
+          </svg>
+        </div>
+      </div>
+      <MapOverlaysPanel
+        dfRangeColor={dfRangeColor}
+        showTransparencySlider={showTransparencySlider}
+        onToggleTransparencySlider={() =>
+          setShowTransparencySlider((current) => !current)
+        }
+        jammerPopupAlpha={jammerPopupAlpha}
+        onJammerPopupAlphaChange={setJammerPopupAlpha}
+        showJammerColorPicker={showJammerColorPicker}
+        onToggleJammerColorPicker={() =>
+          setShowJammerColorPicker((current) => !current)
+        }
+        jammerRangeColor={jammerRangeColor}
+        onJammerRangeColorChange={setJammerRangeColor}
+        showDfColorPicker={showDfColorPicker}
+        onToggleDfColorPicker={() =>
+          setShowDfColorPicker((current) => !current)
+        }
+        onDfRangeColorChange={setDfRangeColor}
+        showBaseMapSelector={showBaseMapSelector}
+        onToggleBaseMapSelector={() =>
+          setShowBaseMapSelector((current) => !current)
+        }
+        baseMapId={baseMapId}
+        onBaseMapSelectionChange={handleBaseMapSelectionChange}
+        isOfflineBaseMap={isOfflineBaseMap}
+        baseMapTileErrors={baseMapTileErrors}
+        autoOfflineFallbackActive={autoOfflineFallbackActive}
+        navigatorOnline={
+          typeof navigator !== "undefined" ? navigator.onLine : false
+        }
+        currentViewAvailable={Boolean(currentView)}
+        onSaveCurrentView={() => {
+          if (!currentView) {
+            return;
+          }
+          setSavedView(currentView);
+        }}
+        hasSavedView={Boolean(savedView)}
+        onResetView={handleResetView}
+        showAssets={showAssets}
+        onToggleAssets={() => setShowAssets((current) => !current)}
+        showSignals={showSignals}
+        onToggleSignals={() => setShowSignals((current) => !current)}
+        showHeatOverlay={showHeatOverlay}
+        onToggleHeatOverlay={() => setShowHeatOverlay((current) => !current)}
+        showTriangulationOverlay={showTriangulationOverlay}
+        onToggleTriangulationOverlay={() =>
+          setShowTriangulationOverlay((current) => !current)
+        }
+        showNodeLabels={showNodeLabels}
+        onToggleNodeLabels={() => setShowNodeLabels((current) => !current)}
+        showAlerts={showAlerts}
+        onToggleAlerts={() => setShowAlerts((current) => !current)}
+        activeDrawShape={activeDrawShape}
+        activeShapeMenuTop={activeShapeMenuTop}
+        activeShapeColor={activeShapeColor}
+        activeShapeLabel={activeShapeLabel}
+        onActiveShapeColorChange={handleActiveShapeColorChange}
+        mousePosition={mousePosition}
+        assetTypeLegend={assetTypeLegend}
+        triangulationLegendEntries={triangulationLegendEntries}
+        showAssetLegend={showAssetLegend}
+        onToggleAssetLegend={() => setShowAssetLegend((current) => !current)}
+      />
+
+      {/* Floating Selectors */}
+      {showBaseMapSelector && (
+        <div
+          style={{
+            position: "absolute",
+            left: 92,
+            top: 250,
+            zIndex: 1100,
+            background: "#1e293b",
+            padding: "10px",
+            borderRadius: "8px",
+            border: "1px solid #38bdf8",
+          }}
+        >
+          <select
+            value={baseMapId}
+            onChange={(e) => {
+              handleBaseMapSelectionChange(e.target.value);
+              setShowBaseMapSelector(false);
+            }}
+            style={{
+              background: "#0f172a",
+              color: "white",
+              border: "1px solid #334155",
+              padding: "4px",
+            }}
+          >
+            {BASE_MAP_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       )}
     </div>
-
-    {/* Compact Tactical Compass (BOTTOM RIGHT, RESOLUTION AWARE) */}
-    <div
-      style={{
-        position: "absolute",
-        right: "clamp(10px, 1.8vw, 24px)",
-        bottom: "clamp(10px, 2.2vh, 24px)",
-        zIndex: 1000,
-      }}
-    >
-      <div style={{
-        width: "clamp(48px, 5.5vw, 64px)",
-        height: "clamp(48px, 5.5vw, 64px)",
-        borderRadius: "50%", background: "rgba(15, 23, 42, 0.8)", border: "2px solid #38bdf8",
-        display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 15px rgba(56, 189, 248, 0.2)"
-      }}>
-        <svg width="72%" height="72%" viewBox="0 0 64 64">
-          <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(56, 189, 248, 0.2)" strokeWidth="1" />
-          <path d="M32 10 L36 32 L32 35 L28 32 Z" fill="#ef4444" />
-          <path d="M32 54 L28 32 L32 29 L36 32 Z" fill="#94a3b8" />
-          <text x="32" y="16" textAnchor="middle" fontSize="9" fill="#ef4444" fontWeight="bold">N</text>
-        </svg>
-      </div>
-    </div>
-    <MapOverlaysPanel
-      dfRangeColor={dfRangeColor}
-      showTransparencySlider={showTransparencySlider}
-      onToggleTransparencySlider={() => setShowTransparencySlider((current) => !current)}
-      jammerPopupAlpha={jammerPopupAlpha}
-      onJammerPopupAlphaChange={setJammerPopupAlpha}
-      showJammerColorPicker={showJammerColorPicker}
-      onToggleJammerColorPicker={() => setShowJammerColorPicker((current) => !current)}
-      jammerRangeColor={jammerRangeColor}
-      onJammerRangeColorChange={setJammerRangeColor}
-      showDfColorPicker={showDfColorPicker}
-      onToggleDfColorPicker={() => setShowDfColorPicker((current) => !current)}
-      onDfRangeColorChange={setDfRangeColor}
-      showBaseMapSelector={showBaseMapSelector}
-      onToggleBaseMapSelector={() => setShowBaseMapSelector((current) => !current)}
-      baseMapId={baseMapId}
-      onBaseMapSelectionChange={handleBaseMapSelectionChange}
-      isOfflineBaseMap={isOfflineBaseMap}
-      baseMapTileErrors={baseMapTileErrors}
-      autoOfflineFallbackActive={autoOfflineFallbackActive}
-      navigatorOnline={typeof navigator !== "undefined" ? navigator.onLine : false}
-      currentViewAvailable={Boolean(currentView)}
-      onSaveCurrentView={() => {
-        if (!currentView) {
-          return;
-        }
-        setSavedView(currentView);
-      }}
-      hasSavedView={Boolean(savedView)}
-      onResetView={handleResetView}
-      showAssets={showAssets}
-      onToggleAssets={() => setShowAssets((current) => !current)}
-      showSignals={showSignals}
-      onToggleSignals={() => setShowSignals((current) => !current)}
-      showHeatOverlay={showHeatOverlay}
-      onToggleHeatOverlay={() => setShowHeatOverlay((current) => !current)}
-      showTriangulationOverlay={showTriangulationOverlay}
-      onToggleTriangulationOverlay={() => setShowTriangulationOverlay((current) => !current)}
-      showNodeLabels={showNodeLabels}
-      onToggleNodeLabels={() => setShowNodeLabels((current) => !current)}
-      showAlerts={showAlerts}
-      onToggleAlerts={() => setShowAlerts((current) => !current)}
-      activeDrawShape={activeDrawShape}
-      activeShapeMenuTop={activeShapeMenuTop}
-      activeShapeColor={activeShapeColor}
-      activeShapeLabel={activeShapeLabel}
-      onActiveShapeColorChange={handleActiveShapeColorChange}
-      mousePosition={mousePosition}
-      assetTypeLegend={assetTypeLegend}
-      triangulationLegendEntries={triangulationLegendEntries}
-      showAssetLegend={showAssetLegend}
-      onToggleAssetLegend={() => setShowAssetLegend((current) => !current)}
-    />
-
-    {/* Floating Selectors */}
-    {showBaseMapSelector && (
-      <div style={{ position: "absolute", left: 92, top: 250, zIndex: 1100, background: "#1e293b", padding: "10px", borderRadius: "8px", border: "1px solid #38bdf8" }}>
-        <select value={baseMapId} onChange={(e) => { handleBaseMapSelectionChange(e.target.value); setShowBaseMapSelector(false); }}
-          style={{ background: "#0f172a", color: "white", border: "1px solid #334155", padding: "4px" }}>
-          {BASE_MAP_OPTIONS.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-        </select>
-      </div>
-    )}
-  </div>
-);
+  );
 }
