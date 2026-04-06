@@ -13,7 +13,7 @@ import DeviceIdentificationPanel from "../../components/operator-dashboard/Devic
 import RssiMonitorPanel from "../../components/operator-dashboard/RssiMonitorPanel";
 import RfGeolocationPanel from "../../components/operator-dashboard/RfGeolocationPanel";
 import AlertsEventPanel from "../../components/operator-dashboard/AlertsEventPanel";
-import DFMonitoringConsole from "../../components/operator-dashboard/DFMonitoringConsole";
+
 import HistoricalAnalyticsPanel from "../../components/operator-dashboard/HistoricalAnalyticsPanel";
 import DirectionFinderPanel from "../../components/operator-dashboard/DirectionFinderPanel";
 import StatusPanel, { type DashboardStatus } from "../../components/operator-dashboard/StatusPanel";
@@ -88,18 +88,10 @@ const FALLBACK_SENSORS: DfSensorConfig[] = [
 function parseApiErrorMessage(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
     const detail = error.response?.data?.detail;
-    if (typeof detail === "string" && detail.trim().length > 0) {
-      return detail;
-    }
-    if (typeof error.message === "string" && error.message.trim().length > 0) {
-      return error.message;
-    }
+    if (typeof detail === "string" && detail.trim().length > 0) return detail;
+    if (typeof error.message === "string" && error.message.trim().length > 0) return error.message;
   }
-
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-
+  if (error instanceof Error && error.message.trim().length > 0) return error.message;
   return fallback;
 }
 
@@ -118,10 +110,7 @@ function isDirectionFinderAsset(asset: AssetRecord): boolean {
 }
 
 function resolveAlertsWsUrl(): string {
-  if (typeof window === "undefined") {
-    return "ws://localhost:8000/ws/alerts";
-  }
-
+  if (typeof window === "undefined") return "ws://localhost:8000/ws/alerts";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${window.location.hostname}:8000/ws/alerts`;
 }
@@ -139,13 +128,319 @@ function dfAssetsToSensors(dfAssets: AssetRecord[]): DfSensorConfig[] {
 
 type TabType = "operations" | "simulation";
 
+// ─── Inline style constants ──────────────────────────────────────────────────
+const SIDEBAR_WIDTH = 260;
+const RIGHT_PANEL_WIDTH = 360;
+
+const css = {
+  shell: {
+    display: "flex",
+    flexDirection: "column" as const,
+    height: "100vh",
+    background: "#090d14",
+    color: "#c8d6e5",
+    fontFamily: "'Rajdhani', 'Share Tech Mono', monospace",
+    overflow: "hidden",
+  },
+  topBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 44,
+    padding: "0 16px",
+    background: "#0b1220",
+    borderBottom: "1px solid #1a2840",
+    flexShrink: 0,
+    gap: 12,
+  },
+  topBarTitle: {
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: "0.18em",
+    color: "#5bc8f5",
+    textTransform: "uppercase" as const,
+  },
+  tabRow: {
+    display: "flex",
+    gap: 2,
+    alignItems: "center",
+  },
+  statusDot: (online: boolean) => ({
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: online ? "#2ddc6e" : "#f5a623",
+    boxShadow: online ? "0 0 6px #2ddc6e" : "0 0 6px #f5a623",
+    display: "inline-block",
+    marginRight: 6,
+  }),
+  body: {
+    display: "flex",
+    flex: 1,
+    overflow: "hidden",
+  },
+  // LEFT SIDEBAR
+  sidebar: {
+    width: SIDEBAR_WIDTH,
+    flexShrink: 0,
+    background: "#0b1220",
+    borderRight: "1px solid #1a2840",
+    display: "flex",
+    flexDirection: "column" as const,
+    overflow: "hidden",
+  },
+  sidebarHeader: {
+    padding: "10px 14px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.2em",
+    color: "#3d6080",
+    textTransform: "uppercase" as const,
+    borderBottom: "1px solid #1a2840",
+    background: "#0d1828",
+  },
+  sidebarScroll: {
+    flex: 1,
+    overflowY: "auto" as const,
+    padding: "8px 0",
+  },
+  deviceGroup: {
+    padding: "6px 14px 2px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.14em",
+    color: "#3d6080",
+    textTransform: "uppercase" as const,
+  },
+  deviceItem: (active: boolean) => ({
+    padding: "8px 14px",
+    cursor: "pointer",
+    background: active ? "rgba(91,200,245,0.07)" : "transparent",
+    borderLeft: active ? "2px solid #5bc8f5" : "2px solid transparent",
+    transition: "all 0.15s",
+  }),
+  deviceName: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#c8d6e5",
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+  },
+  deviceMeta: {
+    fontSize: 10,
+    color: "#3d6080",
+    marginTop: 2,
+    lineHeight: 1.5,
+  },
+  // CENTER MAP
+  center: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column" as const,
+    overflow: "hidden",
+    position: "relative" as const,
+  },
+  mapHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "6px 14px",
+    background: "#0b1220",
+    borderBottom: "1px solid #1a2840",
+    fontSize: 11,
+    flexShrink: 0,
+  },
+  mapLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.12em",
+    color: "#8aaabf",
+    textTransform: "uppercase" as const,
+  },
+  activeBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.1em",
+    color: "#2ddc6e",
+    border: "1px solid #2ddc6e",
+    borderRadius: 3,
+    padding: "1px 7px",
+    textTransform: "uppercase" as const,
+  },
+  mapArea: {
+    flex: 1,
+    overflow: "hidden",
+    position: "relative" as const,
+  },
+  bottomStrip: {
+    flexShrink: 0,
+    background: "#0b1220",
+    borderTop: "1px solid #1a2840",
+  },
+  bottomStripHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "6px 14px",
+    borderBottom: "1px solid #1a2840",
+  },
+  freqTableWrap: {
+    overflowX: "auto" as const,
+    maxHeight: 160,
+    overflowY: "auto" as const,
+  },
+  freqTable: {
+    width: "100%",
+    borderCollapse: "collapse" as const,
+    fontSize: 11,
+  },
+  freqTh: {
+    padding: "5px 12px",
+    textAlign: "left" as const,
+    color: "#3d6080",
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    borderBottom: "1px solid #1a2840",
+    whiteSpace: "nowrap" as const,
+    fontSize: 10,
+  },
+  freqTd: {
+    padding: "5px 12px",
+    borderBottom: "1px solid #111e2e",
+    whiteSpace: "nowrap" as const,
+    color: "#c8d6e5",
+  },
+  // RIGHT PANEL
+  rightPanel: {
+    width: RIGHT_PANEL_WIDTH,
+    flexShrink: 0,
+    background: "#0b1220",
+    borderLeft: "1px solid #1a2840",
+    display: "flex",
+    flexDirection: "column" as const,
+    overflow: "hidden",
+  },
+  rpHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "6px 14px",
+    background: "#0d1828",
+    borderBottom: "1px solid #1a2840",
+    fontSize: 11,
+    flexShrink: 0,
+  },
+  rpTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.14em",
+    color: "#8aaabf",
+    textTransform: "uppercase" as const,
+  },
+  rpScroll: {
+    flex: 1,
+    overflowY: "auto" as const,
+    display: "flex",
+    flexDirection: "column" as const,
+  },
+  rpSection: {
+    borderBottom: "1px solid #1a2840",
+    flexShrink: 0,
+  },
+  rpSectionHeader: {
+    padding: "6px 14px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.14em",
+    color: "#3d6080",
+    textTransform: "uppercase" as const,
+    background: "#0d1828",
+  },
+  rpContent: {
+    padding: "10px 14px",
+  },
+  // Tab button
+  tabBtn: (active: boolean) => ({
+    padding: "4px 14px",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase" as const,
+    background: active ? "rgba(91,200,245,0.12)" : "transparent",
+    color: active ? "#5bc8f5" : "#3d6080",
+    border: active ? "1px solid rgba(91,200,245,0.3)" : "1px solid transparent",
+    borderRadius: 3,
+    cursor: "pointer",
+    transition: "all 0.15s",
+  }),
+  // Simulation full-width layout
+  simBody: {
+    flex: 1,
+    overflow: "auto",
+    padding: 16,
+    display: "grid",
+    gap: 14,
+  },
+};
+
+// ─── Small reusable sub-components ───────────────────────────────────────────
+
+function SidebarDevice({
+  asset,
+  isSelected,
+  onClick,
+}: {
+  asset: AssetRecord;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  const online = true; // derive from asset if you have a status field
+  return (
+    <div style={css.deviceItem(isSelected)} onClick={onClick}>
+      <div style={css.deviceName}>
+        <span style={css.statusDot(online)} />
+        {asset.name}
+      </div>
+      <div style={css.deviceMeta}>
+        Location: {asset.latitude?.toFixed(4)}, {asset.longitude?.toFixed(4)}
+        <br />
+        Type: {asset.type ?? "DF"}
+      </div>
+    </div>
+  );
+}
+
+function ConnectionBadge({ connected }: { connected: boolean }) {
+  return (
+    <span
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.1em",
+        color: connected ? "#2ddc6e" : "#f5a623",
+        textTransform: "uppercase",
+      }}
+    >
+      <span style={css.statusDot(connected)} />
+      {connected ? "Connected" : "Reconnecting"}
+    </span>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function OperatorUnifiedDashboardPage() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>("operations");
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
-  // === OPERATIONS TAB STATE ===
+  // === STATE (unchanged from original) ===
   const [fileSourceNode, setFileSourceNode] = useState("operator_rf_file_01");
   const [streamSourceNode, setStreamSourceNode] = useState("operator_rf_stream_01");
   const [streamUrl, setStreamUrl] = useState("");
@@ -153,11 +448,9 @@ export default function OperatorUnifiedDashboardPage() {
   const [streamSessionId, setStreamSessionId] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [simulationMode, setSimulationMode] = useState(false);
-
   const [uploadingFile, setUploadingFile] = useState(false);
   const [streamBusy, setStreamBusy] = useState(false);
   const [telemetryLoading, setTelemetryLoading] = useState(true);
-
   const [telemetryError, setTelemetryError] = useState<string | null>(null);
   const [spectrumBins, setSpectrumBins] = useState<SmsSpectrumOccupancyBin[]>([]);
   const [detections, setDetections] = useState<SmsDetectionRecord[]>([]);
@@ -167,47 +460,6 @@ export default function OperatorUnifiedDashboardPage() {
   const [triangulation, setTriangulation] = useState<TriangulationResult | null>(null);
   const [triangulations, setTriangulations] = useState<TriangulationResult[]>([]);
   const [lastTelemetryUpdate, setLastTelemetryUpdate] = useState<string | null>(null);
-
-  const updateSpectrumBinsWithDetection = useCallback((d: { freq?: number | null; power?: number | null }) => {
-    if (typeof d.freq !== "number" || Number.isNaN(d.freq)) {
-      return;
-    }
-
-    const incomingHz = Math.round(d.freq * 1_000_000);
-    if (!Number.isFinite(incomingHz) || incomingHz <= 0) {
-      return;
-    }
-
-    const incomingPower = typeof d.power === "number" && Number.isFinite(d.power) ? d.power : undefined;
-
-    setSpectrumBins((previous) => {
-      const freqTolerance = 500_000; // 0.5 MHz tolerance to match nearby bins
-      const binIndex = previous.findIndex((bin) => Math.abs(bin.frequency_hz - incomingHz) <= freqTolerance);
-
-      if (binIndex === -1) {
-        const newBin = {
-          frequency_hz: incomingHz,
-          detection_count: 1,
-          max_power_dbm: incomingPower ?? null,
-        };
-        return [...previous, newBin].sort((a, b) => a.frequency_hz - b.frequency_hz).slice(-800);
-      }
-
-      const currentBin = previous[binIndex];
-      const nextBin = {
-        ...currentBin,
-        detection_count: currentBin.detection_count + 1,
-        max_power_dbm: incomingPower !== undefined
-          ? Math.max(currentBin.max_power_dbm ?? Number.NEGATIVE_INFINITY, incomingPower)
-          : currentBin.max_power_dbm,
-      };
-
-      const next = [...previous];
-      next[binIndex] = nextBin;
-      return next;
-    });
-  }, []);
-
   const [status, setStatus] = useState<DashboardStatus>({
     mode: "idle",
     sourceNode: "",
@@ -226,7 +478,7 @@ export default function OperatorUnifiedDashboardPage() {
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef(0);
 
-  // === SIMULATION TAB STATE ===
+  // === SIMULATION STATE ===
   const [centerFrequencyMhz, setCenterFrequencyMhz] = useState(433.92);
   const [noiseFloorDbm, setNoiseFloorDbm] = useState(-102);
   const [realDfAssets, setRealDfAssets] = useState<AssetRecord[]>([]);
@@ -234,13 +486,15 @@ export default function OperatorUnifiedDashboardPage() {
   useEffect(() => {
     getAssets()
       .then((res) => {
-        const dfAssets = res.data.filter(
-          (a) => (a.type ?? "").toUpperCase() === "DIRECTION_FINDER" &&
-            typeof a.latitude === "number" && typeof a.longitude === "number"
+        const dfA = res.data.filter(
+          (a) =>
+            (a.type ?? "").toUpperCase() === "DIRECTION_FINDER" &&
+            typeof a.latitude === "number" &&
+            typeof a.longitude === "number"
         );
-        setRealDfAssets(dfAssets);
+        setRealDfAssets(dfA);
       })
-      .catch(() => { /* keep empty → fallback sensors used */ });
+      .catch(() => {});
   }, []);
 
   const simulationConfig = useMemo<SimulationConfig>(
@@ -269,7 +523,7 @@ export default function OperatorUnifiedDashboardPage() {
           bandwidthHz: 220_000,
           basePowerDbm: -58,
           fadeDepthDb: 7,
-          fadeRateHz: 0.20,
+          fadeRateHz: 0.2,
           driftHz: 65_000,
           driftRateHz: 0.08,
           initialLocation: { latitude: 12.9724, longitude: 77.5982 },
@@ -315,12 +569,11 @@ export default function OperatorUnifiedDashboardPage() {
   const simulation = useSignalSimulation(simulationConfig);
   const latestFrame = simulation.state.latestFrame;
 
-  // === OPERATIONS TAB HANDLERS ===
+  // === PERMISSION HELPERS ===
   const hasPermission = useCallback(
     (requiredPermission: string) => {
       const permissions = user?.permissions ?? [];
       const [requiredResource, requiredAction] = requiredPermission.split(":");
-
       return (
         permissions.includes(requiredPermission) ||
         permissions.includes(`${requiredResource}:*`) ||
@@ -335,6 +588,46 @@ export default function OperatorUnifiedDashboardPage() {
   const canWriteSms = hasPermission("sms:write");
   const canRenderTelemetry = canReadSms || simulationMode;
 
+  // === HELPERS (unchanged from original) ===
+  const updateSpectrumBinsWithDetection = useCallback(
+    (d: { freq?: number | null; power?: number | null }) => {
+      if (typeof d.freq !== "number" || Number.isNaN(d.freq)) return;
+      const incomingHz = Math.round(d.freq * 1_000_000);
+      if (!Number.isFinite(incomingHz) || incomingHz <= 0) return;
+      const incomingPower =
+        typeof d.power === "number" && Number.isFinite(d.power) ? d.power : undefined;
+      setSpectrumBins((previous) => {
+        const freqTolerance = 500_000;
+        const binIndex = previous.findIndex(
+          (bin) => Math.abs(bin.frequency_hz - incomingHz) <= freqTolerance
+        );
+        if (binIndex === -1) {
+          const newBin = {
+            frequency_hz: incomingHz,
+            detection_count: 1,
+            max_power_dbm: incomingPower ?? null,
+          };
+          return [...previous, newBin]
+            .sort((a, b) => a.frequency_hz - b.frequency_hz)
+            .slice(-800);
+        }
+        const currentBin = previous[binIndex];
+        const nextBin = {
+          ...currentBin,
+          detection_count: currentBin.detection_count + 1,
+          max_power_dbm:
+            incomingPower !== undefined
+              ? Math.max(currentBin.max_power_dbm ?? Number.NEGATIVE_INFINITY, incomingPower)
+              : currentBin.max_power_dbm,
+        };
+        const next = [...previous];
+        next[binIndex] = nextBin;
+        return next;
+      });
+    },
+    []
+  );
+
   const applyIngestStatus = useCallback(
     (
       payload: {
@@ -344,11 +637,7 @@ export default function OperatorUnifiedDashboardPage() {
         node_health: { source_node: string; online: boolean };
       },
       mode: "file" | "stream",
-      options: {
-        fileName?: string;
-        streamUrl?: string;
-        message: string;
-      }
+      options: { fileName?: string; streamUrl?: string; message: string }
     ) => {
       setStatus((previous) => ({
         ...previous,
@@ -375,13 +664,18 @@ export default function OperatorUnifiedDashboardPage() {
     setDfAssets(snapshot.directionFinderAssets);
     setHeatCells(snapshot.heatCells);
     setTriangulation(snapshot.triangulation);
-    setTriangulations(snapshot.triangulations.length > 0 ? snapshot.triangulations : snapshot.triangulation ? [snapshot.triangulation] : []);
+    setTriangulations(
+      snapshot.triangulations.length > 0
+        ? snapshot.triangulations
+        : snapshot.triangulation
+        ? [snapshot.triangulation]
+        : []
+    );
     setLastTelemetryUpdate(snapshot.lastUpdatedAt);
     setTelemetryError(null);
     setTelemetryLoading(false);
     setStreamSessionId(null);
     setStreamActive(false);
-
     setStatus((previous) => ({
       ...previous,
       mode: "idle",
@@ -397,46 +691,52 @@ export default function OperatorUnifiedDashboardPage() {
     }));
   }, []);
 
-  const refreshTelemetry = useCallback(async (silent = false) => {
-    if (isDashboardSimulationActive()) {
-      setTelemetryLoading(false);
-      return;
-    }
-
-    if (!canReadSms) {
-      setTelemetryLoading(false);
-      return;
-    }
-
-    try {
-      if (!silent) {
-        setTelemetryLoading(true);
+  const refreshTelemetry = useCallback(
+    async (silent = false) => {
+      if (isDashboardSimulationActive()) {
+        setTelemetryLoading(false);
+        return;
       }
-      setTelemetryError(null);
-      const [binsResponse, detectionsResponse, assetsResponse, alertsResponse, heatResponse, triangulationResponse] = await Promise.all([
-        getSpectrumOccupancy(120, 240),
-        getSmsDetections({ limit: 250 }),
-        getAssets(),
-        getAlerts().catch(() => ({ data: [] as AlertRecord[] })),
-        getHeatMap().catch(() => ({ data: [] as HeatCell[] })),
-        getTriangulation().catch(() => ({ data: null as TriangulationResult | null })),
-      ]);
+      if (!canReadSms) {
+        setTelemetryLoading(false);
+        return;
+      }
+      try {
+        if (!silent) setTelemetryLoading(true);
+        setTelemetryError(null);
+        const [
+          binsResponse,
+          detectionsResponse,
+          assetsResponse,
+          alertsResponse,
+          heatResponse,
+          triangulationResponse,
+        ] = await Promise.all([
+          getSpectrumOccupancy(120, 240),
+          getSmsDetections({ limit: 250 }),
+          getAssets(),
+          getAlerts().catch(() => ({ data: [] as AlertRecord[] })),
+          getHeatMap().catch(() => ({ data: [] as HeatCell[] })),
+          getTriangulation().catch(() => ({ data: null as TriangulationResult | null })),
+        ]);
+        setSpectrumBins(binsResponse.data);
+        setDetections(detectionsResponse.data);
+        setDfAssets(assetsResponse.data.filter(isDirectionFinderAsset));
+        setAlerts(alertsResponse.data);
+        setHeatCells(heatResponse.data);
+        setTriangulation(triangulationResponse.data);
+        setTriangulations(triangulationResponse.data ? [triangulationResponse.data] : []);
+        setLastTelemetryUpdate(new Date().toISOString());
+      } catch (error) {
+        setTelemetryError(parseApiErrorMessage(error, "Failed to load RF/DF telemetry."));
+      } finally {
+        setTelemetryLoading(false);
+      }
+    },
+    [canReadSms]
+  );
 
-      setSpectrumBins(binsResponse.data);
-      setDetections(detectionsResponse.data);
-      setDfAssets(assetsResponse.data.filter(isDirectionFinderAsset));
-      setAlerts(alertsResponse.data);
-      setHeatCells(heatResponse.data);
-      setTriangulation(triangulationResponse.data);
-      setTriangulations(triangulationResponse.data ? [triangulationResponse.data] : []);
-      setLastTelemetryUpdate(new Date().toISOString());
-    } catch (error) {
-      setTelemetryError(parseApiErrorMessage(error, "Failed to load RF/DF telemetry."));
-    } finally {
-      setTelemetryLoading(false);
-    }
-  }, [canReadSms]);
-
+  // === EFFECTS (unchanged from original) ===
   useEffect(() => {
     const unsubscribe = subscribeDashboardSimulation((snapshot) => {
       if (!snapshot) {
@@ -444,22 +744,15 @@ export default function OperatorUnifiedDashboardPage() {
         void refreshTelemetry(false);
         return;
       }
-
       setSimulationMode(true);
       applySimulationSnapshot(snapshot);
     });
-
     if (isDashboardSimulationActive()) {
       setSimulationMode(true);
       const snapshot = getDashboardSimulationSnapshot();
-      if (snapshot) {
-        applySimulationSnapshot(snapshot);
-      }
+      if (snapshot) applySimulationSnapshot(snapshot);
     }
-
-    return () => {
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, [applySimulationSnapshot, refreshTelemetry]);
 
   useEffect(() => {
@@ -467,17 +760,12 @@ export default function OperatorUnifiedDashboardPage() {
       setTelemetryLoading(false);
       return;
     }
-
     void refreshTelemetry(false);
-
     const loadExistingSession = async () => {
       try {
         const response = await getStreamSessions();
         const first = response.data[0];
-        if (!first) {
-          return;
-        }
-
+        if (!first) return;
         setStreamSessionId(first.session_id);
         setStreamActive(true);
         setStreamUrl(first.stream_url);
@@ -491,28 +779,20 @@ export default function OperatorUnifiedDashboardPage() {
           message: `Recovered active stream session ${first.session_id.slice(0, 8)}.`,
           updatedAt: new Date().toISOString(),
         }));
-      } catch {
-        // Ignore session restore failures and keep dashboard usable.
-      }
+      } catch {}
     };
-
     void loadExistingSession();
   }, [canReadSms, simulationMode, refreshTelemetry]);
 
   useEffect(() => {
-    if (!canReadSms || simulationMode) {
-      return;
-    }
-
+    if (!canReadSms || simulationMode) return;
     const connectLiveSocket = () => {
       const websocket = new WebSocket(resolveSmsLiveWsUrl());
       liveSocketRef.current = websocket;
-
       websocket.onopen = () => {
         reconnectAttemptRef.current = 0;
         setWsConnected(true);
       };
-
       websocket.onmessage = (event) => {
         let payload: SmsLiveEvent | null = null;
         try {
@@ -520,18 +800,10 @@ export default function OperatorUnifiedDashboardPage() {
         } catch {
           return;
         }
-
-        if (!payload || typeof payload.type !== "string") {
-          return;
-        }
-
+        if (!payload || typeof payload.type !== "string") return;
         const eventType = payload.type;
-        if (eventType.startsWith("sms_")) {
-          void refreshTelemetry(true);
-        }
-
+        if (eventType.startsWith("sms_")) void refreshTelemetry(true);
         const eventSession = (payload.session ?? null) as Partial<SmsStreamSession> | null;
-
         if (eventType === "sms_stream_session_started" && eventSession?.session_id) {
           setStreamSessionId(eventSession.session_id);
           setStreamActive(true);
@@ -545,7 +817,6 @@ export default function OperatorUnifiedDashboardPage() {
             updatedAt: new Date().toISOString(),
           }));
         }
-
         if (eventType === "sms_stream_session_stopped") {
           setStreamSessionId(null);
           setStreamActive(false);
@@ -556,7 +827,6 @@ export default function OperatorUnifiedDashboardPage() {
             updatedAt: new Date().toISOString(),
           }));
         }
-
         if (eventType === "sms_stream_session_error") {
           const errorText =
             typeof eventSession?.last_error === "string" && eventSession.last_error.trim().length > 0
@@ -571,12 +841,10 @@ export default function OperatorUnifiedDashboardPage() {
             updatedAt: new Date().toISOString(),
           }));
         }
-
         if (eventType === "sms_ingest") {
           const accepted = typeof payload.accepted === "number" ? payload.accepted : 0;
           const rejected = typeof payload.rejected === "number" ? payload.rejected : 0;
           const sourceNode = typeof payload.source_node === "string" ? payload.source_node : "";
-
           setStatus((previous) => ({
             ...previous,
             sourceNode: sourceNode || previous.sourceNode,
@@ -585,12 +853,9 @@ export default function OperatorUnifiedDashboardPage() {
             updatedAt: new Date().toISOString(),
             message: `Live ingest update: accepted ${accepted}, rejected ${rejected}.`,
           }));
-
           if (payload.data && typeof payload.data === "object") {
             const d = payload.data as any;
-
             updateSpectrumBinsWithDetection(d);
-
             const newDetection = {
               id: d.id ?? `sms-${Date.now()}`,
               source_node: sourceNode || "tcp_node_01",
@@ -599,159 +864,85 @@ export default function OperatorUnifiedDashboardPage() {
               doa_azimuth_deg: d.DOA ?? 0,
               timestamp_utc: d.timestamp ?? new Date().toISOString(),
             };
-
             setDetections((prev) => [newDetection, ...prev].slice(0, 200));
           }
         }
       };
-
       websocket.onclose = () => {
-        if (liveSocketRef.current === websocket) {
-          liveSocketRef.current = null;
-        }
-
+        if (liveSocketRef.current === websocket) liveSocketRef.current = null;
         setWsConnected(false);
-        if (!canReadSms) {
-          return;
-        }
-
+        if (!canReadSms) return;
         const attempt = reconnectAttemptRef.current + 1;
         reconnectAttemptRef.current = attempt;
         const delay = Math.min(WS_RECONNECT_MAX_MS, WS_RECONNECT_BASE_MS * 2 ** (attempt - 1));
-
-        reconnectTimerRef.current = window.setTimeout(() => {
-          connectLiveSocket();
-        }, delay);
+        reconnectTimerRef.current = window.setTimeout(() => connectLiveSocket(), delay);
       };
-
-      websocket.onerror = () => {
-        websocket.close();
-      };
+      websocket.onerror = () => websocket.close();
     };
-
     connectLiveSocket();
-
     return () => {
       if (reconnectTimerRef.current !== null) {
         window.clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
-
       const activeSocket = liveSocketRef.current;
       liveSocketRef.current = null;
-      if (activeSocket) {
-        activeSocket.close();
-      }
+      if (activeSocket) activeSocket.close();
     };
   }, [canReadSms, simulationMode, refreshTelemetry]);
 
-  // ✅ EXISTING WS (DO NOT TOUCH)
-// useEffect(() => {
-//   if (!canReadSms || simulationMode) {
-//     return;
-//   }
-
-//   const connectLiveSocket = () => {
-//     ...
-//   };
-
-//   connectLiveSocket();
-
-//   return () => {
-//     ...
-//   };
-// }, [canReadSms, simulationMode, refreshTelemetry]);
-
-
-// 🔥🔥 ADD YOUR NEW WEBSOCKET HERE 🔥🔥
-useEffect(() => {
-  const ws = new WebSocket("ws://localhost:8000/ws/rf");
-
-  ws.onopen = () => {
-    console.log("✅ RF WebSocket Connected");
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const lines = event.data.split("\n").filter(Boolean);
-      const parsed = lines.map((line: string) => JSON.parse(line));
-
-      setDetections((prev) => {
-        let updated = [...prev];
-
-        parsed.forEach((d: any) => {
-          const newDetection = {
-            id: d.id,
-            source_node: "DF Node",
-            frequency_hz: d.freq * 1_000_000,
-            power_dbm: d.power,
-            doa_azimuth_deg: d.doa,
-            timestamp_utc: d.timestamp,
-          };
-
-          const index = updated.findIndex((p) => p.id === d.id);
-
-          if (d.status === "OBSOLETE") {
-            updated = updated.filter((p) => p.id !== d.id);
-          } else if (index !== -1) {
-            updated[index] = newDetection;
-          } else {
-            updated.unshift(newDetection);
-          }
+  useEffect(() => {
+    const ws = new WebSocket("ws://localhost:8000/ws/rf");
+    ws.onopen = () => console.log("✅ RF WebSocket Connected");
+    ws.onmessage = (event) => {
+      try {
+        const lines = event.data.split("\n").filter(Boolean);
+        const parsed = lines.map((line: string) => JSON.parse(line));
+        setDetections((prev) => {
+          let updated = [...prev];
+          parsed.forEach((d: any) => {
+            const newDetection = {
+              id: d.id,
+              source_node: "DF Node",
+              frequency_hz: d.freq * 1_000_000,
+              power_dbm: d.power,
+              doa_azimuth_deg: d.doa,
+              timestamp_utc: d.timestamp,
+            };
+            const index = updated.findIndex((p) => p.id === d.id);
+            if (d.status === "OBSOLETE") {
+              updated = updated.filter((p) => p.id !== d.id);
+            } else if (index !== -1) {
+              updated[index] = newDetection;
+            } else {
+              updated.unshift(newDetection);
+            }
+          });
+          return updated.slice(0, 200);
         });
-
-        return updated.slice(0, 200);
-      });
-
-    } catch (err) {
-      console.error("❌ RF WS parse error:", err);
-    }
-  };
-
-  ws.onerror = (err) => {
-    console.error("❌ RF WS error:", err);
-  };
-
-  ws.onclose = () => {
-    console.log("🔌 RF WS disconnected");
-  };
-
-  return () => {
-    ws.close();
-  };
-}, []);
-
-
-// ✅ EXISTING FALLBACK (leave as it is)
-useEffect(() => {
-  if (!canReadSms || wsConnected || simulationMode) {
-    return;
-  }
-
-    const timer = window.setInterval(() => {
-      void refreshTelemetry(true);
-    }, WS_FALLBACK_REFRESH_MS);
-
-    return () => {
-      window.clearInterval(timer);
+      } catch (err) {
+        console.error("❌ RF WS parse error:", err);
+      }
     };
+    ws.onerror = (err) => console.error("❌ RF WS error:", err);
+    ws.onclose = () => console.log("🔌 RF WS disconnected");
+    return () => ws.close();
+  }, []);
+
+  useEffect(() => {
+    if (!canReadSms || wsConnected || simulationMode) return;
+    const timer = window.setInterval(() => void refreshTelemetry(true), WS_FALLBACK_REFRESH_MS);
+    return () => window.clearInterval(timer);
   }, [canReadSms, wsConnected, simulationMode, refreshTelemetry]);
 
   useEffect(() => {
-    if (!canReadSms || simulationMode) {
-      return;
-    }
-
+    if (!canReadSms || simulationMode) return;
     const websocket = new WebSocket(resolveAlertsWsUrl());
-    websocket.onmessage = () => {
-      void refreshTelemetry(true);
-    };
-
-    return () => {
-      websocket.close();
-    };
+    websocket.onmessage = () => void refreshTelemetry(true);
+    return () => websocket.close();
   }, [canReadSms, simulationMode, refreshTelemetry]);
 
+  // === ACTION HANDLERS (unchanged from original) ===
   const handleStopSimulationMode = useCallback(() => {
     stopDashboardSimulation();
     setSimulationMode(false);
@@ -778,17 +969,14 @@ useEffect(() => {
         }));
         return;
       }
-
       try {
         setUploadingFile(true);
         const response = await uploadRfFile(file, sourceNode || undefined);
         const payload = response.data;
-
         applyIngestStatus(payload, "file", {
           fileName: payload.filename,
           message: `File ingest complete: accepted ${payload.accepted}, rejected ${payload.rejected}.`,
         });
-
         await refreshTelemetry(true);
       } catch (error) {
         const message = parseApiErrorMessage(error, "RF file upload failed.");
@@ -817,7 +1005,6 @@ useEffect(() => {
       }));
       return;
     }
-
     const normalizedUrl = streamUrl.trim();
     if (!isHttpUrl(normalizedUrl)) {
       setStatus((previous) => ({
@@ -828,7 +1015,6 @@ useEffect(() => {
       }));
       return;
     }
-
     try {
       setStreamBusy(true);
       const response = await startStreamSession({
@@ -837,11 +1023,9 @@ useEffect(() => {
         pull_interval_seconds: 2.0,
         timeout_seconds: 10,
       });
-
       const session = response.data;
       setStreamSessionId(session.session_id);
       setStreamActive(true);
-
       setStatus((previous) => ({
         ...previous,
         mode: "stream",
@@ -879,7 +1063,6 @@ useEffect(() => {
       }));
       return;
     }
-
     try {
       setStreamBusy(true);
       await stopStreamSession(streamSessionId);
@@ -905,7 +1088,6 @@ useEffect(() => {
     }
   }, [streamSessionId, refreshTelemetry]);
 
-  // === SIMULATION TAB HANDLERS ===
   const handlePublishToDashboard = useCallback(() => {
     startDashboardSimulation(simulationConfig);
     setSimulationMode(true);
@@ -923,454 +1105,533 @@ useEffect(() => {
 
   const recentDetections = useMemo(() => detections.slice(0, 12), [detections]);
 
-  // === TAB STYLING ===
-  const tabButtonStyle = (isActive: boolean) => ({
-    padding: `${theme.spacing.md} ${theme.spacing.lg}`,
-    border: "none",
-    borderBottom: isActive ? `3px solid ${theme.colors.primary}` : "none",
-    background: isActive ? theme.colors.surfaceAlt : "transparent",
-    color: isActive ? theme.colors.primary : theme.colors.textSecondary,
-    cursor: "pointer" as const,
-    fontSize: theme.typography.body.fontSize,
-    fontWeight: isActive ? 600 : 400,
-    transition: "all 0.2s ease",
-  });
+  // ─── RENDER ────────────────────────────────────────────────────────────────
 
   return (
-    <AppLayout>
-      <PageContainer title="Operator Dashboard">
-        <div style={{ display: "grid", gap: theme.spacing.lg }}>
-          {/* TAB HEADER */}
-          <div
-            style={{
-              display: "flex",
-              borderBottom: `1px solid ${theme.colors.border}`,
-              gap: 0,
-            }}
-          >
+    <div style={css.shell}>
+      {/* ── TOP BAR ── */}
+      <div style={css.topBar}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={css.topBarTitle}>Direction Finder Dashboard</span>
+          <div style={css.tabRow}>
             <button
               type="button"
+              style={css.tabBtn(activeTab === "operations")}
               onClick={() => setActiveTab("operations")}
-              style={tabButtonStyle(activeTab === "operations")}
             >
               RF Operations
             </button>
             <button
               type="button"
+              style={css.tabBtn(activeTab === "simulation")}
               onClick={() => setActiveTab("simulation")}
-              style={tabButtonStyle(activeTab === "simulation")}
             >
               Simulation Lab
             </button>
           </div>
+        </div>
 
-          {/* OPERATIONS TAB CONTENT */}
-          {activeTab === "operations" && (
-            <div style={{ display: "grid", gap: theme.spacing.lg }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <h2 style={{ margin: 0 }}>RF + DF Operations Dashboard</h2>
-                <div style={{ display: "flex", gap: theme.spacing.sm, alignItems: "center" }}>
-                  <span
-                    style={{
-                      padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-                      borderRadius: theme.radius.md,
-                      border: `1px solid ${wsConnected ? theme.colors.success : theme.colors.warning}`,
-                      background: theme.colors.surfaceAlt,
-                      color: wsConnected ? theme.colors.success : theme.colors.warning,
-                      fontSize: theme.typography.body.fontSize,
-                    }}
-                  >
-                    {wsConnected ? "WebSocket Live" : "WebSocket Reconnecting"}
-                  </span>
-
-                  {simulationMode && (
-                    <span
-                      style={{
-                        padding: `${theme.spacing.xs} ${theme.spacing.sm}`,
-                        borderRadius: theme.radius.md,
-                        border: `1px solid ${theme.colors.warning}`,
-                        background: theme.colors.surfaceAlt,
-                        color: theme.colors.warning,
-                        fontSize: theme.typography.body.fontSize,
-                      }}
-                    >
-                      Simulation Feed Active
-                    </span>
-                  )}
-
-                  {simulationMode && (
-                    <button
-                      type="button"
-                      onClick={handleStopSimulationMode}
-                      style={{
-                        border: `1px solid ${theme.colors.border}`,
-                        borderRadius: theme.radius.md,
-                        background: theme.colors.surfaceAlt,
-                        color: theme.colors.textPrimary,
-                        cursor: "pointer",
-                        padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                      }}
-                    >
-                      Stop Simulation
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void refreshTelemetry(false);
-                    }}
-                    disabled={telemetryLoading}
-                    style={{
-                      border: "none",
-                      borderRadius: theme.radius.md,
-                      background: theme.colors.primary,
-                      color: "#ffffff",
-                      cursor: telemetryLoading ? "not-allowed" : "pointer",
-                      opacity: telemetryLoading ? 0.75 : 1,
-                      padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                    }}
-                  >
-                    {telemetryLoading ? "Refreshing..." : "Refresh"}
-                  </button>
-                </div>
-              </div>
-
-              <div
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {simulationMode && (
+            <>
+              <span
                 style={{
-                  display: "grid",
-                  gap: theme.spacing.lg,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: "0.1em",
+                  color: "#f5a623",
+                  border: "1px solid #f5a623",
+                  borderRadius: 3,
+                  padding: "1px 7px",
+                  textTransform: "uppercase",
                 }}
               >
-                {/* <RFUploader
-                  sourceNode={fileSourceNode}
-                  uploading={uploadingFile}
-                  disabled={!canWriteSms || simulationMode}
-                  lastUploadedFile={status.fileName ?? null}
-                  onSourceNodeChange={setFileSourceNode}
-                  onUpload={handleUpload}
-                /> */}
+                Sim Feed Active
+              </span>
+              <button
+                type="button"
+                onClick={handleStopSimulationMode}
+                style={{
+                  ...css.tabBtn(false),
+                  border: "1px solid #3d6080",
+                  color: "#8aaabf",
+                }}
+              >
+                Stop Sim
+              </button>
+            </>
+          )}
+          <ConnectionBadge connected={wsConnected} />
+          <button
+            type="button"
+            onClick={() => void refreshTelemetry(false)}
+            disabled={telemetryLoading}
+            style={{
+              ...css.tabBtn(false),
+              background: "rgba(91,200,245,0.1)",
+              border: "1px solid rgba(91,200,245,0.25)",
+              color: "#5bc8f5",
+              opacity: telemetryLoading ? 0.6 : 1,
+              cursor: telemetryLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {telemetryLoading ? "Refreshing…" : "↻ Refresh"}
+          </button>
+        </div>
+      </div>
 
-                {/* <StreamInput
-                  streamUrl={streamUrl}
-                  sourceNode={streamSourceNode}
-                  active={streamActive}
-                  busy={streamBusy}
-                  disabled={!canWriteSms || simulationMode}
-                  onStreamUrlChange={setStreamUrl}
-                  onSourceNodeChange={setStreamSourceNode}
-                  onConnect={handleConnectStream}
-                  onDisconnect={handleDisconnectStream}
-                />
-
-                <StatusPanel status={{ ...status, streamActive }} /> */}
-              </div>
-
-              {telemetryError && (
-                <Card>
-                  <div style={{ color: theme.colors.danger }}>{telemetryError}</div>
-                </Card>
+      {/* ── BODY ── */}
+      {activeTab === "operations" && (
+        <div style={css.body}>
+          {/* ── LEFT SIDEBAR: DF Devices ── */}
+          <div style={css.sidebar}>
+            <div style={css.sidebarHeader}>Direction Finder Devices</div>
+            <div style={css.sidebarScroll}>
+              {!canRenderTelemetry ? (
+                <div style={{ padding: "14px", fontSize: 11, color: "#3d6080" }}>
+                  sms:read permission required.
+                </div>
+              ) : dfAssets.length === 0 ? (
+                <div style={{ padding: "14px", fontSize: 11, color: "#3d6080" }}>
+                  No DF devices available.
+                </div>
+              ) : (
+                <>
+                  <div style={css.deviceGroup}>Devices</div>
+                  {dfAssets.map((asset) => (
+                    <SidebarDevice
+                      key={asset.id}
+                      asset={asset}
+                      isSelected={selectedDeviceId === asset.id}
+                      onClick={() =>
+                        setSelectedDeviceId((prev) => (prev === asset.id ? null : asset.id))
+                      }
+                    />
+                  ))}
+                </>
               )}
 
-              {!canRenderTelemetry && (
-                <Card>
-                  <div style={{ color: theme.colors.danger, marginBottom: theme.spacing.sm }}>
-                    Access denied: sms:read permission is required to view RF telemetry.
-                  </div>
-                  <div style={{ color: theme.colors.textSecondary }}>
-                    Contact an administrator to grant SMS read access for this operator account.
-                  </div>
-                </Card>
-              )}
-
+              {/* RSSI + Alerts summary below devices */}
               {canRenderTelemetry && (
                 <>
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: theme.spacing.lg,
-                      gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-                    }}
-                  >
-                    <SpectrumViewer bins={spectrumBins} loading={telemetryLoading} lastUpdatedAt={lastTelemetryUpdate} />
-                    <WaterfallHistoryView loading={telemetryLoading} />
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: theme.spacing.lg,
-                      gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-                    }}
-                  >
-                    <DeviceIdentificationPanel detections={detections} />
+                  <div style={{ ...css.sidebarHeader, marginTop: 8 }}>RSSI Monitor</div>
+                  <div style={{ padding: "8px 0" }}>
                     <RssiMonitorPanel detections={detections} />
                   </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: theme.spacing.lg,
-                      gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-                    }}
-                  >
-                    {/* <RfGeolocationPanel
-                      detections={detections}
-                      alerts={alerts}
-                      directionFinderAssets={dfAssets}
-                      heatCells={heatCells}
-                      triangulation={triangulation}
-                      triangulations={triangulations}
-                    /> */}
-                    <DirectionFinderPanel
-                      directionFinderAssets={dfAssets}
-                      detections={detections}
-                      triangulation={triangulation}
-                      triangulations={triangulations}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: theme.spacing.lg,
-                      gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-                    }}
-                  >
+                  <div style={{ ...css.sidebarHeader, marginTop: 4 }}>Alerts</div>
+                  <div style={{ padding: "8px 0" }}>
                     <AlertsEventPanel alerts={alerts} detections={detections} />
-                    <HistoricalAnalyticsPanel detections={detections} />
                   </div>
-
-                  <div
-  style={{
-    display: "grid",
-    gap: theme.spacing.lg,
-    gridTemplateColumns: "1fr",
-  }}
->
-  <Card>
-    <h3 style={{ marginTop: 0 }}>DF Monitoring Console</h3>
-    <div style={{ height: "500px" }}>
-      <DFMonitoringConsole />
-    </div>
-  </Card>
-</div>
-
-                  <Card>
-                    <div style={{ display: "grid", gap: theme.spacing.md }}>
-                      <h3 style={{ margin: 0 }}>Recent RF Detections</h3>
-                      <div style={{ overflowX: "auto" }}>
-                        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                          <thead>
-                            <tr>
-                              <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Time</th>
-                              <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Source</th>
-                              <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Frequency</th>
-                              <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Power</th>
-                              <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>DOA</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {recentDetections.map((detection) => (
-                              <tr key={detection.id}>
-                                <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                                  {new Date(detection.timestamp_utc).toLocaleTimeString()}
-                                </td>
-                                <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{detection.source_node}</td>
-                                <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                                  {detection.frequency_hz.toLocaleString()} Hz
-                                </td>
-                                <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                                  {typeof detection.power_dbm === "number" ? `${detection.power_dbm.toFixed(1)} dBm` : "-"}
-                                </td>
-                                <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                                  {typeof detection.doa_azimuth_deg === "number" ? `${detection.doa_azimuth_deg.toFixed(1)} deg` : "-"}
-                                </td>
-                              </tr>
-                            ))}
-                            {recentDetections.length === 0 && (
-                              <tr>
-                                <td style={{ padding: theme.spacing.sm }} colSpan={5}>
-                                  No detections available.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </Card>
                 </>
               )}
             </div>
-          )}
+          </div>
 
-          {/* SIMULATION TAB CONTENT */}
-          {activeTab === "simulation" && (
-            <div style={{ display: "grid", gap: theme.spacing.lg }}>
-              <Card>
-                <div style={{ display: "grid", gap: theme.spacing.md }}>
-                  <div>
-                    <h2 style={{ margin: 0 }}>RF and DF Signal Simulation Lab</h2>
-                    <div style={{ color: theme.colors.textSecondary, marginTop: theme.spacing.xs }}>
-                      Multi-sensor DF scenario with noisy AOA bearings, triangulation, centroid estimation, and uncertainty heatmap output.
-                    </div>
-                  </div>
+          {/* ── CENTER: Map + Frequency Table ── */}
+          <div style={css.center}>
+            <div style={css.mapHeader}>
+              <span style={css.mapLabel}>Map View</span>
+              {streamActive && <span style={css.activeBadge}>Active Scan</span>}
+              {simulationMode && <span style={css.activeBadge}>Simulation</span>}
+            </div>
 
-                  <SimulationControls
-                    running={simulation.state.running}
-                    centerFrequencyMhz={centerFrequencyMhz}
-                    noiseFloorDbm={noiseFloorDbm}
-                    onCenterFrequencyMhzChange={setCenterFrequencyMhz}
-                    onNoiseFloorDbmChange={setNoiseFloorDbm}
-                    onStart={simulation.controls.start}
-                    onStop={simulation.controls.stop}
-                    onReset={simulation.controls.reset}
-                  />
-
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: theme.spacing.sm }}>
-                    <button
-                      type="button"
-                      onClick={handlePublishToDashboard}
-                      style={{
-                        border: "none",
-                        borderRadius: theme.radius.md,
-                        background: theme.colors.primary,
-                        color: "#ffffff",
-                        padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Show on Operations Tab
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handlePublishToOperatorMap}
-                      style={{
-                        border: "none",
-                        borderRadius: theme.radius.md,
-                        background: theme.colors.success,
-                        color: "#ffffff",
-                        padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Show on Operator Map
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleStopDashboardSimulation}
-                      style={{
-                        border: `1px solid ${theme.colors.border}`,
-                        borderRadius: theme.radius.md,
-                        background: theme.colors.surfaceAlt,
-                        color: theme.colors.textPrimary,
-                        padding: `${theme.spacing.sm} ${theme.spacing.md}`,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Stop Simulation Feed
-                    </button>
-                  </div>
+            {/* Map fills the remaining vertical space */}
+            <div style={css.mapArea}>
+              {canRenderTelemetry ? (
+                <DirectionFinderPanel
+                  directionFinderAssets={dfAssets}
+                  detections={detections}
+                  triangulation={triangulation}
+                  triangulations={triangulations}
+                />
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    color: "#3d6080",
+                    fontSize: 13,
+                  }}
+                >
+                  Access denied: sms:read required.
                 </div>
-              </Card>
+              )}
+            </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gap: theme.spacing.lg,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-                }}
-              >
-                <Card>
-                  <h3 style={{ marginTop: 0 }}>Spectrum View</h3>
-                  <SpectrumChart bins={latestFrame?.spectrum ?? []} />
-                  <div style={{ marginTop: 8 }}>
-                    <CanvasWaterfall
-                      sweep={latestFrame?.spectrum ?? null}
-                      noiseFloorDbm={noiseFloorDbm}
-                      ceilingDbm={noiseFloorDbm + 80}
-                      maxRows={200}
-                      height={260}
-                      title="Waterfall History"
-                    />
-                  </div>
-                </Card>
-
-                <Card>
-                  <h3 style={{ marginTop: 0 }}>Time-Series Waveform</h3>
-                  <WaveformChart points={latestFrame?.waveform ?? []} />
-                </Card>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: theme.spacing.lg,
-                  gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
-                }}
-              >
-                <Card>
-                  <h3 style={{ marginTop: 0 }}>Direction / Angle Indicator</h3>
-                  <DirectionIndicator vectors={latestFrame?.dfVectors ?? []} />
-                </Card>
-
-                <Card>
-                  <h3 style={{ marginTop: 0 }}>Simulation Events</h3>
-                  <EventPanel events={latestFrame?.events ?? []} />
-                </Card>
-              </div>
-
-              <Card>
-                <h3 style={{ marginTop: 0 }}>Active Signal Snapshot</h3>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            {/* ── Bottom strip: Frequency Finder Details ── */}
+            {canRenderTelemetry && (
+              <div style={css.bottomStrip}>
+                <div style={css.bottomStripHeader}>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      color: "#8aaabf",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Frequency Finder Details
+                  </span>
+                  <span style={{ fontSize: 10, color: "#3d6080" }}>
+                    Active Frequencies: {recentDetections.length}
+                  </span>
+                </div>
+                <div style={css.freqTableWrap}>
+                  <table style={css.freqTable}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Emitter</th>
-                        <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Frequency</th>
-                        <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Power</th>
-                        <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Location</th>
-                        <th style={{ textAlign: "left", padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>Track</th>
+                        {["Frequency", "Mode", "Time Detected", "Signal Strength", "Bearing", "Confidence", "Source", "Lat/Long"].map(
+                          (h) => (
+                            <th key={h} style={css.freqTh}>
+                              {h}
+                            </th>
+                          )
+                        )}
                       </tr>
                     </thead>
                     <tbody>
-                      {(latestFrame?.activeSignals ?? []).map((signal) => (
-                        <tr key={signal.emitterId}>
-                          <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>{signal.label}</td>
-                          <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                            {(signal.frequencyHz / 1_000_000).toFixed(4)} MHz
+                      {recentDetections.map((d) => (
+                        <tr
+                          key={d.id}
+                          style={{
+                            background:
+                              selectedDeviceId === d.source_node
+                                ? "rgba(91,200,245,0.06)"
+                                : "transparent",
+                          }}
+                        >
+                          <td style={{ ...css.freqTd, color: "#5bc8f5" }}>
+                            {(d.frequency_hz / 1_000_000).toFixed(3)} MHz
                           </td>
-                          <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                            {signal.powerDbm.toFixed(1)} dBm
+                          <td style={css.freqTd}>—</td>
+                          <td style={css.freqTd}>
+                            {new Date(d.timestamp_utc).toLocaleString()}
                           </td>
-                          <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                            {signal.location.latitude.toFixed(4)}, {signal.location.longitude.toFixed(4)}
+                          <td style={css.freqTd}>
+                            {typeof d.power_dbm === "number"
+                              ? `${d.power_dbm.toFixed(1)} dBm`
+                              : "—"}
                           </td>
-                          <td style={{ padding: theme.spacing.sm, borderBottom: `1px solid ${theme.colors.border}` }}>
-                            {signal.isTrackedTarget ? "Triangulated target" : `${signal.headingDeg.toFixed(0)} deg @ ${signal.speedMps.toFixed(1)} m/s`}
+                          <td style={css.freqTd}>
+                            {typeof d.doa_azimuth_deg === "number"
+                              ? `${d.doa_azimuth_deg.toFixed(1)}°`
+                              : "—"}
                           </td>
+                          <td style={css.freqTd}>—</td>
+                          <td style={css.freqTd}>{d.source_node}</td>
+                          <td style={css.freqTd}>—</td>
                         </tr>
                       ))}
-
-                      {(latestFrame?.activeSignals ?? []).length === 0 && (
+                      {recentDetections.length === 0 && (
                         <tr>
-                          <td colSpan={5} style={{ padding: theme.spacing.sm, color: theme.colors.textSecondary }}>
-                            No frame available yet.
+                          <td colSpan={8} style={{ ...css.freqTd, color: "#3d6080" }}>
+                            No detections available.
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
-              </Card>
+              </div>
+            )}
+          </div>
+
+          {/* ── RIGHT PANEL: RF Spectrum Analyser + Waterfall + Additional Panels ── */}
+          <div style={css.rightPanel}>
+            <div style={css.rpHeader}>
+              <span style={css.rpTitle}>RF Spectrum Analyser</span>
+              {lastTelemetryUpdate && (
+                <span style={{ fontSize: 9, color: "#3d6080" }}>
+                  {new Date(lastTelemetryUpdate).toLocaleTimeString()}
+                </span>
+              )}
             </div>
-          )}
+
+            <div style={css.rpScroll}>
+              {/* Spectrum */}
+              <div style={css.rpSection}>
+                <div style={css.rpSectionHeader}>Spectrum</div>
+                <div style={{ ...css.rpContent, padding: "10px 10px 4px" }}>
+                  <SpectrumViewer
+                    bins={spectrumBins}
+                    loading={telemetryLoading}
+                    lastUpdatedAt={lastTelemetryUpdate}
+                  />
+                </div>
+              </div>
+
+              {/* Waterfall */}
+              <div style={css.rpSection}>
+                <div style={css.rpSectionHeader}>Waterfall</div>
+                <div style={{ ...css.rpContent, padding: "8px 10px" }}>
+                  <WaterfallHistoryView loading={telemetryLoading} />
+                </div>
+              </div>
+
+              {/* Device Identification */}
+              <div style={css.rpSection}>
+                <div style={css.rpSectionHeader}>Device Identification</div>
+                <div style={css.rpContent}>
+                  <DeviceIdentificationPanel detections={detections} />
+                </div>
+              </div>
+
+             
+
+              {/* Historical Analytics */}
+              <div style={css.rpSection}>
+                <div style={css.rpSectionHeader}>Historical Analytics</div>
+                <div style={css.rpContent}>
+                  <HistoricalAnalyticsPanel detections={detections} />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </PageContainer>
-    </AppLayout>
+      )}
+
+      {/* ── SIMULATION TAB ── */}
+      {activeTab === "simulation" && (
+        <div style={css.simBody}>
+          {/* Controls row */}
+          <div
+            style={{
+              background: "#0b1220",
+              border: "1px solid #1a2840",
+              borderRadius: 4,
+              padding: 16,
+            }}
+          >
+            <div style={{ marginBottom: 10 }}>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 14,
+                  fontWeight: 700,
+                  letterSpacing: "0.14em",
+                  color: "#5bc8f5",
+                  textTransform: "uppercase",
+                }}
+              >
+                RF and DF Signal Simulation Lab
+              </h2>
+              <div style={{ color: "#3d6080", marginTop: 4, fontSize: 11 }}>
+                Multi-sensor DF scenario with noisy AOA bearings, triangulation, centroid estimation, and uncertainty heatmap output.
+              </div>
+            </div>
+            <SimulationControls
+              running={simulation.state.running}
+              centerFrequencyMhz={centerFrequencyMhz}
+              noiseFloorDbm={noiseFloorDbm}
+              onCenterFrequencyMhzChange={setCenterFrequencyMhz}
+              onNoiseFloorDbmChange={setNoiseFloorDbm}
+              onStart={simulation.controls.start}
+              onStop={simulation.controls.stop}
+              onReset={simulation.controls.reset}
+            />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+              {[
+                {
+                  label: "Show on Operations Tab",
+                  bg: "#1a4a6b",
+                  color: "#5bc8f5",
+                  border: "1px solid #5bc8f5",
+                  onClick: handlePublishToDashboard,
+                },
+                {
+                  label: "Show on Operator Map",
+                  bg: "#1a3a2a",
+                  color: "#2ddc6e",
+                  border: "1px solid #2ddc6e",
+                  onClick: handlePublishToOperatorMap,
+                },
+                {
+                  label: "Stop Simulation Feed",
+                  bg: "transparent",
+                  color: "#8aaabf",
+                  border: "1px solid #1a2840",
+                  onClick: handleStopDashboardSimulation,
+                },
+              ].map((btn) => (
+                <button
+                  key={btn.label}
+                  type="button"
+                  onClick={btn.onClick}
+                  style={{
+                    padding: "6px 16px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    background: btn.bg,
+                    color: btn.color,
+                    border: btn.border,
+                    borderRadius: 3,
+                    cursor: "pointer",
+                  }}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Charts row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {[
+              {
+                title: "Spectrum View",
+                children: (
+                  <>
+                    <SpectrumChart bins={latestFrame?.spectrum ?? []} />
+                    <div style={{ marginTop: 8 }}>
+                      <CanvasWaterfall
+                        sweep={latestFrame?.spectrum ?? null}
+                        noiseFloorDbm={noiseFloorDbm}
+                        ceilingDbm={noiseFloorDbm + 80}
+                        maxRows={200}
+                        height={260}
+                        title="Waterfall History"
+                      />
+                    </div>
+                  </>
+                ),
+              },
+              {
+                title: "Time-Series Waveform",
+                children: <WaveformChart points={latestFrame?.waveform ?? []} />,
+              },
+            ].map((card) => (
+              <div
+                key={card.title}
+                style={{
+                  background: "#0b1220",
+                  border: "1px solid #1a2840",
+                  borderRadius: 4,
+                  padding: 14,
+                }}
+              >
+                <h3
+                  style={{
+                    margin: "0 0 10px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.14em",
+                    color: "#8aaabf",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {card.title}
+                </h3>
+                {card.children}
+              </div>
+            ))}
+          </div>
+
+          {/* Direction + Events row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            {[
+              {
+                title: "Direction / Angle Indicator",
+                children: <DirectionIndicator vectors={latestFrame?.dfVectors ?? []} />,
+              },
+              {
+                title: "Simulation Events",
+                children: <EventPanel events={latestFrame?.events ?? []} />,
+              },
+            ].map((card) => (
+              <div
+                key={card.title}
+                style={{
+                  background: "#0b1220",
+                  border: "1px solid #1a2840",
+                  borderRadius: 4,
+                  padding: 14,
+                }}
+              >
+                <h3
+                  style={{
+                    margin: "0 0 10px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.14em",
+                    color: "#8aaabf",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {card.title}
+                </h3>
+                {card.children}
+              </div>
+            ))}
+          </div>
+
+          {/* Signal snapshot table */}
+          <div
+            style={{
+              background: "#0b1220",
+              border: "1px solid #1a2840",
+              borderRadius: 4,
+              padding: 14,
+            }}
+          >
+            <h3
+              style={{
+                margin: "0 0 10px",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.14em",
+                color: "#8aaabf",
+                textTransform: "uppercase",
+              }}
+            >
+              Active Signal Snapshot
+            </h3>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr>
+                    {["Emitter", "Frequency", "Power", "Location", "Track"].map((h) => (
+                      <th key={h} style={css.freqTh}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(latestFrame?.activeSignals ?? []).map((signal) => (
+                    <tr key={signal.emitterId}>
+                      <td style={css.freqTd}>{signal.label}</td>
+                      <td style={{ ...css.freqTd, color: "#5bc8f5" }}>
+                        {(signal.frequencyHz / 1_000_000).toFixed(4)} MHz
+                      </td>
+                      <td style={css.freqTd}>{signal.powerDbm.toFixed(1)} dBm</td>
+                      <td style={css.freqTd}>
+                        {signal.location.latitude.toFixed(4)}, {signal.location.longitude.toFixed(4)}
+                      </td>
+                      <td style={css.freqTd}>
+                        {signal.isTrackedTarget
+                          ? "Triangulated target"
+                          : `${signal.headingDeg.toFixed(0)}° @ ${signal.speedMps.toFixed(1)} m/s`}
+                      </td>
+                    </tr>
+                  ))}
+                  {(latestFrame?.activeSignals ?? []).length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ ...css.freqTd, color: "#3d6080" }}>
+                        No frame available yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
