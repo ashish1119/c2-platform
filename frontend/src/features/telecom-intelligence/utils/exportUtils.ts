@@ -309,7 +309,6 @@ export async function exportAnalyticsPDF(
       const meta: string[] = [
         `Generated: ${new Date().toLocaleString("en-IN")}`,
         `Records: ${payload.recordCount}`,
-        `Mode: ${payload.dataMode.toUpperCase()}`,
       ];
       if (payload.msisdn)  meta.push(`MSISDN: ${payload.msisdn}`);
       if (payload.dateFrom) meta.push(`From: ${payload.dateFrom}`);

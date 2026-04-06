@@ -18,6 +18,7 @@ const CrfsLivePage = lazy(() => import("./pages/CrfsLivePage"));
 const JammerControlPage = lazy(() => import("./pages/JammerControlPage"));
 const GeospatialSourcesPage = lazy(() => import("./pages/admin/GeospatialSourcesPage"));
 const TelecomIntelligencePage = lazy(() => import("./pages/TelecomIntelligencePage"));
+const DFIntelligencePage = lazy(() => import("./pages/operator/DFIntelligencePage"));
 const DeviceSelectorPage = lazy(() => import("./pages/operator/DeviceSelectorPage"));
 const ForbiddenPage = lazy(() => import("./pages/ForbiddenPage"));
 
@@ -236,6 +237,15 @@ export default function App() {
               element={
                 <ProtectedRoute requiredPermission="crfs:read">
                   <TelecomIntelligencePage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/operator/df-intelligence"
+              element={
+                <ProtectedRoute requiredPermission="crfs:read">
+                  <DFIntelligencePage />
                 </ProtectedRoute>
               }
             />
